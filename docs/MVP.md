@@ -18,7 +18,8 @@ The data source enumerates AXExtrasMenuBar items. The native status-button image
 is template-rendered by AppKit. The transparent click overlay and top proxies
 have been removed.
 
-An event tap is active for top-item dragging only while the shelf is visible.
+Top-item drag interception is enabled only while the shelf is visible; the
+event tap can remain installed while the shelf is closed.
 It has a cached hit map, skips tagged synthetic events, and does no AX queries
 in the event callback. An AppKit dragging source reports shelf-item releases in
 the top-right menu-bar area even though other apps cannot accept our drag data.
