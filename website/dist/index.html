@@ -38,22 +38,36 @@
     <p class="eyebrow"><span class="small-shelf" aria-hidden="true"><i></i><i></i><i></i></span>轻量的 macOS 菜单栏收纳工具</p>
     <h1 id="hero-title">给菜单栏，<br>留一点空白。</h1>
     <p class="intro">收起暂时用不到的图标。<br class="wide-only">需要时，一点就展开。</p>
-    <a class="button primary" href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.dmg"><svg><use href="#download"/></svg>免费下载 macOS 版</a>
-    <p class="compatibility">macOS 26 及以上 · Apple 芯片 · v0.3.0 预览版</p>
+    <a class="button primary" href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.1/ShelterBar-0.3.1-macos-arm64.dmg"><svg><use href="#download"/></svg>免费下载 macOS 版</a>
+    <p class="compatibility">macOS 26 及以上 · Apple 芯片 · v0.3.1 预览版</p>
     <a class="quiet-link" href="#install">首次安装说明 <span aria-hidden="true">↗</span></a>
   </div>
   <div class="demo-wrap">
-    <div class="desktop" aria-label="ShelterBar 收纳栏交互示意">
-      <div class="menubar"><span class="finder-name">Finder</span><span class="menu-word">文件</span><span class="menu-word">编辑</span><div class="menu-right"><button id="shelf-toggle" class="shelf-toggle" type="button" aria-label="收起收纳栏" aria-expanded="true" aria-controls="demo-shelf" title="点击展开或收起收纳栏"><svg><use href="#archive"/></svg></button><svg><use href="#wifi"/></svg><svg class="battery"><use href="#battery"/></svg><span>9:41</span></div></div>
-      <div id="demo-shelf" class="demo-shelf">
-        <div class="shelf-label"><svg><use href="#archive"/></svg><span>收纳栏</span><span class="count">3</span></div>
-        <div class="demo-apps" aria-label="简版菜单栏状态图标示意"><span class="demo-app" title="示例：音乐应用"><svg><use href="#headphones"/></svg></span><span class="demo-app" title="示例：云同步应用"><svg><use href="#cloud"/></svg></span><span class="demo-app" title="示例：效率应用"><svg><use href="#spark"/></svg></span></div>
-        <span class="shelf-tools" aria-hidden="true"><svg><use href="#pin"/></svg><span>•••</span></span>
+    <div class="desktop" role="img" aria-label="自动演示：打开收纳栏，将顶部的音乐、云同步和效率应用图标逐个拖入，保留相同的简版图标。">
+      <div class="demo-scene" aria-hidden="true">
+        <div class="menubar">
+          <span class="finder-name">Finder</span><span class="menu-word">文件</span><span class="menu-word">编辑</span>
+          <div class="menu-right">
+            <div class="menu-apps">
+              <span class="menu-slot"><span class="demo-glyph"><svg><use href="#headphones"/></svg></span></span>
+              <span class="menu-slot"><span class="demo-glyph"><svg><use href="#cloud"/></svg></span></span>
+              <span class="menu-slot"><span class="demo-glyph"><svg><use href="#spark"/></svg></span></span>
+            </div>
+            <span class="shelf-toggle"><svg><use href="#archive"/></svg></span>
+            <svg><use href="#wifi"/></svg><svg class="battery"><use href="#battery"/></svg><span>9:41</span>
+          </div>
+        </div>
+        <div class="demo-shelf">
+          <div class="shelf-label"><svg><use href="#archive"/></svg><span>收纳栏</span><span class="count">0</span></div>
+          <div class="demo-apps"><span class="demo-app"></span><span class="demo-app"></span><span class="demo-app"></span></div>
+          <span class="shelf-tools"><svg><use href="#pin"/></svg><span>•••</span></span>
+        </div>
+        <span class="demo-cursor"><span class="cursor-ring"></span><svg viewBox="0 0 24 30"><path d="M3 2 21 17l-9 1-4 9Z"/></svg></span>
+        <div class="demo-caption"><span class="caption-rule"></span><p>常用的留在上面，<br>其余的收在这里。</p></div>
+        <p class="demo-status">顶部图标，一眼可见</p>
       </div>
-      <div class="demo-caption"><span class="caption-rule"></span><p>常用的留在上面，<br>其余的收在这里。</p></div>
-      <button class="demo-control" id="demo-control" type="button"><svg><use href="#archive"/></svg><span id="demo-control-label">试试收起</span></button>
     </div>
-    <p class="demo-note">交互示意 · 点击收纳图标，试试展开与收起</p>
+    <div class="demo-note"><span>自动演示 · 展开收纳栏，逐个拖入图标</span><button class="demo-pause" type="button" aria-label="暂停演示动画" hidden>暂停</button></div>
   </div>
 </section>
 <section class="features wrap" id="features" aria-labelledby="features-title">
@@ -66,7 +80,7 @@
   <div class="principles" aria-label="产品特性"><span><svg><use href="#check"/></svg>无需账号</span><span><svg><use href="#check"/></svg>本地保存布局</span><span><svg><use href="#check"/></svg>原始菜单栏图标</span><span><svg><use href="#check"/></svg>无广告与遥测</span></div>
 </section>
 <section class="install-section" id="install" aria-labelledby="install-title"><div class="wrap install-grid">
-  <div class="section-heading" id="download"><p class="eyebrow">如何安装</p><h2 id="install-title">把一整排图标，<br>收成刚刚好。</h2><p>免费下载预览版。<br>适用于 macOS 26 及以上的 Apple 芯片 Mac。</p><a class="button primary" href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.dmg"><svg><use href="#download"/></svg>下载 ShelterBar</a><div class="download-alternatives"><a href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.zip">ZIP 版本</a><span>·</span><a href="https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.3.0">版本说明与校验值</a></div></div>
+  <div class="section-heading" id="download"><p class="eyebrow">如何安装</p><h2 id="install-title">把一整排图标，<br>收成刚刚好。</h2><p>免费下载预览版。<br>适用于 macOS 26 及以上的 Apple 芯片 Mac。</p><a class="button primary" href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.1/ShelterBar-0.3.1-macos-arm64.dmg"><svg><use href="#download"/></svg>下载 ShelterBar</a><div class="download-alternatives"><a href="https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.1/ShelterBar-0.3.1-macos-arm64.zip">ZIP 版本</a><span>·</span><a href="https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.3.1">版本说明与校验值</a></div></div>
   <ol class="steps"><li><span class="step-number">1</span><div><h3>下载并放入「应用程序」</h3><p>打开 DMG，将 ShelterBar 拖到 Applications 文件夹，再从「应用程序」中打开。</p></div></li><li><span class="step-number">2</span><div><h3>首次打开，允许此应用</h3><p>预览版尚未经过 Apple 公证。如系统阻止打开，请先关闭提示，再前往「系统设置 → 隐私与安全性」，找到 ShelterBar，点击「仍要打开」。</p></div></li><li><span class="step-number">3</span><div><h3>授予权限，开始收纳</h3><p>先开启「辅助功能」，再按应用提示允许「屏幕录制」，用于读取原始菜单栏图标。授权后如仍有提示，请退出并重新打开 ShelterBar。图标仅缓存在本机内存，不保存截图或上传。</p></div></li></ol>
 </div><div class="wrap limits"><h3>下载前了解一下</h3><p>当前为早期预览版。时钟、控制中心等系统固定项目无法收纳；部分未提供辅助功能接口的应用暂不支持。原始图标读取需要屏幕录制权限；隐藏后若系统暂时无法提供新图，会保留上次读取的状态。若首次读取失败，图标会留在顶部，避免收起后无法识别。刘海屏、多显示器和各类第三方图标的兼容性仍需更多实际验证。使用时请避免同时运行其他菜单栏管理工具。</p></div></section>
 </main>
