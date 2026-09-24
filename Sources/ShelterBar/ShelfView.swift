@@ -1,5 +1,14 @@
 import SwiftUI
 
+enum ShelfLayoutMetrics {
+    static let contentHeight: CGFloat = 54
+    static let panelHeight: CGFloat = contentHeight + 12
+    static let menuBarGap: CGFloat = 5
+    static let iconRowHeight: CGFloat = 36
+    static let dividerHeight: CGFloat = 26
+    static let cornerRadius: CGFloat = 15
+}
+
 struct ShelfView: View {
     @ObservedObject var model: ShelfViewModel
     let onActivate: (ShelfItem) -> Void
@@ -16,8 +25,12 @@ struct ShelfView: View {
                 Text("收纳栏").font(.system(size: 12, weight: .semibold))
                 Text("\(model.items.count)").font(.system(size: 10, weight: .bold, design: .rounded))
                     .padding(.horizontal, 6).padding(.vertical, 2).background(.quaternary, in: Capsule())
-            }.fixedSize()
-            Divider().frame(height: 30)
+            }
+            .fixedSize()
+            .contentShape(Rectangle())
+            .gesture(WindowDragGesture())
+            .help("拖动以移动收纳栏")
+            Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             if !model.hasAccessibilityPermission {
                 Text("允许辅助功能后，即可拖动顶部图标")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -47,12 +60,13 @@ struct ShelfView: View {
                         ForEach(model.items) { item in
                             ShelfIcon(item: item, onActivate: { onActivate(item) },
                                       onReturn: onReturn, onReorder: model.move, onDragging: onDragging)
-                                .frame(width: MenuBarIconPresentation.shelfWidth(for: item.icon), height: 42)
+                                .frame(width: MenuBarIconPresentation.shelfWidth(for: item.icon),
+                                       height: ShelfLayoutMetrics.iconRowHeight)
                         }
                     }
                 }
             }
-            Divider().frame(height: 30)
+            Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             Button { onPinChange(!model.isPinned) } label: {
                 Image(systemName: model.isPinned ? "pin.fill" : "pin").frame(width: 24, height: 24)
             }
@@ -70,10 +84,10 @@ struct ShelfView: View {
                 Image(systemName: "ellipsis.circle").frame(width: 24, height: 24)
             }.menuStyle(.borderlessButton).fixedSize().help("更多")
         }
-        .padding(.horizontal, 14).padding(.vertical, 10).frame(height: 62)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 17))
+        .padding(.horizontal, 14).padding(.vertical, 8).frame(height: ShelfLayoutMetrics.contentHeight)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ShelfLayoutMetrics.cornerRadius))
         .overlay {
-            RoundedRectangle(cornerRadius: 17)
+            RoundedRectangle(cornerRadius: ShelfLayoutMetrics.cornerRadius)
                 .strokeBorder(model.isDropTargeted ? Color.accentColor : .white.opacity(0.18),
                               lineWidth: model.isDropTargeted ? 2 : 0.5)
         }

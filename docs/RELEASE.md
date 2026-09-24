@@ -1,4 +1,4 @@
-# ShelterBar v0.2.0 预览版
+# ShelterBar v0.3.0 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 26.0 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.2.0](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.2.0) 下载 [ShelterBar-0.2.0-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/ShelterBar-0.2.0-macos-arm64.dmg)，打开后将 **ShelterBar.app** 拖入 **Applications**，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/ShelterBar-0.2.0-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.3.0](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.3.0) 下载 [ShelterBar-0.3.0-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.dmg)，打开后将 **ShelterBar.app** 拖入 **Applications**，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 首次打开时，如果 macOS 提示无法验证开发者或无法检查恶意软件，在确认下载来源及 SHA256 校验值后，可进入 **系统设置 → 隐私与安全性 → 仍要打开**，再确认“打开”。先尝试打开应用，系统才可能显示这个按钮。受管理设备可能不提供该选项；不要关闭 Gatekeeper 或移除系统安全策略。
 
@@ -21,7 +21,9 @@
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。原始图标捕获及原生第三方图标移动的完整兼容性，仍待授予权限后的真实会话验证；第三方应用、显示器配置和 macOS 差异不能仅由自动化测试确认。
 
-## v0.2.0 原始状态图标
+## v0.3.0 原生拖拽与原始状态图标
+
+本版匹配真实的菜单栏状态窗口，拖拽时分别路由按下/移动事件和释放事件，并对图标透明留白、刘海区可见范围、分隔符完整宽度以及多显示器边界进行安全检查。由 Control Center 托管的第三方状态窗口只在进程、图层和几何范围唯一匹配时使用。收纳或恢复必须通过移动后的实际几何位置验证，否则不会更改保存状态。
 
 收纳栏通过 ScreenCaptureKit 截取原始菜单栏状态图标。只有进程 PID、状态窗口及辅助功能（AX）范围严格匹配时，才捕获该单个状态图标；截图仅缓存在内存中。应用不采集音频、不录制视频、不把截图写入磁盘，也不上传截图。
 
@@ -31,7 +33,7 @@
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -40,7 +42,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.2.0-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.3.0-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -58,9 +60,9 @@ swift test --force-resolved-versions
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.2.0/ShelterBar-0.2.0-macos-arm64.dmg
-dist/releases/v0.2.0/ShelterBar-0.2.0-macos-arm64.zip
-dist/releases/v0.2.0/SHA256SUMS
+dist/releases/v0.3.0/ShelterBar-0.3.0-macos-arm64.dmg
+dist/releases/v0.3.0/ShelterBar-0.3.0-macos-arm64.zip
+dist/releases/v0.3.0/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式和中英双语安装说明。脚本校验 DMG 内部校验和、只读挂载后的内容、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。
@@ -75,7 +77,7 @@ DMG 包含应用、指向 `/Applications` 的快捷方式和中英双语安装�
 
 ## 发布检查
 
-- 将 `v0.2.0` 标记为 **Pre-release**，公开说明系统要求、两项权限、未公证状态和已知限制。
+- 将 `v0.3.0` 标记为 **Pre-release**，公开说明系统要求、两项权限、未公证状态和已知限制。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
 - 自动化测试与归档校验不等于授权后的原始图标捕获与第三方移动兼容性测试；未完成真实会话验收前，不应宣称完整兼容性已验证。

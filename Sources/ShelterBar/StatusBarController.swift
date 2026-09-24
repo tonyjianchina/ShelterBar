@@ -77,6 +77,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
                     self.mover.revealImmediately()
                     self.didRestore = false
                     self.refresh()
+                    if self.panel.isVisible { self.positionPanel(forceAnchor: true) }
                 }
             }.store(in: &subscriptions)
         pollTask = Task { @MainActor [weak self] in
@@ -105,7 +106,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.isMovable = false
+        panel.isMovable = true
+        panel.isMovableByWindowBackground = true
         panel.contentView = NSHostingView(rootView: ShelfView(
             model: model,
             onActivate: { [weak self] in self?.activate($0) },
@@ -210,7 +212,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func positionPanel() {
+    private func positionPanel(forceAnchor: Bool = false) {
         guard let cgAnchor = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
@@ -218,8 +220,16 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
         let desired: CGFloat = ready ? max(440, iconsWidth + 230) : 680
         let width = min(760, min(desired, screen.frame.width - 24))
-        let x = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
-        panel.setFrame(CGRect(x: x, y: anchor.minY - 79, width: width, height: 74), display: true)
+        let anchoredX = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
+        let anchoredY = anchor.minY - ShelfLayoutMetrics.panelHeight - ShelfLayoutMetrics.menuBarGap
+        let origin = panel.isVisible && !forceAnchor
+            ? panel.frame.origin
+            : CGPoint(x: anchoredX, y: anchoredY)
+        panel.setFrame(
+            CGRect(origin: origin,
+                   size: CGSize(width: width, height: ShelfLayoutMetrics.panelHeight)),
+            display: true
+        )
         updateMonitor()
     }
 
@@ -382,6 +392,11 @@ final class StatusBarController: NSObject, NSWindowDelegate {
               Date().timeIntervalSince(shownAt) > 0.4 else { return }
         presentation.handle(.outsideInteraction)
         if !presentation.isVisible { hideShelf() }
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard notification.object as? NSPanel === panel else { return }
+        updateMonitor()
     }
 }
 

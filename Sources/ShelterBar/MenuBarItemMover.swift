@@ -49,30 +49,43 @@ final class MenuBarItemMover {
             to: placement, readItem: item.menuBarReference.currentFrame,
             readDivider: { self.separatorFrame },
             menuBarRegion: MenuBarGeometry.menuBarRegion(containing:),
+            readInsertionFrame: { self.nativeSeparator()?.frame },
+            pickupPoint: { frame in
+                MenuBarGeometry.visibleFrame(frame).map { CGPoint(x: $0.midX, y: frame.midY) }
+            },
             requestedDropPoint: dropPoint,
             send: { frame, end in
                 guard let region = MenuBarGeometry.menuBarRegion(containing: frame),
                       region.contains(end) else { return false }
-                return await self.commandDrag(item, from: frame, to: end)
+                return await self.commandDrag(item, from: frame, to: end, placement: placement)
             }
         )
     }
 
-    private func commandDrag(_ item: ShelfItem, from frame: CGRect, to end: CGPoint) async -> Bool {
+    private func commandDrag(_ item: ShelfItem, from frame: CGRect, to end: CGPoint,
+                             placement: MenuBarPlacement) async -> Bool {
         guard !Task.isCancelled, let source = CGEventSource(stateID: .hidSystemState),
               let exposed = MenuBarGeometry.visibleFrame(frame) else { return false }
         let start = CGPoint(x: exposed.midX, y: frame.midY)
-        let windowID = matchingWindow(frame: frame)
+        let windows = MenuBarNativeWindow.currentWindows()
+        guard let nativeSource = MenuBarNativeWindow.match(axFrame: frame,
+                  clientPID: item.menuBarReference.pid, windows: windows),
+              let nativeDestination = nativeSeparator(windows: windows) else { return false }
+        guard let region = MenuBarGeometry.menuBarRegion(containing: frame),
+              MenuBarGeometry.menuBarRegion(containing: nativeSource.frame) == region,
+              MenuBarGeometry.menuBarRegion(containing: nativeDestination.frame) == region,
+              region.contains(end) else { return false }
+        // A display/layout switch between planning and this snapshot must not
+        // turn a safe insertion into an overlapping or cross-screen release.
+        if placement == .collected {
+            guard end.x + (frame.maxX - start.x) < nativeDestination.frame.minX else { return false }
+        } else {
+            guard end.x - (start.x - frame.minX) > nativeDestination.frame.maxX else { return false }
+        }
+        let events = MenuBarDragEvents(source: source, sourceWindow: nativeSource.id,
+                                       destinationWindow: nativeDestination.id, ownerPID: nativeSource.pid)
         func event(_ type: CGEventType, _ point: CGPoint) -> CGEvent? {
-            let event = CGEvent(mouseEventSource: source, mouseType: type,
-                                mouseCursorPosition: point, mouseButton: .left)
-            event?.flags = .maskCommand
-            event?.setIntegerValueField(.eventSourceUserData, value: MenuBarDragMonitor.syntheticEventTag)
-            if let windowID {
-                event?.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(windowID))
-                event?.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(windowID))
-            }
-            return event
+            events.make(type, at: point)
         }
         // Allocate the release before pressing. Every exit after down releases,
         // including cancellation, so a failure cannot leave the mouse held.
@@ -91,13 +104,9 @@ final class MenuBarItemMover {
         return true
     }
 
-    private func matchingWindow(frame: CGRect) -> CGWindowID? {
-        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else { return nil }
-        return windows.first(where: { info in
-            guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: dict) else { return false }
-            return abs(bounds.midX - frame.midX) < 3 && abs(bounds.midY - frame.midY) < 4
-                && abs(bounds.width - frame.width) < 8
-        })?[kCGWindowNumber as String] as? CGWindowID
+    private func nativeSeparator(windows: [MenuBarNativeWindow]? = nil) -> MenuBarNativeWindow? {
+        guard let frame = separatorFrame else { return nil }
+        return MenuBarNativeWindow.match(axFrame: frame, clientPID: getpid(),
+                                         windows: windows ?? MenuBarNativeWindow.currentWindows())
     }
 }

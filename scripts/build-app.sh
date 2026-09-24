@@ -26,8 +26,10 @@ binary_path=$(swift build --package-path "$project_dir" --configuration "$config
     --triple "$target_triple" --force-resolved-versions --show-bin-path)
 
 mkdir -p "$staged_app/Contents/MacOS"
+mkdir -p "$staged_app/Contents/Resources"
 cp "$binary_path/ShelterBar" "$staged_app/Contents/MacOS/ShelterBar"
 cp "$project_dir/Resources/Info.plist" "$staged_app/Contents/Info.plist"
+cp "$project_dir/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
 
 plutil -lint "$staged_app/Contents/Info.plist"
 if [ "$(lipo -archs "$staged_app/Contents/MacOS/ShelterBar")" != arm64 ]; then

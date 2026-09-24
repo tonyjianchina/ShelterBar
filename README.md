@@ -2,21 +2,21 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.2.0 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.2.0) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.3.0 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.3.0) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/ShelterBar-0.2.0-macos-arm64.dmg)：打开后将 ShelterBar.app 拖入 Applications。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/ShelterBar-0.2.0-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.2.0/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.dmg)：打开后将 ShelterBar.app 拖入 Applications。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/ShelterBar-0.3.0-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.3.0/SHA256SUMS)
 
 这是 **早期预览版**，采用 ad-hoc 签名，尚无 Developer ID 签名或 Apple 公证。如果首次打开被系统阻止，可按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，在确认来源后通过“系统设置 → 隐私与安全性 → 仍要打开”允许该应用（如系统提供此选项）。
 
 启动后需要“辅助功能”权限来管理图标，以及“屏幕录制”权限来读取原始菜单栏状态图标。应用内提供 **“允许读取图标”** 和 **“打开设置”**；授权后可能需要退出并重新打开 ShelterBar。
 
-v0.2.0 使用 ScreenCaptureKit，仅截取与进程 PID、状态窗口和辅助功能（AX）范围严格匹配的单个状态图标，并在内存中缓存。应用不采集音频、不录制视频、不把截图写入磁盘，也不上传截图。单色图标随外观配色，彩色及多灰度状态图标保留原色，均保持原始比例。
+v0.3.0 改进了原生菜单栏拖拽：严格匹配实际状态窗口，正确处理由 Control Center 托管、带透明留白的第三方图标，并在收纳和恢复后验证物理位置。本版同时新增应用图标，并继续使用 ScreenCaptureKit 仅截取与进程、状态窗口和辅助功能（AX）范围严格匹配的单个状态图标。截图只缓存在内存中，不写入磁盘、不录制视频、不采集音频，也不上传。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像。首次没有可用图像时，会展开恢复真实菜单栏项目，避免把它隐藏后留下空白。
 
@@ -117,7 +117,7 @@ compatibility. See [docs/MVP.md](docs/MVP.md) for acceptance.
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.2.0/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.3.0/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Website

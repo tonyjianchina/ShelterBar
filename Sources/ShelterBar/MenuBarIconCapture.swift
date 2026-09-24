@@ -13,21 +13,30 @@ struct MenuBarCaptureWindow {
     let pid: pid_t
     let layer: Int
     let frame: CGRect
+    let ownerBundleID: String?
+
+    init(id: CGWindowID, pid: pid_t, layer: Int, frame: CGRect, ownerBundleID: String? = nil) {
+        self.id = id
+        self.pid = pid
+        self.layer = layer
+        self.frame = frame
+        self.ownerBundleID = ownerBundleID
+    }
 }
 
 enum MenuBarIconMatcher {
     /// Never capture a whole application or display as a fallback. The AX item
-    /// must identify exactly one small status window belonging to its process.
+    /// must identify exactly one small status window belonging to its process
+    /// or hosted by the system's verified Control Center process.
     static func match(frame: CGRect, pid: pid_t, windows: [MenuBarCaptureWindow]) -> CGWindowID? {
         guard frame.width > 1, frame.width <= 1024, frame.height > 1, frame.height <= 100,
               frame.origin.x.isFinite, frame.origin.y.isFinite else { return nil }
-        let matches = windows.filter {
-            $0.pid == pid && $0.layer == Int(CGWindowLevelForKey(.statusWindow)) &&
-            $0.frame.height > 1 && $0.frame.height <= 100 &&
-            abs($0.frame.minX - frame.minX) <= 2 && abs($0.frame.width - frame.width) <= 2 &&
-            $0.frame.insetBy(dx: -2, dy: -2).contains(frame)
+        let candidates = windows.compactMap { window -> MenuBarNativeWindow? in
+            guard window.frame.width > 1, window.frame.height > 1 else { return nil }
+            return MenuBarNativeWindow(id: window.id, pid: window.pid, layer: window.layer,
+                                       frame: window.frame, ownerBundleID: window.ownerBundleID)
         }
-        return matches.count == 1 ? matches.first?.id : nil
+        return MenuBarNativeWindow.match(axFrame: frame, clientPID: pid, windows: candidates)?.id
     }
 
     static func pixelCrop(itemFrame: CGRect, windowFrame: CGRect, pixelSize: CGSize) -> CGRect? {
@@ -54,7 +63,8 @@ final class MenuBarIconCapture {
         let candidates = content.windows.compactMap { window -> MenuBarCaptureWindow? in
             guard let owner = window.owningApplication else { return nil }
             return MenuBarCaptureWindow(id: window.windowID, pid: owner.processID,
-                                        layer: window.windowLayer, frame: window.frame)
+                                        layer: window.windowLayer, frame: window.frame,
+                                        ownerBundleID: owner.bundleIdentifier)
         }
         var snapshots: [MenuBarIconSnapshot] = []
         for item in items {

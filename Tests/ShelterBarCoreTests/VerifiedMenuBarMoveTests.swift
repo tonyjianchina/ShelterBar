@@ -158,3 +158,66 @@ func confirmedCollectionOnSameDisplaySucceeds() async {
     )
     #expect(result)
 }
+
+@Test("captured Shadowrocket geometry clears the real padded divider, not just its AX glyph")
+@MainActor
+func nativeInsertionClearsWholeItem() async {
+    var item = CGRect(x: 990, y: 4.5, width: 36, height: 24)
+    let divider = CGRect(x: 981, y: 4.5, width: 3, height: 24)
+    let nativeDivider = CGRect(x: 974, y: 0, width: 17, height: 33)
+    var requested: CGPoint?
+    let result = await VerifiedMenuBarMove.perform(
+        to: .collected, readItem: { item }, readDivider: { divider },
+        menuBarRegion: menuBarRegion, readInsertionFrame: { nativeDivider },
+        send: { frame, end in
+            requested = end
+            // Model only the insertion boundary, not macOS event acceptance.
+            // The previous x=979 ends inside the 974...991 native divider.
+            guard end.x + frame.width / 2 < nativeDivider.minX else { return true }
+            item.origin.x = end.x - frame.width / 2
+            return true
+        }, wait: {}
+    )
+    #expect(requested == CGPoint(x: 954, y: 16.5))
+    #expect(result)
+}
+
+@Test("native insertion accounts for an off-center pickup and safely clears either side")
+@MainActor
+func nativeInsertionKeepsPickupOffset() async {
+    for placement in [MenuBarPlacement.collected, .resident] {
+        let x = placement == .collected ? 1050.0 : 850.0
+        var item = CGRect(x: x, y: 4.5, width: 60, height: 24)
+        let divider = CGRect(x: 981, y: 4.5, width: 3, height: 24)
+        let nativeDivider = CGRect(x: 974, y: 0, width: 17, height: 33)
+        let pickupOffset = 10.0
+        let result = await VerifiedMenuBarMove.perform(
+            to: placement, readItem: { item }, readDivider: { divider },
+            menuBarRegion: menuBarRegion, readInsertionFrame: { nativeDivider },
+            pickupPoint: { CGPoint(x: $0.minX + pickupOffset, y: $0.midY) },
+            send: { _, end in
+                item.origin.x = end.x - pickupOffset
+                if placement == .collected { #expect(item.maxX < nativeDivider.minX) }
+                else { #expect(item.minX > nativeDivider.maxX) }
+                return true
+            }, wait: {}
+        )
+        #expect(result)
+    }
+}
+
+@Test("a missing native insertion window cannot silently fall back to an AX glyph")
+@MainActor
+func nativeInsertionMissingWindowFails() async {
+    let result = await VerifiedMenuBarMove.perform(
+        to: .collected,
+        readItem: { CGRect(x: 990, y: 4.5, width: 36, height: 24) },
+        readDivider: { CGRect(x: 981, y: 4.5, width: 3, height: 24) },
+        menuBarRegion: menuBarRegion, readInsertionFrame: { nil },
+        send: { _, _ in
+            Issue.record("Do not send a native drag to an unknown target.")
+            return true
+        }, wait: {}
+    )
+    #expect(!result)
+}

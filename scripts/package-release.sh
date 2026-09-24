@@ -32,8 +32,8 @@ trap 'exit 143' TERM
 mkdir -p "$work_dir/image" "$work_dir/artifacts" "$mount_dir"
 ditto "$app_dir" "$work_dir/image/ShelterBar.app"
 ln -s /Applications "$work_dir/image/Applications"
-cat > "$work_dir/image/INSTALL.txt" <<'INSTALL'
-ShelterBar v0.2.0 - 预览版 / Preview
+cat > "$work_dir/image/INSTALL.txt" <<INSTALL
+ShelterBar v$version - 预览版 / Preview
 Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。

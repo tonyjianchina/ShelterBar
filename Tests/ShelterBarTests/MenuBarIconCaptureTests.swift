@@ -41,6 +41,42 @@ func paddedStatusWindowKeepsNativeGlyphSize() {
             CGRect(x: 0, y: 13, width: 68, height: 48))
 }
 
+@Test("Shadowrocket's captured native window may be hosted by Control Center")
+func captureMatchesVerifiedSystemHost() {
+    let axFrame = CGRect(x: 990, y: 4.5, width: 36, height: 24)
+    let nativeFrame = CGRect(x: 991, y: 0, width: 34, height: 33)
+    let window = MenuBarCaptureWindow(
+        id: 12412, pid: 1141, layer: Int(CGWindowLevelForKey(.statusWindow)),
+        frame: nativeFrame, ownerBundleID: "com.apple.controlcenter"
+    )
+    #expect(MenuBarIconMatcher.match(frame: axFrame, pid: 97940, windows: [window]) == 12412)
+    #expect(MenuBarIconMatcher.pixelCrop(itemFrame: axFrame, windowFrame: nativeFrame,
+                                         pixelSize: CGSize(width: 68, height: 66)) ==
+            CGRect(x: 0, y: 9, width: 68, height: 48))
+}
+
+@Test("hosted captures reject unrelated owners, ambiguous windows and whole menu bars")
+func captureRejectsUnverifiedOrAmbiguousHosts() {
+    let axFrame = CGRect(x: 990, y: 4.5, width: 36, height: 24)
+    let nativeFrame = CGRect(x: 991, y: 0, width: 34, height: 33)
+    let layer = Int(CGWindowLevelForKey(.statusWindow))
+    let host = MenuBarCaptureWindow(id: 1, pid: 1141, layer: layer, frame: nativeFrame,
+                                    ownerBundleID: "com.apple.controlcenter")
+    let unrelated = MenuBarCaptureWindow(id: 2, pid: 7, layer: layer, frame: nativeFrame,
+                                         ownerBundleID: "com.example.controlcenter")
+    let unidentified = MenuBarCaptureWindow(id: 3, pid: 8, layer: layer, frame: nativeFrame)
+    let duplicate = MenuBarCaptureWindow(id: 4, pid: 97940, layer: layer, frame: nativeFrame)
+    let wholeBar = MenuBarCaptureWindow(id: 5, pid: 1141, layer: layer,
+        frame: CGRect(x: 0, y: 0, width: 1512, height: 33),
+        ownerBundleID: "com.apple.controlcenter")
+    #expect(MenuBarIconMatcher.match(frame: axFrame, pid: 97940,
+                                     windows: [unrelated, unidentified, wholeBar]) == nil)
+    #expect(MenuBarIconMatcher.match(frame: axFrame, pid: 97940,
+                                     windows: [host, unrelated, unidentified, wholeBar]) == 1)
+    #expect(MenuBarIconMatcher.match(frame: axFrame, pid: 97940,
+                                     windows: [host, duplicate]) == nil)
+}
+
 private func pixels(color: CGColor?) -> CGImage {
     let context = CGContext(data: nil, width: 48, height: 48, bitsPerComponent: 8,
         bytesPerRow: 48 * 4, space: CGColorSpaceCreateDeviceRGB(),

@@ -10,6 +10,8 @@ public enum VerifiedMenuBarMove {
         readItem: () -> CGRect?,
         readDivider: () -> CGRect?,
         menuBarRegion: (CGRect) -> CGRect?,
+        readInsertionFrame: (() -> CGRect?)? = nil,
+        pickupPoint: ((CGRect) -> CGPoint?)? = nil,
         requestedDropPoint: CGPoint? = nil,
         send: (CGRect, CGPoint) async -> Bool,
         wait: () async -> Void = { try? await Task.sleep(for: .milliseconds(80)) }
@@ -21,9 +23,19 @@ public enum VerifiedMenuBarMove {
         // share their top edge. Keep the entire operation in this one region.
         if let requestedDropPoint, !region.contains(requestedDropPoint) { return false }
         if reached(placement, item: initial, divider: divider) { return true }
+        // AX reports the glyph, not necessarily the full native status window.
+        // Place the whole dragged item beyond the native divider, accounting
+        // for an off-center pickup when a notch partially covers the source.
+        guard let insertion = readInsertionFrame?() ?? (readInsertionFrame == nil ? divider : nil),
+              menuBarRegion(insertion) == region else { return false }
+        let centeredPickup = CGPoint(x: initial.midX, y: initial.midY)
+        guard let pickup = pickupPoint?(initial) ?? (pickupPoint == nil ? centeredPickup : nil),
+              initial.contains(pickup) else { return false }
         let destination = CGPoint(
-            x: placement == .collected ? divider.minX - 2 : divider.maxX + 2,
-            y: divider.midY
+            x: placement == .collected
+                ? insertion.minX - (initial.maxX - pickup.x) - 2
+                : insertion.maxX + (pickup.x - initial.minX) + 2,
+            y: insertion.midY
         )
         guard region.contains(destination), await send(initial, destination) else { return false }
         for _ in 0..<8 {
