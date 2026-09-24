@@ -47,11 +47,14 @@ final class ShelfIconView: NSView, NSDraggingSource {
     @available(*, unavailable) required init?(coder: NSCoder) { nil }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        item?.icon.draw(in: bounds.insetBy(dx: 7, dy: 7),
-                        from: .zero, operation: .sourceOver, fraction: 1,
-                        respectFlipped: true, hints: nil)
+        if let item { MenuBarIconPresentation.draw(item.icon, in: bounds) }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -74,7 +77,8 @@ final class ShelfIconView: NSView, NSDraggingSource {
         let pasteboard = NSPasteboardItem()
         pasteboard.setString(item.id, forType: .shelterItem)
         let drag = NSDraggingItem(pasteboardWriter: pasteboard)
-        drag.setDraggingFrame(bounds.insetBy(dx: 7, dy: 7), contents: item.icon)
+        drag.setDraggingFrame(MenuBarIconPresentation.drawingRect(for: item.icon, in: bounds),
+                              contents: MenuBarIconPresentation.renderedImage(for: item.icon))
         let session = beginDraggingSession(with: [drag], event: event, source: self)
         session.animatesToStartingPositionsOnCancelOrFail = false
     }

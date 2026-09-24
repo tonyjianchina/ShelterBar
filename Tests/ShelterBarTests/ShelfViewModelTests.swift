@@ -70,3 +70,44 @@ func permissionRevocationClearsItems() {
     #expect(model.items.isEmpty && model.residentItems.isEmpty)
     #expect(!model.hasAccessibilityPermission)
 }
+
+@Test("a captured menu glyph survives a fresh hidden-item scan without a Dock icon replacement")
+@MainActor
+func capturedGlyphSurvivesRefresh() {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["sync"], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [fixture("sync", hidden: true)]
+    let model = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 })
+    model.hasScreenCapturePermission = true
+    model.refresh()
+    let originalGlyph = NSImage(size: NSSize(width: 20, height: 22))
+    model.applyMenuBarIcons([MenuBarIconSnapshot(id: "sync", pid: getpid(), image: originalGlyph)])
+    source.entries = [fixture("sync", hidden: true)]
+    model.refresh()
+    #expect(model.items.first?.icon === originalGlyph)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+    // A failed offscreen recapture returns no images and keeps the last good glyph.
+    model.applyMenuBarIcons([])
+    #expect(model.items.first?.icon === originalGlyph)
+    model.hasScreenCapturePermission = false
+    model.refresh()
+    #expect(model.items.first?.hasMenuBarIcon == false)
+    #expect(model.items.first?.icon !== originalGlyph)
+}
+
+@Test("a delayed snapshot from another process cannot replace a current item's glyph")
+@MainActor
+func wrongProcessGlyphIsRejected() {
+    let source = FixtureSource()
+    source.entries = [fixture("sync")]
+    let model = ShelfViewModel(source: source, isTrusted: { true }, isVisible: { _ in true })
+    model.hasScreenCapturePermission = true
+    model.refresh()
+    let unrelatedImage = NSImage(size: NSSize(width: 20, height: 22))
+    model.applyMenuBarIcons([MenuBarIconSnapshot(id: "sync", pid: getpid() + 1, image: unrelatedImage)])
+    #expect(model.residentItems.first?.hasMenuBarIcon == false)
+    #expect(model.residentItems.first?.icon !== unrelatedImage)
+}

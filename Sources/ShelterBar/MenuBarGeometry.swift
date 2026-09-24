@@ -26,7 +26,54 @@ enum MenuBarGeometry {
     }
 
     static func isOnMenuBar(_ frame: CGRect) -> Bool {
-        frame.width > 1 && frame.height > 1 && menuBarRegion(containing: frame) != nil
+        isOnMenuBar(frame, regions: menuBarRegions, excluded: cameraHousingRegions)
+    }
+
+    static func isOnMenuBar(_ frame: CGRect, regions: [CGRect], excluded: [CGRect]) -> Bool {
+        visibleFrame(frame, regions: regions, excluded: excluded) != nil
+    }
+
+    static func visibleFrame(_ frame: CGRect) -> CGRect? {
+        visibleFrame(frame, regions: menuBarRegions, excluded: cameraHousingRegions)
+    }
+
+    /// Keep partially exposed residents protected. Only a completely occluded
+    /// item is hidden; drag from the largest exposed section, not a notch.
+    static func visibleFrame(_ frame: CGRect, regions: [CGRect], excluded: [CGRect]) -> CGRect? {
+        guard frame.width > 1, frame.height > 1 else { return nil }
+        var segments: [CGRect] = []
+        for region in regions where frame.midY >= region.minY && frame.midY < region.maxY {
+            let left = max(frame.minX, region.minX), right = min(frame.maxX, region.maxX)
+            guard right > left else { continue }
+            var exposed = [CGRect(x: left, y: frame.minY, width: right - left, height: frame.height)]
+            for obstruction in excluded {
+                exposed = exposed.flatMap { segment -> [CGRect] in
+                    let overlap = segment.intersection(obstruction)
+                    guard overlap.width > 0, overlap.height > 0 else { return [segment] }
+                    var remainder: [CGRect] = []
+                    if overlap.minX > segment.minX {
+                        remainder.append(CGRect(x: segment.minX, y: segment.minY,
+                                                width: overlap.minX - segment.minX, height: segment.height))
+                    }
+                    if overlap.maxX < segment.maxX {
+                        remainder.append(CGRect(x: overlap.maxX, y: segment.minY,
+                                                width: segment.maxX - overlap.maxX, height: segment.height))
+                    }
+                    return remainder
+                }
+            }
+            segments.append(contentsOf: exposed)
+        }
+        return segments.max { $0.width < $1.width }
+    }
+
+    private static var cameraHousingRegions: [CGRect] {
+        NSScreen.screens.compactMap { screen in
+            guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea,
+                  right.minX > left.maxX else { return nil }
+            return quartz(CGRect(x: left.maxX, y: left.minY, width: right.minX - left.maxX,
+                                 height: left.height))
+        }
     }
 
     static func menuBarRegion(containing frame: CGRect) -> CGRect? {

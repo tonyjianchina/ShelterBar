@@ -26,6 +26,13 @@ struct ShelfView: View {
             } else if model.isBusy {
                 ProgressView().controlSize(.small)
                 Text("正在移动图标…").font(.system(size: 12)).frame(maxWidth: .infinity)
+            } else if !model.hasScreenCapturePermission {
+                Text(model.screenCapturePermissionHint ?? "显示原始简版图标需要屏幕录制权限，仅在本机读取图标")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .help(model.screenCapturePermissionHint ?? "仅在本机读取菜单栏图标，不录制或上传屏幕内容。")
+                Button("允许读取图标", action: model.requestScreenCapturePermission).controlSize(.small)
+                Button("打开设置", action: model.openScreenCaptureSettings).controlSize(.small)
             } else if let message = model.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -40,7 +47,7 @@ struct ShelfView: View {
                         ForEach(model.items) { item in
                             ShelfIcon(item: item, onActivate: { onActivate(item) },
                                       onReturn: onReturn, onReorder: model.move, onDragging: onDragging)
-                                .frame(width: 42, height: 42)
+                                .frame(width: MenuBarIconPresentation.shelfWidth(for: item.icon), height: 42)
                         }
                     }
                 }
@@ -57,6 +64,7 @@ struct ShelfView: View {
                 Button("显示全部顶部图标", action: onRevealAll)
                 Divider()
                 Button("辅助功能设置", action: model.openAccessibilitySettings)
+                Button("屏幕录制设置", action: model.openScreenCaptureSettings)
                 Button("退出 ShelterBar", action: onQuit)
             } label: {
                 Image(systemName: "ellipsis.circle").frame(width: 24, height: 24)

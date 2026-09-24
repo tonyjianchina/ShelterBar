@@ -24,11 +24,12 @@ final class MenuBarItemReference {
 struct ShelfItem: Identifiable {
     let id: String
     let title: String
-    let icon: NSImage
+    var icon: NSImage
     let application: NSRunningApplication?
     let menuBarReference: MenuBarItemReference
     var hasPersistentIdentity = true
     var isMovable = true
+    var hasMenuBarIcon = false
 }
 
 @MainActor
@@ -75,11 +76,7 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
                 let id = "ax:\(owner):\(identifier)"
                 guard usedIDs.insert(id).inserted else { continue }
 
-                let icon = (application.icon?.copy() as? NSImage) ?? NSImage(
-                    systemSymbolName: "menubar.rectangle",
-                    accessibilityDescription: title
-                )!
-                icon.size = NSSize(width: 32, height: 32)
+                let icon = MenuBarIconPresentation.placeholder(accessibilityDescription: title)
                 output.append(ShelfItem(
                     id: id,
                     title: title,

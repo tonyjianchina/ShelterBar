@@ -34,6 +34,7 @@ final class MenuBarItemMover {
 
     func isOnCollectedSide(_ item: ShelfItem) -> Bool {
         guard let boundary = separatorFrame, let frame = item.menuBarReference.currentFrame(),
+              MenuBarGeometry.isOnMenuBar(frame),
               let region = MenuBarGeometry.menuBarRegion(containing: boundary),
               MenuBarGeometry.menuBarRegion(containing: frame) == region,
               abs(frame.midY - boundary.midY) < 8 else { return false }
@@ -42,7 +43,8 @@ final class MenuBarItemMover {
 
     /// Only returns true after observing the real item on the requested side.
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint? = nil) async -> Bool {
-        guard AccessibilityPermission.isGranted, item.isMovable else { return false }
+        guard AccessibilityPermission.isGranted, item.isMovable,
+              let frame = item.menuBarReference.currentFrame(), MenuBarGeometry.isOnMenuBar(frame) else { return false }
         return await VerifiedMenuBarMove.perform(
             to: placement, readItem: item.menuBarReference.currentFrame,
             readDivider: { self.separatorFrame },
@@ -57,8 +59,9 @@ final class MenuBarItemMover {
     }
 
     private func commandDrag(_ item: ShelfItem, from frame: CGRect, to end: CGPoint) async -> Bool {
-        guard !Task.isCancelled, let source = CGEventSource(stateID: .hidSystemState) else { return false }
-        let start = CGPoint(x: frame.midX, y: frame.midY)
+        guard !Task.isCancelled, let source = CGEventSource(stateID: .hidSystemState),
+              let exposed = MenuBarGeometry.visibleFrame(frame) else { return false }
+        let start = CGPoint(x: exposed.midX, y: frame.midY)
         let windowID = matchingWindow(frame: frame)
         func event(_ type: CGEventType, _ point: CGPoint) -> CGEvent? {
             let event = CGEvent(mouseEventSource: source, mouseType: type,

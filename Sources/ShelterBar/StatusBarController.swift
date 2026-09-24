@@ -11,10 +11,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let model: ShelfViewModel
     private let mover: MenuBarItemMover
     private let monitor = MenuBarDragMonitor()
+    private let iconCapture = MenuBarIconCapture()
     private var presentation = ShelfPresentation()
     private var subscriptions = Set<AnyCancellable>()
     private var pollTask: Task<Void, Never>?
     private var operation: Task<Void, Never>?
+    private var iconRefreshTask: Task<Void, Never>?
     private var didRestore = false
     private var restoreOnNextOpen = false
     private var knownIDsAtCollapse = Set<String>()
@@ -45,6 +47,11 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         configurePanel()
         presentation.handle(.setPinned(model.isPinned))
         model.onPermissionRequest = { [weak self] in self?.requestAccessibilityPermissionIfNeeded() }
+        model.onScreenCapturePermissionRequest = { [weak self] in
+            guard let self else { return }
+            model.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
+            refresh()
+        }
         model.onRefresh = { [weak self] in
             self?.didRestore = false
             self?.refresh()
@@ -66,6 +73,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
                 Task { @MainActor in
                     guard let self else { return }
                     self.operation?.cancel()
+                    self.iconRefreshTask?.cancel()
                     self.mover.revealImmediately()
                     self.didRestore = false
                     self.refresh()
@@ -82,6 +90,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     func shutdown() {
         operation?.cancel()
+        iconRefreshTask?.cancel()
         pollTask?.cancel()
         monitor.stop()
         mover.revealImmediately()
@@ -140,6 +149,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     private func hideShelf() {
+        iconRefreshTask?.cancel()
         panel.orderOut(nil)
         updateMonitor()
     }
@@ -155,7 +165,10 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         guard !model.isBusy else { return }
         let granted = AccessibilityPermission.isGranted
         model.hasAccessibilityPermission = granted
-        guard granted else {
+        model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+        if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
+        guard granted, model.hasScreenCapturePermission else {
+            iconRefreshTask?.cancel()
             mover.revealImmediately()
             didRestore = false
             monitor.stop()
@@ -180,13 +193,30 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
         if panel.isVisible { positionPanel() }
         updateMonitor()
+        refreshMenuBarIcons()
+    }
+
+    private func refreshMenuBarIcons() {
+        guard panel.isVisible, !model.isBusy, iconRefreshTask == nil,
+              model.hasAccessibilityPermission, model.hasScreenCapturePermission else { return }
+        let items = model.allItems
+        iconRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { iconRefreshTask = nil }
+            let snapshots = await iconCapture.capture(items)
+            guard !Task.isCancelled, !model.isBusy else { return }
+            model.applyMenuBarIcons(snapshots)
+            if panel.isVisible { positionPanel() }
+        }
     }
 
     private func positionPanel() {
         guard let cgAnchor = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
-        let desired: CGFloat = model.hasAccessibilityPermission ? max(440, CGFloat(model.items.count * 47 + 230)) : 650
+        let ready = model.hasAccessibilityPermission && model.hasScreenCapturePermission
+        let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
+        let desired: CGFloat = ready ? max(440, iconsWidth + 230) : 680
         let width = min(760, min(desired, screen.frame.width - 24))
         let x = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
         panel.setFrame(CGRect(x: x, y: anchor.minY - 79, width: width, height: 74), display: true)
@@ -195,7 +225,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func updateMonitor() {
         monitor.update(
-            isEnabled: panel.isVisible && !model.isBusy && !shelfDragInProgress,
+            isEnabled: panel.isVisible && model.hasScreenCapturePermission && !model.isBusy && !shelfDragInProgress,
             items: model.residentItems.filter(\.isMovable),
             shelfFrame: MenuBarGeometry.quartz(panel.frame)
         )
@@ -203,11 +233,13 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func showDragGhost(id: String, at point: CGPoint) {
         guard let item = model.item(withID: id) else { return }
-        let image = NSImageView(frame: CGRect(x: 0, y: 0, width: 30, height: 30))
-        image.image = item.icon
+        let glyph = MenuBarIconPresentation.renderedImage(for: item.icon)
+        let image = NSImageView(frame: CGRect(origin: .zero, size: glyph.size))
+        image.image = glyph
         image.imageScaling = .scaleProportionallyDown
         dragGhost.contentView = image
-        dragGhost.setFrame(CGRect(x: point.x + 10, y: MenuBarGeometry.desktopTop - point.y - 38, width: 30, height: 30), display: true)
+        dragGhost.setFrame(CGRect(x: point.x + 10, y: MenuBarGeometry.desktopTop - point.y - glyph.size.height - 8,
+                                 width: glyph.size.width, height: glyph.size.height), display: true)
         dragGhost.orderFrontRegardless()
         model.isDropTargeted = MenuBarGeometry.quartz(panel.frame).contains(point)
     }
@@ -264,6 +296,18 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         guard hidden.allSatisfy({ mover.isOnCollectedSide($0) }) else {
             throw TransferError.message("位置确认失败，已展开菜单栏；请重试。")
         }
+        // Capture while the real windows are still visible. If macOS cannot
+        // provide a glyph, keep the real icon reachable rather than substituting
+        // its application's Dock icon or hiding an unidentifiable item.
+        let snapshots = await iconCapture.capture(hidden)
+        try Task.checkCancellation()
+        guard ScreenCapturePermission.isGranted else {
+            throw TransferError.message("请允许屏幕录制以读取原始图标；顶部图标已恢复显示。")
+        }
+        model.applyMenuBarIcons(snapshots)
+        guard hidden.allSatisfy({ model.hasMenuBarIcon(for: $0) }) else {
+            throw TransferError.message("部分原始菜单栏图标暂时无法读取，已保留顶部图标。请授权后重启，或点击刷新重试。")
+        }
         let visible = before.filter { !collected.contains($0.id) && MenuBarGeometry.isOnMenuBar($0.menuBarReference.frame) }
         try Task.checkCancellation()
         knownIDsAtCollapse = Set(before.map(\.id))
@@ -283,6 +327,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func runOperation(_ body: @escaping @MainActor () async throws -> Void) {
         guard !model.isBusy else { return }
+        iconRefreshTask?.cancel()
         model.isBusy = true
         model.message = nil
         updateMonitor()

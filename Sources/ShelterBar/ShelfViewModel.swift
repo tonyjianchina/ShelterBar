@@ -6,16 +6,20 @@ final class ShelfViewModel: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []
     @Published private(set) var residentItems: [ShelfItem] = []
     @Published var hasAccessibilityPermission = AccessibilityPermission.isGranted
+    @Published var hasScreenCapturePermission = ScreenCapturePermission.isGranted
+    @Published var screenCapturePermissionHint: String?
     @Published var isPinned = UserDefaults.standard.bool(forKey: "shelf.isPinned")
     @Published var isBusy = false
     @Published var message: String?
     @Published var isDropTargeted = false
     @Published var isDraggingToMenuBar = false
     var onPermissionRequest: (() -> Void)?
+    var onScreenCapturePermissionRequest: (() -> Void)?
     var onRefresh: (() -> Void)?
 
     private let source: any ShelfItemSource
     private var knownItems: [String: ShelfItem] = [:]
+    private var iconCache: [String: MenuBarIconSnapshot] = [:]
     private let defaults: UserDefaults
     private let isTrusted: @MainActor () -> Bool
     private let isVisible: @MainActor (CGRect) -> Bool
@@ -43,10 +47,13 @@ final class ShelfViewModel: ObservableObject {
     func refresh() {
         hasAccessibilityPermission = isTrusted()
         guard hasAccessibilityPermission else {
+            iconCache.removeAll()
+            knownItems.removeAll()
             items = []
             residentItems = []
             return
         }
+        if !hasScreenCapturePermission { iconCache.removeAll() }
         let fresh = scan()
         var byID = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         for id in collectedIDs where byID[id] == nil {
@@ -55,6 +62,17 @@ final class ShelfViewModel: ObservableObject {
                 old.menuBarReference.frame = frame
                 byID[id] = old
             }
+        }
+        iconCache = iconCache.filter { id, icon in byID[id]?.menuBarReference.pid == icon.pid }
+        for (id, var item) in byID {
+            if let snapshot = iconCache[id] {
+                item.icon = snapshot.image
+                item.hasMenuBarIcon = true
+            } else {
+                item.icon = MenuBarIconPresentation.placeholder(accessibilityDescription: item.title)
+                item.hasMenuBarIcon = false
+            }
+            byID[id] = item
         }
         knownItems = byID
         let order = defaults.stringArray(forKey: "shelf.itemOrder") ?? []
@@ -70,6 +88,20 @@ final class ShelfViewModel: ObservableObject {
     }
 
     func remember(_ item: ShelfItem) { knownItems[item.id] = item }
+    func applyMenuBarIcons(_ snapshots: [MenuBarIconSnapshot]) {
+        guard hasAccessibilityPermission, hasScreenCapturePermission else {
+            iconCache.removeAll()
+            refresh()
+            return
+        }
+        for snapshot in snapshots where knownItems[snapshot.id]?.menuBarReference.pid == snapshot.pid {
+            iconCache[snapshot.id] = snapshot
+        }
+        refresh()
+    }
+    func hasMenuBarIcon(for item: ShelfItem) -> Bool {
+        iconCache[item.id]?.pid == item.menuBarReference.pid
+    }
     func item(withID id: String) -> ShelfItem? { knownItems[id] }
     func setCollected(_ value: Bool, id: String) {
         var ids = Set(defaults.stringArray(forKey: "shelf.collectedItems") ?? [])
@@ -101,4 +133,6 @@ final class ShelfViewModel: ObservableObject {
 
     func requestAccessibilityPermission() { onPermissionRequest?() }
     func openAccessibilitySettings() { AccessibilityPermission.openSettings() }
+    func requestScreenCapturePermission() { onScreenCapturePermissionRequest?() }
+    func openScreenCaptureSettings() { ScreenCapturePermission.openSettings() }
 }
