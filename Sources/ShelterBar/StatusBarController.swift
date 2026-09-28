@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let mover: MenuBarItemMover
     private let monitor = MenuBarDragMonitor()
     private let iconCapture = MenuBarIconCapture()
+    private let transitionShield = MenuBarTransitionShield()
     private var presentation = ShelfPresentation()
     private var subscriptions = Set<AnyCancellable>()
     private var pollTask: Task<Void, Never>?
@@ -77,7 +78,6 @@ final class StatusBarController: NSObject, NSWindowDelegate {
                     self.mover.revealImmediately()
                     self.didRestore = false
                     self.refresh()
-                    if self.panel.isVisible { self.positionPanel(forceAnchor: true) }
                 }
             }.store(in: &subscriptions)
         pollTask = Task { @MainActor [weak self] in
@@ -106,8 +106,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
-        panel.isMovable = true
-        panel.isMovableByWindowBackground = true
+        panel.isMovable = false
         panel.contentView = NSHostingView(rootView: ShelfView(
             model: model,
             onActivate: { [weak self] in self?.activate($0) },
@@ -212,7 +211,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func positionPanel(forceAnchor: Bool = false) {
+    private func positionPanel() {
         guard let cgAnchor = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
@@ -220,14 +219,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
         let desired: CGFloat = ready ? max(440, iconsWidth + 230) : 680
         let width = min(760, min(desired, screen.frame.width - 24))
-        let anchoredX = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
-        let anchoredY = anchor.minY - ShelfLayoutMetrics.panelHeight - ShelfLayoutMetrics.menuBarGap
-        let origin = panel.isVisible && !forceAnchor
-            ? panel.frame.origin
-            : CGPoint(x: anchoredX, y: anchoredY)
+        let x = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
         panel.setFrame(
-            CGRect(origin: origin,
-                   size: CGSize(width: width, height: ShelfLayoutMetrics.panelHeight)),
+            CGRect(x: x,
+                   y: anchor.minY - ShelfLayoutMetrics.panelHeight - ShelfLayoutMetrics.menuBarGap,
+                   width: width,
+                   height: ShelfLayoutMetrics.panelHeight),
             display: true
         )
         updateMonitor()
@@ -256,7 +253,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func transfer(_ id: String, to placement: MenuBarPlacement, dropPoint: CGPoint? = nil) {
         guard !model.isBusy, model.hasAccessibilityPermission else { return }
-        runOperation { [self] in
+        let item = model.item(withID: id) ?? model.scan().first(where: { $0.id == id })
+        runOperation(masking: transitionRegion(for: item, dropPoint: dropPoint)) { [self] in
             await mover.revealHiddenSection()
             try Task.checkCancellation()
             guard let item = model.scan().first(where: { $0.id == id }) else {
@@ -275,7 +273,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func restoreSavedLayout() {
         guard !model.collectedIDs.isEmpty else { return }
-        runOperation { [self] in
+        runOperation(masking: transitionRegion()) { [self] in
             await mover.revealHiddenSection()
             try Task.checkCancellation()
             let ids = model.scan().filter { model.collectedIDs.contains($0.id) }.map(\.id)
@@ -335,7 +333,23 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func runOperation(_ body: @escaping @MainActor () async throws -> Void) {
+    private func transitionRegion(for item: ShelfItem? = nil, dropPoint: CGPoint? = nil) -> CGRect? {
+        if let dropPoint,
+           let region = MenuBarGeometry.menuBarRegions.first(where: { $0.contains(dropPoint) }) {
+            return region
+        }
+        if let frame = item?.menuBarReference.currentFrame(),
+           let region = MenuBarGeometry.menuBarRegion(containing: frame) {
+            return region
+        }
+        guard let frame = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return nil }
+        return MenuBarGeometry.menuBarRegion(containing: frame)
+    }
+
+    private func runOperation(
+        masking menuBarRegion: CGRect? = nil,
+        _ body: @escaping @MainActor () async throws -> Void
+    ) {
         guard !model.isBusy else { return }
         iconRefreshTask?.cancel()
         model.isBusy = true
@@ -343,16 +357,18 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         updateMonitor()
         operation = Task { @MainActor [weak self] in
             guard let self else { return }
-            do { try await body() }
-            catch {
-                await mover.revealHiddenSection()
-                model.message = (error as? TransferError)?.text ?? "操作未完成，图标已恢复显示。"
+            await transitionShield.perform(over: menuBarRegion) {
+                do { try await body() }
+                catch {
+                    await mover.revealHiddenSection()
+                    model.message = (error as? TransferError)?.text ?? "操作未完成，图标已恢复显示。"
+                }
+                model.isBusy = false
+                operation = nil
+                model.refresh()
+                if panel.isVisible { positionPanel() }
+                updateMonitor()
             }
-            model.isBusy = false
-            operation = nil
-            model.refresh()
-            if panel.isVisible { positionPanel() }
-            updateMonitor()
         }
     }
 
@@ -392,11 +408,6 @@ final class StatusBarController: NSObject, NSWindowDelegate {
               Date().timeIntervalSince(shownAt) > 0.4 else { return }
         presentation.handle(.outsideInteraction)
         if !presentation.isVisible { hideShelf() }
-    }
-
-    func windowDidMove(_ notification: Notification) {
-        guard notification.object as? NSPanel === panel else { return }
-        updateMonitor()
     }
 }
 

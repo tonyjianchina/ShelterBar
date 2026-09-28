@@ -1,4 +1,4 @@
-# ShelterBar v0.3.0 preview acceptance
+# ShelterBar v0.4.0 preview acceptance
 
 ## Agreed behavior
 
@@ -62,7 +62,10 @@ expansion. The More menu can always show all top icons.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
 - [x] Automated: revoking permission clears actionable entries.
 - [x] Automated: ambiguous identities are not persisted for a later session.
-- [ ] v0.3.0 UI inspection: shelf layout, original-icon rendering, and readable
+- [x] Automated: the menu-bar transition shield remains visible through success
+  or failure and falls back safely when no snapshot is available.
+- [ ] v0.4.0 UI inspection: shelf layout, original-icon rendering, transition
+  masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility and Screen Recording through
   the in-app controls, restart if necessary, and confirm the original third-party

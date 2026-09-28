@@ -25,20 +25,13 @@ struct ShelfView: View {
                 Text("收纳栏").font(.system(size: 12, weight: .semibold))
                 Text("\(model.items.count)").font(.system(size: 10, weight: .bold, design: .rounded))
                     .padding(.horizontal, 6).padding(.vertical, 2).background(.quaternary, in: Capsule())
-            }
-            .fixedSize()
-            .contentShape(Rectangle())
-            .gesture(WindowDragGesture())
-            .help("拖动以移动收纳栏")
+            }.fixedSize()
             Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             if !model.hasAccessibilityPermission {
                 Text("允许辅助功能后，即可拖动顶部图标")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Button("授予权限", action: model.requestAccessibilityPermission).controlSize(.small)
                 Button("打开设置", action: model.openAccessibilitySettings).controlSize(.small)
-            } else if model.isBusy {
-                ProgressView().controlSize(.small)
-                Text("正在移动图标…").font(.system(size: 12)).frame(maxWidth: .infinity)
             } else if !model.hasScreenCapturePermission {
                 Text(model.screenCapturePermissionHint ?? "显示原始简版图标需要屏幕录制权限，仅在本机读取图标")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
@@ -52,7 +45,8 @@ struct ShelfView: View {
                     .help(message)
                 Button { model.message = nil } label: { Image(systemName: "xmark.circle") }.buttonStyle(.plain)
             } else if model.items.isEmpty {
-                Text("将顶部图标拖到这里").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(model.isBusy ? "正在更新收纳栏…" : "将顶部图标拖到这里")
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -65,6 +59,9 @@ struct ShelfView: View {
                         }
                     }
                 }
+            }
+            if model.isBusy {
+                ProgressView().controlSize(.small).help("正在移动图标…")
             }
             Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             Button { onPinChange(!model.isPinned) } label: {

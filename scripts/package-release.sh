@@ -11,7 +11,11 @@ esac
 release_dir="$project_dir/dist/releases/v$version"
 asset_name="ShelterBar-$version-macos-arm64"
 
-"$project_dir/scripts/build-app.sh" release
+# A machine-local self-signed identity is useful for preserving TCC permissions
+# during development, but must never be shipped to other Macs. Preview releases
+# stay ad-hoc unless an explicit release identity is provided.
+SHELTERBAR_CODESIGN_IDENTITY=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:--} \
+    "$project_dir/scripts/build-app.sh" release
 app_dir="$project_dir/dist/ShelterBar.app"
 work_dir=$(mktemp -d "$project_dir/dist/.release.XXXXXX")
 mount_dir="$work_dir/mounted"
