@@ -32,13 +32,6 @@ struct ShelfView: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                 Button("授予权限", action: model.requestAccessibilityPermission).controlSize(.small)
                 Button("打开设置", action: model.openAccessibilitySettings).controlSize(.small)
-            } else if !model.hasScreenCapturePermission {
-                Text(model.screenCapturePermissionHint ?? "显示原始简版图标需要屏幕录制权限，仅在本机读取图标")
-                    .font(.system(size: 11)).foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .help(model.screenCapturePermissionHint ?? "仅在本机读取菜单栏图标，不录制或上传屏幕内容。")
-                Button("允许读取图标", action: model.requestScreenCapturePermission).controlSize(.small)
-                Button("打开设置", action: model.openScreenCaptureSettings).controlSize(.small)
             } else if let message = model.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -59,6 +52,15 @@ struct ShelfView: View {
                         }
                     }
                 }
+            }
+            if model.hasAccessibilityPermission && !model.hasScreenCapturePermission {
+                Button(action: model.requestScreenCapturePermission) {
+                    Image(systemName: "photo.badge.plus").frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(model.screenCapturePermissionHint
+                    ?? "收纳功能已可用。允许屏幕录制后可显示原始菜单栏图标，内容仅在本机读取。")
             }
             if model.isBusy {
                 ProgressView().controlSize(.small).help("正在移动图标…")

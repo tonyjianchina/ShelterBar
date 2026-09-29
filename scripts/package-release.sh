@@ -42,7 +42,8 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。
 打开“应用程序”中的 ShelterBar，按提示在“系统设置 → 隐私与安全性
-→ 辅助功能”中授权，并允许“屏幕录制”以读取原始菜单栏状态图标。
+→ 辅助功能”中授权。“屏幕录制”仅用于读取原始菜单栏状态图标，可以
+按需开启；未授权时使用占位图标，收纳与恢复功能仍然可用。
 应用内提供“允许读取图标”和“打开设置”，授权后可能需要退出并重新打开。
 应用显示在菜单栏，不显示 Dock 图标。
 
@@ -50,8 +51,8 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 （AX）范围严格匹配的单个状态图标。截图仅缓存在内存中，不采集音频、
 不录制视频、不把截图写入磁盘，也不上传截图。单色图标随外观配色，彩色
 及多灰度状态图标保留原色，均保持比例。可见时捕获，收纳栏打开时尝试更新
-隐藏图标；收纳栏关闭时，定时任务不会截图。失败保留上次成功图像。
-首次没有可用图像时，展开恢复真实菜单栏项目。
+隐藏图标；收纳栏关闭时，定时任务不会截图。失败保留上次成功图像，
+没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
 
 本预览版使用临时签名（ad-hoc），没有 Developer ID 签名或 Apple 公证。
@@ -61,7 +62,8 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 Apple 官方说明：https://support.apple.com/zh-cn/102445
 
 Install: drag ShelterBar.app to Applications, then eject this disk image.
-Open ShelterBar from Applications and allow Accessibility and Screen Recording.
+Open ShelterBar from Applications and allow Accessibility. Screen Recording is
+optional and only enables original status icons; placeholders are used without it.
 Use “允许读取图标” (Allow icon access) or “打开设置” (Open Settings) in the app.
 You may need to quit and reopen ShelterBar after granting permission.
 ShelterBar is a menu-bar app and does not show a Dock icon.
@@ -73,8 +75,8 @@ or network uploads. Monochrome glyphs follow the shelf appearance; colored and
 multi-shade status images retain their colors. Aspect ratios are preserved.
 Icons are captured while visible; hidden icons receive refresh attempts while
 the shelf is open. The periodic task does not capture while the shelf is closed.
-A failed refresh retains the last successful image. If the first capture has no
-usable image, the real menu-bar items are revealed for recovery.
+A failed refresh retains the last successful image. If no capture is available,
+the shelf uses a placeholder without interrupting collection or restoration.
 Full original-icon and native third-party movement compatibility still requires
 validation in an authorized macOS session.
 

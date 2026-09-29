@@ -9,18 +9,15 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let separator: NSStatusItem
     private let panel: ShelfPanel
     private let model: ShelfViewModel
-    private let mover: MenuBarItemMover
+    private let engine: MenuBarCollectionEngine
     private let monitor = MenuBarDragMonitor()
-    private let iconCapture = MenuBarIconCapture()
-    private let transitionShield = MenuBarTransitionShield()
     private var presentation = ShelfPresentation()
     private var subscriptions = Set<AnyCancellable>()
     private var pollTask: Task<Void, Never>?
     private var operation: Task<Void, Never>?
     private var iconRefreshTask: Task<Void, Never>?
-    private var didRestore = false
-    private var restoreOnNextOpen = false
-    private var knownIDsAtCollapse = Set<String>()
+    private var screenChangeTask: Task<Void, Never>?
+    private var screenChangeGeneration = 0
     private var shownAt = Date.distantPast
     private var shelfDragInProgress = false
     private let dragGhost = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -28,8 +25,16 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     init(source: any ShelfItemSource) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         separator = NSStatusBar.system.statusItem(withLength: 1)
-        model = ShelfViewModel(source: source)
-        mover = MenuBarItemMover(separator: separator)
+        let createdModel = ShelfViewModel(source: source)
+        let createdMover = MenuBarItemMover(separator: separator)
+        let createdCapture = MenuBarIconCapture()
+        model = createdModel
+        engine = MenuBarCollectionEngine(
+            model: createdModel,
+            driver: createdMover,
+            capture: { await createdCapture.capture($0) },
+            transitionShield: MenuBarTransitionShield()
+        )
         panel = ShelfPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
         statusItem.autosaveName = "ShelterBar.Handle"
@@ -51,20 +56,17 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         model.onScreenCapturePermissionRequest = { [weak self] in
             guard let self else { return }
             model.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
-            refresh()
+            refresh(.userRefresh)
         }
-        model.onRefresh = { [weak self] in
-            self?.didRestore = false
-            self?.refresh()
-        }
+        model.onRefresh = { [weak self] in self?.refresh(.userRefresh) }
         monitor.onOutcome = { [weak self] outcome in
             guard let self else { return }
             dragGhost.orderOut(nil)
             model.isDropTargeted = false
             switch outcome {
-            case let .collect(id): transfer(id, to: .collected)
+            case let .collect(id): setPlacement(id, to: .collected)
             case let .click(id):
-                if let item = model.item(withID: id) { activate(item) }
+                activate(id)
             case .cancel: break
             }
         }
@@ -72,19 +74,16 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in
                 Task { @MainActor in
-                    guard let self else { return }
-                    self.operation?.cancel()
-                    self.iconRefreshTask?.cancel()
-                    self.mover.revealImmediately()
-                    self.didRestore = false
-                    self.refresh()
+                    self?.scheduleScreenChange()
                 }
             }.store(in: &subscriptions)
         pollTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled, let self else { return }
-                if !model.isBusy && !monitor.gesture.isTracking && !shelfDragInProgress { refresh() }
+                if operation == nil && !model.isBusy && !monitor.gesture.isTracking && !shelfDragInProgress {
+                    refresh(.poll)
+                }
             }
         }
     }
@@ -92,9 +91,10 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     func shutdown() {
         operation?.cancel()
         iconRefreshTask?.cancel()
+        screenChangeTask?.cancel()
         pollTask?.cancel()
         monitor.stop()
-        mover.revealImmediately()
+        engine.cancelAndReveal()
     }
 
     private func configurePanel() {
@@ -109,8 +109,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         panel.isMovable = false
         panel.contentView = NSHostingView(rootView: ShelfView(
             model: model,
-            onActivate: { [weak self] in self?.activate($0) },
-            onReturn: { [weak self] in self?.transfer($0, to: .resident, dropPoint: $1) },
+            onActivate: { [weak self] in self?.activate($0.id) },
+            onReturn: { [weak self] in self?.setPlacement($0, to: .resident, dropPoint: $1) },
             onDragging: { [weak self] in
                 self?.shelfDragInProgress = $0
                 self?.model.isDraggingToMenuBar = $0
@@ -138,15 +138,11 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     func showShelf() {
         if !presentation.isVisible { presentation.handle(.toggle) }
-        if restoreOnNextOpen {
-            restoreOnNextOpen = false
-            didRestore = false
-        }
         model.refresh()
         positionPanel()
         shownAt = Date()
         panel.makeKeyAndOrderFront(nil)
-        refresh()
+        refresh(.shelfOpened)
     }
 
     private func hideShelf() {
@@ -159,54 +155,33 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         if !AccessibilityPermission.isGranted {
             AccessibilityPermission.request()
             showShelf()
-        } else { refresh() }
+        } else { refresh(.launch) }
     }
 
-    private func refresh() {
-        guard !model.isBusy else { return }
-        let granted = AccessibilityPermission.isGranted
-        model.hasAccessibilityPermission = granted
+    private func refresh(_ reason: MenuBarReconcileReason) {
+        guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
+        model.hasAccessibilityPermission = AccessibilityPermission.isGranted
         model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
         if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
-        guard granted, model.hasScreenCapturePermission else {
+        if !model.hasAccessibilityPermission {
             iconRefreshTask?.cancel()
-            mover.revealImmediately()
-            didRestore = false
             monitor.stop()
-            model.refresh()
-            if panel.isVisible { positionPanel() }
-            return
         }
-        if !monitor.start() { model.message = "拖动监听未启动，请在辅助功能中重新开启 ShelterBar。" }
-        model.refresh()
-        if mover.isCollapsed,
-           model.allItems.contains(where: {
-               !knownIDsAtCollapse.contains($0.id) && !model.collectedIDs.contains($0.id)
-                   && !MenuBarGeometry.isOnMenuBar($0.menuBarReference.frame)
-           }) {
-            mover.revealImmediately()
-            model.message = "检测到新的顶部图标，已展开菜单栏。点击刷新可恢复收纳。"
-            model.refresh()
+        let monitorStarted = !model.hasAccessibilityPermission || monitor.start()
+        run(.reconcile(reason), clearMessage: reason != .poll)
+        if !monitorStarted {
+            model.message = "拖动监听未启动，请在辅助功能中重新开启 ShelterBar。"
         }
-        if !didRestore {
-            didRestore = true
-            restoreSavedLayout()
-        }
-        if panel.isVisible { positionPanel() }
-        updateMonitor()
-        refreshMenuBarIcons()
     }
 
     private func refreshMenuBarIcons() {
         guard panel.isVisible, !model.isBusy, iconRefreshTask == nil,
               model.hasAccessibilityPermission, model.hasScreenCapturePermission else { return }
-        let items = model.allItems
         iconRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { iconRefreshTask = nil }
-            let snapshots = await iconCapture.capture(items)
+            _ = await engine.perform(.refreshPresentation)
             guard !Task.isCancelled, !model.isBusy else { return }
-            model.applyMenuBarIcons(snapshots)
             if panel.isVisible { positionPanel() }
         }
     }
@@ -215,7 +190,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         guard let cgAnchor = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
-        let ready = model.hasAccessibilityPermission && model.hasScreenCapturePermission
+        let ready = model.hasAccessibilityPermission
         let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
         let desired: CGFloat = ready ? max(440, iconsWidth + 230) : 680
         let width = min(760, min(desired, screen.frame.width - 24))
@@ -232,7 +207,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func updateMonitor() {
         monitor.update(
-            isEnabled: panel.isVisible && model.hasScreenCapturePermission && !model.isBusy && !shelfDragInProgress,
+            isEnabled: panel.isVisible && model.hasAccessibilityPermission && !model.isBusy
+                && operation == nil && screenChangeTask == nil && !shelfDragInProgress,
             items: model.residentItems.filter(\.isMovable),
             shelfFrame: MenuBarGeometry.quartz(panel.frame)
         )
@@ -251,156 +227,72 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         model.isDropTargeted = MenuBarGeometry.quartz(panel.frame).contains(point)
     }
 
-    private func transfer(_ id: String, to placement: MenuBarPlacement, dropPoint: CGPoint? = nil) {
-        guard !model.isBusy, model.hasAccessibilityPermission else { return }
-        let item = model.item(withID: id) ?? model.scan().first(where: { $0.id == id })
-        runOperation(masking: transitionRegion(for: item, dropPoint: dropPoint)) { [self] in
-            await mover.revealHiddenSection()
-            try Task.checkCancellation()
-            guard let item = model.scan().first(where: { $0.id == id }) else {
-                throw TransferError.message("这个图标已退出或暂时不可用，已展开菜单栏。")
-            }
-            model.remember(item)
-            guard await mover.move(item, to: placement, dropPoint: dropPoint) else {
-                throw TransferError.message("macOS 未接受“\(item.title)”的位置调整，已保留顶部图标。")
-            }
-            var desired = model.collectedIDs
-            if placement == .collected { desired.insert(id) } else { desired.remove(id) }
-            try await settleLayout(collected: desired)
-            model.setCollected(placement == .collected, id: id)
-        }
+    private func setPlacement(_ id: String, to placement: MenuBarPlacement, dropPoint: CGPoint? = nil) {
+        run(.setPlacement(id: id, placement: placement, dropPoint: dropPoint))
     }
 
-    private func restoreSavedLayout() {
-        guard !model.collectedIDs.isEmpty else { return }
-        runOperation(masking: transitionRegion()) { [self] in
-            await mover.revealHiddenSection()
-            try Task.checkCancellation()
-            let ids = model.scan().filter { model.collectedIDs.contains($0.id) }.map(\.id)
-            for id in ids {
-                guard !Task.isCancelled, let item = model.scan().first(where: { $0.id == id }),
-                      await mover.move(item, to: .collected) else {
-                    throw TransferError.message("部分收纳图标未能恢复，已展开菜单栏，可重新拖动。")
-                }
-            }
-            try await settleLayout(collected: model.collectedIDs)
-        }
-    }
-
-    /// Every resident must be on the visible side before the spacer expands.
-    /// Failed repair leaves everything revealed and never claims success.
-    private func settleLayout(collected: Set<String>) async throws {
-        let scan = model.scan()
-        for candidate in scan where candidate.isMovable && !collected.contains(candidate.id) && mover.isOnCollectedSide(candidate) {
-            guard !Task.isCancelled,
-                  let live = model.scan().first(where: { $0.id == candidate.id }),
-                  await mover.move(live, to: .resident) else {
-                throw TransferError.message("无法安全整理当前菜单栏，已展开全部图标。")
-            }
-        }
-        let before = model.scan()
-        let hidden = before.filter { collected.contains($0.id) }
-        guard !hidden.isEmpty else { return }
-        guard hidden.allSatisfy({ mover.isOnCollectedSide($0) }) else {
-            throw TransferError.message("位置确认失败，已展开菜单栏；请重试。")
-        }
-        // Capture while the real windows are still visible. If macOS cannot
-        // provide a glyph, keep the real icon reachable rather than substituting
-        // its application's Dock icon or hiding an unidentifiable item.
-        let snapshots = await iconCapture.capture(hidden)
-        try Task.checkCancellation()
-        guard ScreenCapturePermission.isGranted else {
-            throw TransferError.message("请允许屏幕录制以读取原始图标；顶部图标已恢复显示。")
-        }
-        model.applyMenuBarIcons(snapshots)
-        guard hidden.allSatisfy({ model.hasMenuBarIcon(for: $0) }) else {
-            throw TransferError.message("部分原始菜单栏图标暂时无法读取，已保留顶部图标。请授权后重启，或点击刷新重试。")
-        }
-        let visible = before.filter { !collected.contains($0.id) && MenuBarGeometry.isOnMenuBar($0.menuBarReference.frame) }
-        try Task.checkCancellation()
-        knownIDsAtCollapse = Set(before.map(\.id))
-        await mover.collapseHiddenSection()
-        guard !Task.isCancelled,
-              hidden.allSatisfy({ item in
-                  guard let rect = item.menuBarReference.currentFrame() else { return false }
-                  return !MenuBarGeometry.isOnMenuBar(rect)
-              }),
-              visible.allSatisfy({ item in
-                  guard let rect = item.menuBarReference.currentFrame() else { return false }
-                  return MenuBarGeometry.isOnMenuBar(rect)
-              }) else {
-            throw TransferError.message("系统没有完成隐藏，已恢复显示全部图标。")
-        }
-    }
-
-    private func transitionRegion(for item: ShelfItem? = nil, dropPoint: CGPoint? = nil) -> CGRect? {
-        if let dropPoint,
-           let region = MenuBarGeometry.menuBarRegions.first(where: { $0.contains(dropPoint) }) {
-            return region
-        }
-        if let frame = item?.menuBarReference.currentFrame(),
-           let region = MenuBarGeometry.menuBarRegion(containing: frame) {
-            return region
-        }
-        guard let frame = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return nil }
-        return MenuBarGeometry.menuBarRegion(containing: frame)
-    }
-
-    private func runOperation(
-        masking menuBarRegion: CGRect? = nil,
-        _ body: @escaping @MainActor () async throws -> Void
-    ) {
-        guard !model.isBusy else { return }
-        iconRefreshTask?.cancel()
-        model.isBusy = true
-        model.message = nil
-        updateMonitor()
-        operation = Task { @MainActor [weak self] in
-            guard let self else { return }
-            await transitionShield.perform(over: menuBarRegion) {
-                do { try await body() }
-                catch {
-                    await mover.revealHiddenSection()
-                    model.message = (error as? TransferError)?.text ?? "操作未完成，图标已恢复显示。"
-                }
-                model.isBusy = false
-                operation = nil
-                model.refresh()
-                if panel.isVisible { positionPanel() }
-                updateMonitor()
-            }
-        }
+    private func activate(_ id: String) {
+        run(.activate(id: id))
     }
 
     private func revealAll() {
-        guard !model.isBusy else { return }
-        mover.revealImmediately()
-        model.message = "已临时展开全部图标。点击刷新可恢复收纳。"
-        model.refresh()
+        run(.revealAll)
+    }
+
+    private func run(_ command: MenuBarCollectionCommand, clearMessage: Bool = true) {
+        guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
+        let pendingIconRefresh = iconRefreshTask
+        pendingIconRefresh?.cancel()
+        if clearMessage { model.message = nil }
+        operation = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await pendingIconRefresh?.value
+            guard !Task.isCancelled else {
+                operation = nil
+                updateMonitor()
+                return
+            }
+            let outcome = await engine.perform(command)
+            operation = nil
+            guard !Task.isCancelled else {
+                updateMonitor()
+                return
+            }
+            if let message = outcome.message { model.message = message }
+            if outcome.shouldDismissShelf {
+                presentation.handle(.itemActivated)
+                if !presentation.isVisible { hideShelf() }
+            }
+            model.refresh()
+            if panel.isVisible { positionPanel() }
+            updateMonitor()
+            refreshMenuBarIcons()
+        }
         updateMonitor()
     }
 
-    private func activate(_ item: ShelfItem) {
-        guard !model.isBusy else { return }
-        if MenuBarGeometry.isOnMenuBar(item.menuBarReference.frame) {
-            if !item.menuBarReference.press() { model.message = "这个项目未响应点击，请在顶部打开。" }
-            presentation.handle(.itemActivated)
-            if !presentation.isVisible { hideShelf() }
-            return
+    private func scheduleScreenChange() {
+        screenChangeGeneration += 1
+        let generation = screenChangeGeneration
+        screenChangeTask?.cancel()
+        screenChangeTask = Task { @MainActor [weak self] in
+            await self?.handleScreenChange(generation: generation)
         }
-        // Reveal before AXPress, then keep icons reachable while the original
-        // app's menu is open. Reconcile when the shelf is opened again.
-        runOperation { [self] in
-            await mover.revealHiddenSection()
-            try Task.checkCancellation()
-            guard let live = model.scan().first(where: { $0.id == item.id }),
-                  await mover.move(live, to: .resident), live.menuBarReference.press() else {
-                throw TransferError.message("这个项目未响应点击，已展开顶部图标。")
-            }
-            restoreOnNextOpen = true
-            presentation.handle(.itemActivated)
-            if !presentation.isVisible { hideShelf() }
-        }
+        updateMonitor()
+    }
+
+    private func handleScreenChange(generation: Int) async {
+        let currentOperation = operation
+        let currentIconRefresh = iconRefreshTask
+        currentOperation?.cancel()
+        currentIconRefresh?.cancel()
+        await currentOperation?.value
+        await currentIconRefresh?.value
+        guard !Task.isCancelled, generation == screenChangeGeneration else { return }
+        operation = nil
+        engine.cancelAndReveal()
+        screenChangeTask = nil
+        refresh(.screenChanged)
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -409,11 +301,6 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         presentation.handle(.outsideInteraction)
         if !presentation.isVisible { hideShelf() }
     }
-}
-
-private enum TransferError: Error {
-    case message(String)
-    var text: String { switch self { case let .message(text): text } }
 }
 
 private final class ShelfPanel: NSPanel {

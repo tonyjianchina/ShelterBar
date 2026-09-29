@@ -1,4 +1,4 @@
-# ShelterBar v0.4.0 preview acceptance
+# ShelterBar v0.5.0 preview acceptance
 
 ## Agreed behavior
 
@@ -10,7 +10,7 @@
   that real item. No shortcut or Command modifier is required.
 - The shelf omits icons that are still visible on the top bar.
 - Accessibility is required for discovery and native movement; Screen Recording
-  permission is required to capture the original menu-bar status icons. The
+  permission is optional and enables capture of the original menu-bar status icons. The
   earlier permission-free running-app proxy prototype is replaced.
 - The shelf shows captured status icons with their aspect ratio preserved.
   Monochrome glyphs follow the shelf appearance; colored and multi-shade status
@@ -30,9 +30,8 @@ permission changes may require quitting and reopening ShelterBar.
 
 Visible icons are captured, and hidden icons receive refresh attempts while the
 shelf is open. The periodic task does not capture while the shelf is closed.
-A failed refresh preserves the last successful image. If the first capture has
-no usable image, recovery expands the real menu-bar items instead of leaving
-them hidden without a shelf image. Cached snapshots do not guarantee immediate
+A failed refresh preserves the last successful image. If no capture is available,
+the shelf uses a placeholder and collection continues. Cached snapshots do not guarantee immediate
 updates for every animated or changing status.
 
 Top-item drag interception is enabled only while the shelf is visible; the
@@ -48,8 +47,9 @@ feedback; no unverified success is persisted. Screen changes cancel the
 operation. Stable identities restore across launches; ambiguous ones do not.
 
 Opening a collected item's menu defers re-collection until the next explicit
-shelf opening. Newly discovered off-row items while collapsed trigger recovery
-expansion. The More menu can always show all top icons.
+shelf opening. Newly discovered movable items are automatically adopted into the
+collected set; an item already off-row remains in place without an expand/collapse
+cycle. The More menu can always show all top icons.
 
 ## Acceptance checks
 
@@ -60,11 +60,13 @@ expansion. The More menu can always show all top icons.
 - [x] Automated: an ignored OS move fails; fresh geometry must confirm success.
 - [x] Automated: cross-display rows cannot be confused.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
+- [x] Automated: newly discovered visible and already-hidden items are collected
+  without enumerating app or icon identities.
 - [x] Automated: revoking permission clears actionable entries.
 - [x] Automated: ambiguous identities are not persisted for a later session.
 - [x] Automated: the menu-bar transition shield remains visible through success
   or failure and falls back safely when no snapshot is available.
-- [ ] v0.4.0 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.0 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility and Screen Recording through
@@ -73,7 +75,7 @@ expansion. The More menu can always show all top icons.
 - [ ] Authorized native session: verify monochrome appearance, original colored
   and multi-shade status images, aspect ratios, visible capture, hidden refresh
   attempts while the shelf is open, no periodic capture while it is closed,
-  last-successful-image retention, and initial-capture recovery.
+  last-successful-image retention, and placeholder fallback without capture.
 - [ ] Authorized native session: top-to-shelf and shelf-to-top with a real
   third-party icon; verify physical positions, shelf membership, click menu,
   Escape, restart restoration, and notch/multi-display behavior.

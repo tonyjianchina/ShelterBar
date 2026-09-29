@@ -17,7 +17,7 @@ public struct MenuBarLayout: Equatable, Sendable {
     public let shelf: [MenuBarItem]
 }
 
-public enum MenuBarPlacement: Sendable {
+public enum MenuBarPlacement: Equatable, Sendable {
     case resident
     case collected
 }

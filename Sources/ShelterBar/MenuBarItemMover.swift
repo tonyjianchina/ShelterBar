@@ -110,3 +110,16 @@ final class MenuBarItemMover {
                                          windows: windows ?? MenuBarNativeWindow.currentWindows())
     }
 }
+
+extension MenuBarItemMover: MenuBarLayoutDriving {
+    var transitionRegion: CGRect? {
+        separatorFrame.flatMap(MenuBarGeometry.menuBarRegion(containing:))
+    }
+
+    func observedPlacement(of item: ShelfItem) -> MenuBarPlacement? {
+        if isOnCollectedSide(item) { return .collected }
+        guard let frame = item.menuBarReference.currentFrame() else { return nil }
+        if MenuBarGeometry.isOnMenuBar(frame) { return .resident }
+        return isCollapsed ? .collected : nil
+    }
+}
