@@ -48,6 +48,19 @@ A separate observed macOS 26 detail: CGWindowList reports status windows owned
 by Control Center, not the client application. Icon capture's strict client-PID
 matching may therefore need investigation after native movement succeeds.
 
+## Camera-housing regression (2026-09-29)
+
+The v0.5.2 two-item layout allowed the visible archive handle to sit at
+`x=895...919` while the independent divider remained at `x=840...843`, inside
+the built-in display's camera housing at `x=665...850`. Native movement then
+targeted an unavailable insertion position and macOS correctly rejected it.
+
+The fix uses the archive handle itself as the collection boundary and expands
+that same item leftward when the section collapses. Native moves now calculate
+the complete destination frame and reject it before posting input when any part
+intersects the camera housing. A blocked destination returns actionable guidance
+instead of the generic macOS refusal message.
+
 ## Follow-up trace and second candidate
 
 The user-triggered read-only loop reproduced the exact error again in

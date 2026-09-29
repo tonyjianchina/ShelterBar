@@ -66,10 +66,14 @@ closed. A failed refresh keeps the last successful image; without one, the shelf
 uses a placeholder without interrupting collection. This is a cached
 snapshot, not a guarantee that every changing status will update immediately.
 
-macOS owns the real menu-bar views. ShelterBar puts collected items to the left
-of its divider and expands that divider to move them off the top row. Each move
-is checked using fresh accessibility geometry before the saved placement
-changes. Failed moves leave the bar expanded and display an explanation.
+macOS owns the real menu-bar views. ShelterBar uses its visible archive handle as
+the collection boundary, puts collected items to its left, and expands the same
+handle leftward to move them off the top row. Keeping the entry point and boundary
+as one status item prevents an invisible divider from becoming stranded under a
+camera housing. Each destination frame is checked against the display and camera
+housing before a move is posted, and fresh accessibility geometry must confirm the
+result before saved placement changes. Failed moves leave the bar expanded and
+display an explanation.
 
 Some system items (clock, Control Center, camera/microphone indicator) are not
 draggable through ShelterBar. Items without an accessible menu-bar element
@@ -81,7 +85,7 @@ change cancels the operation and reveals the section before recovery.
 Clicking a collected item temporarily reveals it and opens its original menu.
 Its saved collection is restored on the next shelf opening or explicit refresh,
 so the opened menu is not interrupted by a background timer. Quitting removes
-the divider and reveals the real items; it does not remove another app's item.
+ShelterBar's handle and reveals the real items; it does not remove another app's item.
 
 This is an early preview release, not a notarized release. Ad-hoc signing can cause
 macOS to require permissions again after rebuilding. Avoid

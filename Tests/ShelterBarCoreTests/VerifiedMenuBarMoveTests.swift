@@ -165,20 +165,21 @@ func nativeInsertionClearsWholeItem() async {
     var item = CGRect(x: 990, y: 4.5, width: 36, height: 24)
     let divider = CGRect(x: 981, y: 4.5, width: 3, height: 24)
     let nativeDivider = CGRect(x: 974, y: 0, width: 17, height: 33)
+    let nativeSource = CGRect(x: 985, y: 0, width: 46, height: 33)
     var requested: CGPoint?
     let result = await VerifiedMenuBarMove.perform(
         to: .collected, readItem: { item }, readDivider: { divider },
         menuBarRegion: menuBarRegion, readInsertionFrame: { nativeDivider },
+        readSourceFrame: { nativeSource },
         send: { frame, end in
             requested = end
-            // Model only the insertion boundary, not macOS event acceptance.
-            // The previous x=979 ends inside the 974...991 native divider.
-            guard end.x + frame.width / 2 < nativeDivider.minX else { return true }
+            let destination = nativeSource.offsetBy(dx: end.x - frame.midX, dy: 0)
+            guard destination.maxX < nativeDivider.minX else { return true }
             item.origin.x = end.x - frame.width / 2
             return true
         }, wait: {}
     )
-    #expect(requested == CGPoint(x: 954, y: 16.5))
+    #expect(requested == CGPoint(x: 949, y: 16.5))
     #expect(result)
 }
 
@@ -220,4 +221,32 @@ func nativeInsertionMissingWindowFails() async {
         }, wait: {}
     )
     #expect(!result)
+}
+
+@Test("the complete native destination hidden by the camera housing is rejected before a drag")
+@MainActor
+func cameraHousingDestinationDoesNotSend() async {
+    let item = CGRect(x: 900, y: 5, width: 24, height: 24)
+    var inspectedFrame: CGRect?
+    let result = await VerifiedMenuBarMove.perform(
+        to: .collected,
+        readItem: { item },
+        readDivider: { CGRect(x: 875, y: 5, width: 3, height: 24) },
+        menuBarRegion: menuBarRegion,
+        readInsertionFrame: { CGRect(x: 866, y: 0, width: 17, height: 33) },
+        readSourceFrame: { CGRect(x: 895, y: 0, width: 34, height: 33) },
+        isDestinationFrameAllowed: {
+            inspectedFrame = $0
+            // The AX glyph would land at x=840 and pass. Native padding starts
+            // at x=835, inside this modeled camera housing.
+            return $0.minX >= 840
+        },
+        send: { _, _ in
+            Issue.record("A drag must not be posted into the camera housing.")
+            return true
+        },
+        wait: {}
+    )
+    #expect(!result)
+    #expect(inspectedFrame == CGRect(x: 830, y: 0, width: 34, height: 33))
 }

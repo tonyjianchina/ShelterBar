@@ -5,11 +5,16 @@ import ShelterBarCore
 protocol MenuBarLayoutDriving: AnyObject {
     var isCollapsed: Bool { get }
     var transitionRegion: CGRect? { get }
+    var movementFailureMessage: String? { get }
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement?
     func revealHiddenSection() async
     func collapseHiddenSection() async
     func revealImmediately()
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint?) async -> Bool
+}
+
+extension MenuBarLayoutDriving {
+    var movementFailureMessage: String? { nil }
 }
 
 enum MenuBarReconcileReason: Equatable {
@@ -238,7 +243,9 @@ final class MenuBarCollectionEngine {
                 }
                 if live.isMovable,
                    !(await self.driver.move(live, to: .resident, dropPoint: nil)) {
-                    throw CollectionEngineError.message("这个项目未响应点击，已展开顶部图标。")
+                    throw CollectionEngineError.message(
+                        self.driver.movementFailureMessage ?? "这个项目未响应点击，已展开顶部图标。"
+                    )
                 }
                 guard self.press(live) else {
                     throw CollectionEngineError.message("这个项目未响应点击，已展开顶部图标。")
@@ -298,7 +305,9 @@ final class MenuBarCollectionEngine {
         if let preferredMove {
             guard let item = model.scan().first(where: { $0.id == preferredMove.id }),
                   await driver.move(item, to: preferredMove.placement, dropPoint: preferredMove.dropPoint) else {
-                throw CollectionEngineError.message("macOS 未接受这个图标的位置调整，已展开菜单栏。")
+                throw CollectionEngineError.message(
+                    driver.movementFailureMessage ?? "macOS 未接受这个图标的位置调整，已展开菜单栏。"
+                )
             }
         }
 
@@ -306,7 +315,9 @@ final class MenuBarCollectionEngine {
         for item in scan where item.isMovable && !desiredCollectedIDs.contains(item.id)
             && driver.observedPlacement(of: item) == .collected {
             guard await driver.move(item, to: .resident, dropPoint: nil) else {
-                throw CollectionEngineError.message("无法安全整理当前菜单栏，已展开全部图标。")
+                throw CollectionEngineError.message(
+                    driver.movementFailureMessage ?? "无法安全整理当前菜单栏，已展开全部图标。"
+                )
             }
             try Task.checkCancellation()
         }
@@ -315,7 +326,9 @@ final class MenuBarCollectionEngine {
         for item in scan where item.isMovable && desiredCollectedIDs.contains(item.id)
             && driver.observedPlacement(of: item) != .collected {
             guard await driver.move(item, to: .collected, dropPoint: nil) else {
-                throw CollectionEngineError.message("部分收纳图标未能移动，已展开菜单栏。")
+                throw CollectionEngineError.message(
+                    driver.movementFailureMessage ?? "部分收纳图标未能移动，已展开菜单栏。"
+                )
             }
             try Task.checkCancellation()
         }

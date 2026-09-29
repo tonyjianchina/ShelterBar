@@ -3,55 +3,69 @@ import ShelterBarCore
 
 @MainActor
 final class MenuBarItemMover {
-    static let separatorHelp = "ShelterBar 收纳分隔线"
     static let handleHelp = "ShelterBar · 打开收纳栏"
-    private let separator: NSStatusItem
+    private let boundary: NSStatusItem
     private(set) var isCollapsed = false
+    private(set) var movementFailureMessage: String?
 
-    init(separator: NSStatusItem) { self.separator = separator }
+    init(boundary: NSStatusItem) { self.boundary = boundary }
 
-    var separatorFrame: CGRect? {
-        MenuBarGeometry.statusFrame(separator, help: Self.separatorHelp)
+    var boundaryFrame: CGRect? {
+        MenuBarGeometry.statusFrame(boundary, help: Self.handleHelp)
     }
 
     func revealHiddenSection() async {
-        separator.length = 1
+        boundary.length = NSStatusItem.squareLength
         isCollapsed = false
         try? await Task.sleep(for: .milliseconds(220))
     }
 
     func collapseHiddenSection() async {
         let width = NSScreen.screens.map(\.frame.width).max() ?? 1440
-        separator.length = max(500, min(width * 2, 10_000))
+        boundary.length = max(500, min(width * 2, 10_000))
         isCollapsed = true
         try? await Task.sleep(for: .milliseconds(250))
     }
 
     func revealImmediately() {
-        separator.length = 1
+        boundary.length = NSStatusItem.squareLength
         isCollapsed = false
     }
 
     func isOnCollectedSide(_ item: ShelfItem) -> Bool {
-        guard let boundary = separatorFrame, let frame = item.menuBarReference.currentFrame(),
+        guard let boundaryFrame, let frame = item.menuBarReference.currentFrame(),
               MenuBarGeometry.isOnMenuBar(frame),
-              let region = MenuBarGeometry.menuBarRegion(containing: boundary),
+              let region = MenuBarGeometry.menuBarRegion(containing: boundaryFrame),
               MenuBarGeometry.menuBarRegion(containing: frame) == region,
-              abs(frame.midY - boundary.midY) < 8 else { return false }
-        return frame.maxX <= boundary.minX + 1
+              abs(frame.midY - boundaryFrame.midY) < 8 else { return false }
+        return frame.maxX <= boundaryFrame.minX + 1
     }
 
     /// Only returns true after observing the real item on the requested side.
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint? = nil) async -> Bool {
+        movementFailureMessage = nil
         guard AccessibilityPermission.isGranted, item.isMovable,
               let frame = item.menuBarReference.currentFrame(), MenuBarGeometry.isOnMenuBar(frame) else { return false }
-        return await VerifiedMenuBarMove.perform(
+        let nativeWindows = MenuBarNativeWindow.currentWindows()
+        guard let nativeSource = MenuBarNativeWindow.match(
+            axFrame: frame,
+            clientPID: item.menuBarReference.pid,
+            windows: nativeWindows
+        ), let nativeDestination = nativeSeparator(windows: nativeWindows) else { return false }
+        var destinationWasObstructed = false
+        let moved = await VerifiedMenuBarMove.perform(
             to: placement, readItem: item.menuBarReference.currentFrame,
-            readDivider: { self.separatorFrame },
+            readDivider: { self.boundaryFrame },
             menuBarRegion: MenuBarGeometry.menuBarRegion(containing:),
-            readInsertionFrame: { self.nativeSeparator()?.frame },
+            readInsertionFrame: { nativeDestination.frame },
+            readSourceFrame: { nativeSource.frame },
             pickupPoint: { frame in
                 MenuBarGeometry.visibleFrame(frame).map { CGPoint(x: $0.midX, y: frame.midY) }
+            },
+            isDestinationFrameAllowed: { frame in
+                let allowed = MenuBarGeometry.isFullyVisible(frame)
+                if !allowed { destinationWasObstructed = true }
+                return allowed
             },
             requestedDropPoint: dropPoint,
             send: { frame, end in
@@ -60,6 +74,10 @@ final class MenuBarItemMover {
                 return await self.commandDrag(item, from: frame, to: end, placement: placement)
             }
         )
+        if destinationWasObstructed {
+            movementFailureMessage = "ShelterBar 左侧空间被刘海遮挡。请按住 Command 将收纳箱向右拖动，或先退出一个菜单栏应用，然后重试。"
+        }
+        return moved
     }
 
     private func commandDrag(_ item: ShelfItem, from frame: CGRect, to end: CGPoint,
@@ -78,9 +96,13 @@ final class MenuBarItemMover {
         // A display/layout switch between planning and this snapshot must not
         // turn a safe insertion into an overlapping or cross-screen release.
         if placement == .collected {
-            guard end.x + (frame.maxX - start.x) < nativeDestination.frame.minX else { return false }
+            guard end.x + (nativeSource.frame.maxX - start.x) < nativeDestination.frame.minX else {
+                return false
+            }
         } else {
-            guard end.x - (start.x - frame.minX) > nativeDestination.frame.maxX else { return false }
+            guard end.x - (start.x - nativeSource.frame.minX) > nativeDestination.frame.maxX else {
+                return false
+            }
         }
         let events = MenuBarDragEvents(source: source, sourceWindow: nativeSource.id,
                                        destinationWindow: nativeDestination.id, ownerPID: nativeSource.pid)
@@ -105,7 +127,7 @@ final class MenuBarItemMover {
     }
 
     private func nativeSeparator(windows: [MenuBarNativeWindow]? = nil) -> MenuBarNativeWindow? {
-        guard let frame = separatorFrame else { return nil }
+        guard let frame = boundaryFrame else { return nil }
         return MenuBarNativeWindow.match(axFrame: frame, clientPID: getpid(),
                                          windows: windows ?? MenuBarNativeWindow.currentWindows())
     }
@@ -113,7 +135,7 @@ final class MenuBarItemMover {
 
 extension MenuBarItemMover: MenuBarLayoutDriving {
     var transitionRegion: CGRect? {
-        separatorFrame.flatMap(MenuBarGeometry.menuBarRegion(containing:))
+        boundaryFrame.flatMap(MenuBarGeometry.menuBarRegion(containing:))
     }
 
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement? {

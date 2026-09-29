@@ -43,9 +43,12 @@ It has a cached hit map, skips tagged synthetic events, and does no AX queries
 in the event callback. An AppKit dragging source reports shelf-item releases in
 the top-right menu-bar area even though other apps cannot accept our drag data.
 
-A single movement operation reveals the divider, requests a native Command
+A single movement operation reveals the archive handle at its normal width, requests a native Command
 drag, observes the actual result, verifies other residents, and only then
-collapses and saves placement. Failure/cancellation reveals all items with
+expands the same handle leftward and saves placement. The handle is both the visible
+entry point and the collection boundary, so a separate invisible divider cannot be
+stranded under the camera housing. The proposed destination frame must be fully
+outside any camera housing before native input is sent. Failure/cancellation reveals all items with
 feedback; no unverified success is persisted. Screen changes cancel the
 operation. Stable identities restore across launches; ambiguous ones do not.
 
@@ -62,6 +65,8 @@ cycle. The More menu can always show all top icons.
 - [x] Automated: our synthetic movement events bypass our input tap.
 - [x] Automated: an ignored OS move fails; fresh geometry must confirm success.
 - [x] Automated: cross-display rows cannot be confused.
+- [x] Automated: a destination intersecting the camera housing is rejected before input is posted.
+- [x] Runtime: ShelterBar publishes one visible status item that serves as both handle and boundary.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
 - [x] Automated: newly discovered visible and already-hidden items are collected
   without enumerating app or icon identities.

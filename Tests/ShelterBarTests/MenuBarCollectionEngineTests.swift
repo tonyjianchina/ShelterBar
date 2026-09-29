@@ -19,6 +19,7 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     var collapseCount = 0
     var moves: [PlannedMenuBarMove] = []
     var shouldFailMove = false
+    var movementFailureMessage: String?
 
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement? { placements[item.id] }
 
@@ -263,6 +264,40 @@ func engineDoesNotPersistFailedAutomaticMove() async {
     #expect(engine.phase == .idle)
 }
 
+@Test("a blocked notch destination reports actionable recovery guidance")
+@MainActor
+func engineReportsNotchRecoveryGuidance() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("vpn", hidden: false)]
+    let model = ShelfViewModel(
+        source: source,
+        defaults: defaults,
+        isTrusted: { true },
+        isVisible: { $0.minX >= 0 }
+    )
+    let driver = EngineFixtureDriver()
+    driver.placements = ["vpn": .resident]
+    driver.shouldFailMove = true
+    driver.movementFailureMessage = "收纳目标被刘海遮挡，请向右移动 ShelterBar。"
+    let engine = MenuBarCollectionEngine(
+        model: model,
+        driver: driver,
+        capture: { _ in [] },
+        accessibilityGranted: { true },
+        screenCaptureGranted: { false }
+    )
+    _ = await engine.perform(.reconcile(.launch))
+
+    let outcome = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
+
+    #expect(outcome.message == "收纳目标被刘海遮挡，请向右移动 ShelterBar。")
+    #expect(engine.phase == .degraded("收纳目标被刘海遮挡，请向右移动 ShelterBar。"))
+    #expect(model.collectedIDs.isEmpty)
+}
+
 @Test("reconciliation repairs a resident stranded on the collected side before collapse")
 @MainActor
 func engineRepairsResidentBeforeCollapse() async {
@@ -493,4 +528,41 @@ func engineActivatesHiddenItemThenRestores() async {
     #expect(restored.didChangeLayout)
     #expect(driver.placements["vpn"] == .collected)
     #expect(driver.isCollapsed)
+}
+
+@Test("activating a hidden item reports notch guidance when its return is blocked")
+@MainActor
+func engineReportsNotchGuidanceDuringActivation() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["vpn"], forKey: "shelf.collectedItems")
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("vpn", hidden: true)]
+    let model = ShelfViewModel(
+        source: source,
+        defaults: defaults,
+        isTrusted: { true },
+        isVisible: { $0.minX >= 0 }
+    )
+    let driver = EngineFixtureDriver()
+    driver.isCollapsed = true
+    driver.placements = ["vpn": .collected]
+    let engine = MenuBarCollectionEngine(
+        model: model,
+        driver: driver,
+        capture: { _ in [] },
+        accessibilityGranted: { true },
+        screenCaptureGranted: { false },
+        press: { _ in Issue.record("A blocked item must not be pressed."); return true }
+    )
+    _ = await engine.perform(.reconcile(.launch))
+    driver.shouldFailMove = true
+    driver.movementFailureMessage = "ShelterBar 左侧空间被刘海遮挡，请向右移动收纳箱。"
+
+    let outcome = await engine.perform(.activate(id: "vpn"))
+
+    #expect(outcome.message == "ShelterBar 左侧空间被刘海遮挡，请向右移动收纳箱。")
+    #expect(engine.phase == .degraded("ShelterBar 左侧空间被刘海遮挡，请向右移动收纳箱。"))
+    #expect(driver.isCollapsed == false)
 }

@@ -6,7 +6,6 @@ import SwiftUI
 @MainActor
 final class StatusBarController: NSObject, NSWindowDelegate {
     private let statusItem: NSStatusItem
-    private let separator: NSStatusItem
     private let panel: ShelfPanel
     private let model: ShelfViewModel
     private let engine: MenuBarCollectionEngine
@@ -25,9 +24,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     init(source: any ShelfItemSource) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        separator = NSStatusBar.system.statusItem(withLength: 1)
         let createdModel = ShelfViewModel(source: source)
-        let createdMover = MenuBarItemMover(separator: separator)
+        let createdMover = MenuBarItemMover(boundary: statusItem)
         let createdCapture = MenuBarIconCapture()
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
@@ -48,12 +46,13 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         panel = ShelfPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
         statusItem.autosaveName = "ShelterBar.Handle"
-        separator.autosaveName = "ShelterBar.Divider"
-        separator.button?.toolTip = MenuBarItemMover.separatorHelp
-        separator.button?.setAccessibilityIdentifier("shelterbar.divider")
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "archivebox.fill", accessibilityDescription: "打开收纳栏")
-            button.image?.isTemplate = true
+            let image = NSImage(systemSymbolName: "archivebox.fill", accessibilityDescription: "打开收纳栏")
+            image?.isTemplate = true
+            button.image = image
+            button.imagePosition = .imageRight
+            button.imageHugsTitle = false
+            button.imageScaling = .scaleProportionallyDown
             button.toolTip = MenuBarItemMover.handleHelp
             button.setAccessibilityIdentifier("shelterbar.handle")
             button.target = self

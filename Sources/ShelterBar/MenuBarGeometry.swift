@@ -33,6 +33,21 @@ enum MenuBarGeometry {
         visibleFrame(frame, regions: regions, excluded: excluded) != nil
     }
 
+    static func isFullyVisible(_ frame: CGRect) -> Bool {
+        isFullyVisible(frame, regions: menuBarRegions, excluded: cameraHousingRegions)
+    }
+
+    static func isFullyVisible(_ frame: CGRect, regions: [CGRect], excluded: [CGRect]) -> Bool {
+        guard frame.width > 1, frame.height > 1,
+              let region = regions.first(where: {
+                  $0.contains(CGPoint(x: frame.midX, y: frame.midY))
+              }),
+              frame.minX >= region.minX, frame.maxX <= region.maxX else { return false }
+        return excluded.allSatisfy { obstruction in
+            !region.intersects(obstruction) || !frame.intersects(obstruction)
+        }
+    }
+
     static func visibleFrame(_ frame: CGRect) -> CGRect? {
         visibleFrame(frame, regions: menuBarRegions, excluded: cameraHousingRegions)
     }
@@ -81,7 +96,7 @@ enum MenuBarGeometry {
     }
 
     static func menuBarRegion(containing frame: CGRect, regions: [CGRect]) -> CGRect? {
-        // The revealed divider is one point wide; it still belongs to a display.
+        // The revealed status boundary must belong to exactly one display row.
         guard frame.width > 0, frame.height > 0 else { return nil }
         return regions.first { $0.contains(CGPoint(x: frame.midX, y: frame.midY)) }
     }
@@ -90,9 +105,16 @@ enum MenuBarGeometry {
 
     static func statusFrame(_ item: NSStatusItem, help: String) -> CGRect? {
         if AccessibilityPermission.isGranted, let frame = MenuBarAX.ownItemFrame(help: help),
-           menuBarRegion(containing: frame) != nil { return frame }
+           let handle = trailingControlFrame(frame, regions: menuBarRegions) { return handle }
         guard let button = item.button, let window = button.window else { return nil }
         let frame = quartz(window.convertToScreen(button.convert(button.bounds, to: nil)))
-        return menuBarRegion(containing: frame) != nil ? frame : nil
+        return trailingControlFrame(frame, regions: menuBarRegions)
+    }
+
+    static func trailingControlFrame(_ frame: CGRect, regions: [CGRect]) -> CGRect? {
+        guard frame.width > 1, frame.height > 1 else { return nil }
+        let width = min(frame.width, frame.height)
+        let handle = CGRect(x: frame.maxX - width, y: frame.minY, width: width, height: frame.height)
+        return regions.contains(where: { $0.contains(handle) }) ? handle : nil
     }
 }
