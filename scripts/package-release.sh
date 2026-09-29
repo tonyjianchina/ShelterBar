@@ -19,8 +19,13 @@ SHELTERBAR_CODESIGN_IDENTITY=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:--} \
 app_dir="$project_dir/dist/ShelterBar.app"
 work_dir=$(mktemp -d "$project_dir/dist/.release.XXXXXX")
 mount_dir="$work_dir/mounted"
+readwrite_image="$work_dir/ShelterBar-rw.dmg"
+layout_device=""
 mounted=no
 cleanup() {
+    if [ -n "$layout_device" ]; then
+        hdiutil detach "$layout_device" -force >/dev/null 2>&1 || true
+    fi
     if [ "$mounted" = yes ]; then
         if ! hdiutil detach "$mount_dir" -quiet; then
             echo "Could not unmount $mount_dir; leaving $work_dir for manual cleanup." >&2
@@ -33,10 +38,13 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p "$work_dir/image" "$work_dir/artifacts" "$mount_dir"
+mkdir -p "$work_dir/image/.background" "$work_dir/artifacts" "$mount_dir"
 ditto "$app_dir" "$work_dir/image/ShelterBar.app"
 ln -s /Applications "$work_dir/image/Applications"
-cat > "$work_dir/image/INSTALL.txt" <<INSTALL
+ditto "$app_dir/Contents/Resources/AppIcon.icns" "$work_dir/image/.VolumeIcon.icns"
+swift "$project_dir/Tools/GenerateDMGBackground.swift" \
+    "$work_dir/image/.background/ShelterBar.png"
+cat > "$work_dir/image/.background/INSTALL.txt" <<INSTALL
 ShelterBar v$version - 预览版 / Preview
 Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
@@ -88,8 +96,68 @@ Apple guidance: https://support.apple.com/102445
 INSTALL
 
 ditto -c -k --sequesterRsrc --keepParent "$app_dir" "$work_dir/artifacts/$asset_name.zip"
+if [ -e "/Volumes/ShelterBar $version" ]; then
+    echo "ShelterBar $version is already mounted; eject it before packaging." >&2
+    exit 1
+fi
 hdiutil create -volname "ShelterBar $version" -srcfolder "$work_dir/image" \
-    -fs HFS+ -format UDZO "$work_dir/artifacts/$asset_name.dmg"
+    -fs HFS+ -format UDRW -ov "$readwrite_image" >/dev/null
+
+attach_output=$(hdiutil attach -readwrite -noverify -noautoopen "$readwrite_image")
+layout_device=$(printf '%s\n' "$attach_output" | awk -F '\t' \
+    '$3 != "" { sub(/[[:space:]]+$/, "", $1); print $1; exit }')
+layout_mount_dir=$(printf '%s\n' "$attach_output" | awk -F '\t' \
+    '$3 != "" { print $3; exit }')
+if [ -z "$layout_device" ] || [ -z "$layout_mount_dir" ] || [ ! -d "$layout_mount_dir" ]; then
+    echo "Failed to mount the temporary DMG for Finder layout." >&2
+    exit 1
+fi
+
+/usr/bin/SetFile -a C "$layout_mount_dir"
+/usr/bin/SetFile -a V "$layout_mount_dir/.background" "$layout_mount_dir/.VolumeIcon.icns"
+
+osascript - "ShelterBar $version" <<'APPLESCRIPT'
+on run argv
+  set volumeName to item 1 of argv
+
+  tell application "Finder"
+    tell disk volumeName
+      open
+      set installerWindow to container window
+      set current view of installerWindow to icon view
+      set toolbar visible of installerWindow to false
+      set statusbar visible of installerWindow to false
+      set pathbar visible of installerWindow to false
+      set bounds of installerWindow to {180, 120, 900, 630}
+
+      set viewOptions to icon view options of installerWindow
+      set arrangement of viewOptions to not arranged
+      set icon size of viewOptions to 112
+      set text size of viewOptions to 16
+      set background picture of viewOptions to file ".background:ShelterBar.png"
+
+      set position of item "ShelterBar.app" of installerWindow to {170, 286}
+      set position of item "Applications" of installerWindow to {550, 286}
+
+      update without registering applications
+      delay 2
+      close installerWindow
+      open
+      delay 2
+    end tell
+  end tell
+end run
+APPLESCRIPT
+
+sync
+hdiutil detach "$layout_device" >/dev/null
+layout_device=""
+
+hdiutil convert "$readwrite_image" \
+    -format UDZO \
+    -imagekey zlib-level=9 \
+    -ov \
+    -o "$work_dir/artifacts/$asset_name.dmg" >/dev/null
 
 # Check the artifacts themselves, not just the source app.
 hdiutil verify "$work_dir/artifacts/$asset_name.dmg"
@@ -97,7 +165,9 @@ hdiutil attach "$work_dir/artifacts/$asset_name.dmg" -readonly -nobrowse \
     -noautoopen -mountpoint "$mount_dir" -quiet
 mounted=yes
 test "$(readlink "$mount_dir/Applications")" = /Applications
-test -f "$mount_dir/INSTALL.txt"
+test -f "$mount_dir/.DS_Store"
+test -f "$mount_dir/.background/ShelterBar.png"
+test -f "$mount_dir/.background/INSTALL.txt"
 codesign --verify --strict --verbose=2 "$mount_dir/ShelterBar.app"
 cmp "$app_dir/Contents/MacOS/ShelterBar" "$mount_dir/ShelterBar.app/Contents/MacOS/ShelterBar"
 cmp "$app_dir/Contents/Info.plist" "$mount_dir/ShelterBar.app/Contents/Info.plist"
