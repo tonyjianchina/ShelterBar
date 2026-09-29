@@ -1,4 +1,4 @@
-# ShelterBar v0.5.1 预览版
+# ShelterBar v0.5.2 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 26.0 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,28 +6,28 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.1](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.1) 下载 [ShelterBar-0.5.1-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/ShelterBar-0.5.1-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/ShelterBar-0.5.1-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.2](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.2) 下载 [ShelterBar-0.5.2-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 首次打开时，如果 macOS 提示无法验证开发者或无法检查恶意软件，在确认下载来源及 SHA256 校验值后，可进入 **系统设置 → 隐私与安全性 → 仍要打开**，再确认“打开”。先尝试打开应用，系统才可能显示这个按钮。受管理设备可能不提供该选项；不要关闭 Gatekeeper 或移除系统安全策略。
 
 这套说明依据 [Apple：在 Mac 上安全地打开 App](https://support.apple.com/zh-cn/102445)。若系统提示应用已损坏或包含恶意软件，请停止打开，重新核对下载和问题原因。
 
-启动后可使用两项权限：
+启动后应用会依次引导两项权限：
 
-- **辅助功能**：在“系统设置 → 隐私与安全性 → 辅助功能”中允许 ShelterBar，用于发现和移动菜单栏图标。
-- **屏幕录制（可选）**：用于读取原始菜单栏状态图标。未授权时收纳与恢复仍可用，收纳栏使用占位图标。
+- **辅助功能**：首先询问；在“系统设置 → 隐私与安全性 → 辅助功能”中允许 ShelterBar，用于发现和移动菜单栏图标。
+- **屏幕录制（可选）**：应用检测到辅助功能已授权后会立即继续询问，用于读取原始菜单栏状态图标。拒绝或稍后授权时，收纳与恢复仍可用，收纳栏使用占位图标。
 
 它是菜单栏应用，不显示 Dock 图标。升级预览版后，可能需要重新授权。
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。原始图标捕获及原生第三方图标移动的完整兼容性，仍待授予权限后的真实会话验证；第三方应用、显示器配置和 macOS 差异不能仅由自动化测试确认。
 
-## v0.5.1 图形化拖拽安装盘
+## v0.5.2 串联权限引导
 
-本版将 DMG 升级为与 DeskBit 相同交互方式的图形化拖拽安装盘。打开磁盘映像后，Finder 会直接以固定尺寸的图标视图显示 ShelterBar 和 Applications 文件夹，品牌背景中的箭头明确提示拖动方向。安装说明和背景资源保存在隐藏目录，不会干扰安装界面；磁盘映像还使用 ShelterBar 应用图标作为卷图标。
+本版修复首次启动权限引导未继续的问题。新的权限状态机先请求辅助功能，并持续观察授权状态；一旦系统报告已授权，就立即且只请求一次屏幕录制权限。已经授权的项目会跳过，用户拒绝屏幕录制不会阻断收纳，收纳栏里的手动重试入口也继续保留。
 
-打包流程先生成可写磁盘映像并写入 Finder 布局，再压缩为只读 DMG。发布验证会确认 Applications 快捷方式、Finder 布局、背景图、隐藏安装说明、签名、版本、架构，以及 DMG 和 ZIP 内二进制的一致性。对外预览包继续使用 ad-hoc 签名。
+权限协调器通过可注入的状态读取和请求动作进行测试，覆盖“辅助功能未授权 → 已授权 → 屏幕录制请求”的真实调用顺序，并验证不会在轮询中重复弹出。v0.5.1 的图形化拖拽安装盘保持不变。
 
-v0.5.0 引入的统一收纳引擎继续串行处理扫描、原生移动、位置验证、恢复和图标刷新，并自动收纳运行期间新出现的可移动菜单栏项。屏幕录制权限仍为可选项，仅用于显示原始状态图标；未授权或没有可用捕获时使用占位图标。
+统一收纳引擎继续串行处理扫描、原生移动、位置验证、恢复和图标刷新，并自动收纳运行期间新出现的可移动菜单栏项。对外预览包继续使用 ad-hoc 签名。
 
 收纳栏通过 ScreenCaptureKit 截取原始菜单栏状态图标。只有进程 PID、状态窗口及辅助功能（AX）范围严格匹配时，才捕获该单个状态图标；截图仅缓存在内存中。应用不采集音频、不录制视频、不把截图写入磁盘，也不上传截图。
 
@@ -37,7 +37,7 @@ v0.5.0 引入的统一收纳引擎继续串行处理扫描、原生移动、位�
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -46,7 +46,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.1-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.2-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -64,9 +64,9 @@ swift test --force-resolved-versions
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.1/ShelterBar-0.5.1-macos-arm64.dmg
-dist/releases/v0.5.1/ShelterBar-0.5.1-macos-arm64.zip
-dist/releases/v0.5.1/SHA256SUMS
+dist/releases/v0.5.2/ShelterBar-0.5.2-macos-arm64.dmg
+dist/releases/v0.5.2/ShelterBar-0.5.2-macos-arm64.zip
+dist/releases/v0.5.2/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固定 Finder 图标布局和隐藏的中英双语安装说明。脚本校验 DMG 内部校验和、只读挂载后的 Finder 元数据和内容、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。
@@ -84,7 +84,7 @@ DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固�
 
 ## 发布检查
 
-- 将 `v0.5.1` 标记为 **Pre-release**，公开说明系统要求、辅助功能必需、屏幕录制可选、未公证状态和已知限制。
+- 将 `v0.5.2` 标记为 **Pre-release**，公开说明系统要求、辅助功能必需、屏幕录制可选、未公证状态和已知限制。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
 - 自动化测试与归档校验不等于授权后的原始图标捕获与第三方移动兼容性测试；未完成真实会话验收前，不应宣称完整兼容性已验证。

@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusBarController = StatusBarController(source: AccessibilityMenuBarItemSource())
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            self?.statusBarController?.requestAccessibilityPermissionIfNeeded()
+            self?.statusBarController?.beginPermissionOnboarding()
         }
         if ProcessInfo.processInfo.arguments.contains("--preview") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in

@@ -16,7 +16,8 @@ enum ScreenCapturePermission {
         }
     }
 
-    // Only invoked by the explicit permission button, never by a background scan.
+    // Invoked by onboarding after Accessibility succeeds, or by the explicit
+    // permission button. Routine background scans never call this directly.
     @discardableResult
     static func request(
         systemRequest: () -> Bool = { CGRequestScreenCaptureAccess() },

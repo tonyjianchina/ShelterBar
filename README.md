@@ -2,21 +2,21 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.1 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.1) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.2 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.2) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/ShelterBar-0.5.1-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/ShelterBar-0.5.1-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.1/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/SHA256SUMS)
 
 这是 **早期预览版**，采用 ad-hoc 签名，尚无 Developer ID 签名或 Apple 公证。如果首次打开被系统阻止，可按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，在确认来源后通过“系统设置 → 隐私与安全性 → 仍要打开”允许该应用（如系统提供此选项）。
 
-启动后需要“辅助功能”权限来发现和移动图标。“屏幕录制”只用于读取原始菜单栏状态图标，未授权时仍可正常收纳，收纳栏会使用占位图标。
+启动后会先询问“辅助功能”权限；检测到授权成功后，会立即继续询问“屏幕录制”权限。辅助功能用于发现和移动图标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.1 将 DMG 升级为图形化拖拽安装盘：打开后直接显示 ShelterBar 与 Applications 文件夹，按箭头拖动即可安装。磁盘映像固定窗口尺寸、图标位置和品牌背景，并保留完整的应用、签名与校验验证。统一收纳引擎仍会自动收纳运行期间新出现的可移动菜单栏项；屏幕录制保持可选。
+v0.5.2 修复首次启动的权限引导：辅助功能授权完成后，应用会自动且只请求一次屏幕录制权限，不再需要用户回到收纳栏手动点击。已授权的权限会自动跳过，手动重试入口仍然保留。v0.5.1 的图形化拖拽安装盘继续沿用。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -29,10 +29,12 @@ top-right menu-bar area to open a row underneath it.
 
 ## Use
 
-1. Grant **Accessibility** when ShelterBar requests it. If an older development
+1. Grant **Accessibility** when ShelterBar requests it. ShelterBar detects the
+   grant and immediately continues to the Screen Recording request. If an older development
    build is already listed, switch ShelterBar off and on in System Settings →
    Privacy & Security → Accessibility.
-2. Optionally allow **Screen Recording** to show the original status icons. Collection
+2. The **Screen Recording** request follows automatically and remains optional.
+   It shows the original status icons; collection
    and restoration continue to work with placeholders when it is denied. Use the in-app
    **允许读取图标** (Allow icon access) or **打开设置** (Open Settings) control.
    You may need to quit and reopen ShelterBar after granting access.
@@ -117,7 +119,7 @@ compatibility. See [docs/MVP.md](docs/MVP.md) for acceptance.
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.1/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.5.2/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Website

@@ -1,4 +1,4 @@
-# ShelterBar v0.5.1 preview acceptance
+# ShelterBar v0.5.2 preview acceptance
 
 ## Agreed behavior
 
@@ -12,6 +12,9 @@
 - Accessibility is required for discovery and native movement; Screen Recording
   permission is optional and enables capture of the original menu-bar status icons. The
   earlier permission-free running-app proxy prototype is replaced.
+- On first launch, permission onboarding requests Accessibility first. As soon
+  as that grant is observed, it requests Screen Recording once and skips any
+  permission that is already granted.
 - The shelf shows captured status icons with their aspect ratio preserved.
   Monochrome glyphs follow the shelf appearance; colored and multi-shade status
   images retain their original colors.
@@ -62,13 +65,16 @@ cycle. The More menu can always show all top icons.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
 - [x] Automated: newly discovered visible and already-hidden items are collected
   without enumerating app or icon identities.
+- [x] Automated: Screen Recording is requested exactly once after Accessibility
+  changes from denied to granted.
+- [x] Automated: onboarding skips both prompts when both permissions are granted.
 - [x] Automated: revoking permission clears actionable entries.
 - [x] Automated: ambiguous identities are not persisted for a later session.
 - [x] Automated: the menu-bar transition shield remains visible through success
   or failure and falls back safely when no snapshot is available.
 - [x] Packaging: the DMG stores a Finder icon-view layout with a branded
   background, ShelterBar on the left, and the Applications alias on the right.
-- [ ] v0.5.1 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.2 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility and Screen Recording through

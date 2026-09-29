@@ -10,6 +10,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let panel: ShelfPanel
     private let model: ShelfViewModel
     private let engine: MenuBarCollectionEngine
+    private let permissionOnboarding: PermissionOnboardingCoordinator
     private let monitor = MenuBarDragMonitor()
     private var presentation = ShelfPresentation()
     private var subscriptions = Set<AnyCancellable>()
@@ -29,6 +30,15 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         let createdMover = MenuBarItemMover(separator: separator)
         let createdCapture = MenuBarIconCapture()
         model = createdModel
+        permissionOnboarding = PermissionOnboardingCoordinator(
+            accessibilityGranted: { AccessibilityPermission.isGranted },
+            screenCaptureGranted: { ScreenCapturePermission.isGranted },
+            requestAccessibility: { AccessibilityPermission.request() },
+            requestScreenCapture: {
+                createdModel.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
+                createdModel.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+            }
+        )
         engine = MenuBarCollectionEngine(
             model: createdModel,
             driver: createdMover,
@@ -52,10 +62,13 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
         configurePanel()
         presentation.handle(.setPinned(model.isPinned))
-        model.onPermissionRequest = { [weak self] in self?.requestAccessibilityPermissionIfNeeded() }
+        model.onPermissionRequest = { [weak self] in
+            self?.permissionOnboarding.requestAccessibility()
+            self?.showShelf()
+        }
         model.onScreenCapturePermissionRequest = { [weak self] in
             guard let self else { return }
-            model.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
+            permissionOnboarding.requestScreenCapture()
             refresh(.userRefresh)
         }
         model.onRefresh = { [weak self] in self?.refresh(.userRefresh) }
@@ -151,18 +164,21 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         updateMonitor()
     }
 
-    func requestAccessibilityPermissionIfNeeded() {
-        if !AccessibilityPermission.isGranted {
-            AccessibilityPermission.request()
+    func beginPermissionOnboarding() {
+        let action = permissionOnboarding.advance()
+        updatePermissionState()
+        if action == .requestAccessibility && !model.hasAccessibilityPermission {
             showShelf()
-        } else { refresh(.launch) }
+        } else {
+            refresh(.launch)
+        }
     }
 
     private func refresh(_ reason: MenuBarReconcileReason) {
         guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
-        model.hasAccessibilityPermission = AccessibilityPermission.isGranted
-        model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
-        if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
+        updatePermissionState()
+        _ = permissionOnboarding.advance()
+        updatePermissionState()
         if !model.hasAccessibilityPermission {
             iconRefreshTask?.cancel()
             monitor.stop()
@@ -172,6 +188,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         if !monitorStarted {
             model.message = "拖动监听未启动，请在辅助功能中重新开启 ShelterBar。"
         }
+    }
+
+    private func updatePermissionState() {
+        model.hasAccessibilityPermission = AccessibilityPermission.isGranted
+        model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+        if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
     }
 
     private func refreshMenuBarIcons() {
