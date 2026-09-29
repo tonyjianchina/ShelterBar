@@ -1,4 +1,4 @@
-# ShelterBar v0.5.2 preview acceptance
+# ShelterBar v0.5.3 preview acceptance
 
 ## Agreed behavior
 
@@ -79,7 +79,7 @@ cycle. The More menu can always show all top icons.
   or failure and falls back safely when no snapshot is available.
 - [x] Packaging: the DMG stores a Finder icon-view layout with a branded
   background, ShelterBar on the left, and the Applications alias on the right.
-- [ ] v0.5.2 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.3 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility and Screen Recording through

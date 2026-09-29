@@ -1,4 +1,4 @@
-# ShelterBar v0.5.2 预览版
+# ShelterBar v0.5.3 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 26.0 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.2](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.2) 下载 [ShelterBar-0.5.2-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/ShelterBar-0.5.2-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.3](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.3) 下载 [ShelterBar-0.5.3-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/ShelterBar-0.5.3-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/ShelterBar-0.5.3-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 首次打开时，如果 macOS 提示无法验证开发者或无法检查恶意软件，在确认下载来源及 SHA256 校验值后，可进入 **系统设置 → 隐私与安全性 → 仍要打开**，再确认“打开”。先尝试打开应用，系统才可能显示这个按钮。受管理设备可能不提供该选项；不要关闭 Gatekeeper 或移除系统安全策略。
 
@@ -21,11 +21,13 @@
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。原始图标捕获及原生第三方图标移动的完整兼容性，仍待授予权限后的真实会话验证；第三方应用、显示器配置和 macOS 差异不能仅由自动化测试确认。
 
-## v0.5.2 串联权限引导
+## v0.5.3 刘海屏边界修复
 
-本版修复首次启动权限引导未继续的问题。新的权限状态机先请求辅助功能，并持续观察授权状态；一旦系统报告已授权，就立即且只请求一次屏幕录制权限。已经授权的项目会跳过，用户拒绝屏幕录制不会阻断收纳，收纳栏里的手动重试入口也继续保留。
+本版将可见收纳箱与收纳边界合并为同一个原生菜单栏项目，避免独立隐形分隔线落入 MacBook 的摄像头区域。收起时同一个边界向左扩展，展开时恢复为正常宽度，顶部始终只保留一个 ShelterBar 图标。
 
-权限协调器通过可注入的状态读取和请求动作进行测试，覆盖“辅助功能未授权 → 已授权 → 屏幕录制请求”的真实调用顺序，并验证不会在轮询中重复弹出。v0.5.1 的图形化拖拽安装盘保持不变。
+每次原生移动会根据状态窗口的完整边界计算落点，并在发送输入前检查整个目标范围是否与刘海相交。无法安全放置时不会尝试拖动，会恢复显示全部图标并给出向右移动 ShelterBar 的明确提示。打开已收纳项目的失败路径也会保留该提示。
+
+v0.5.2 引入的两项权限串联引导保持不变：先请求辅助功能，检测到授权后立即且只请求一次可选的屏幕录制权限。v0.5.1 的图形化拖拽安装盘继续沿用。
 
 统一收纳引擎继续串行处理扫描、原生移动、位置验证、恢复和图标刷新，并自动收纳运行期间新出现的可移动菜单栏项。对外预览包继续使用 ad-hoc 签名。
 
@@ -37,7 +39,7 @@
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.2/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -46,7 +48,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.2-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.3-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -64,9 +66,9 @@ swift test --force-resolved-versions
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.2/ShelterBar-0.5.2-macos-arm64.dmg
-dist/releases/v0.5.2/ShelterBar-0.5.2-macos-arm64.zip
-dist/releases/v0.5.2/SHA256SUMS
+dist/releases/v0.5.3/ShelterBar-0.5.3-macos-arm64.dmg
+dist/releases/v0.5.3/ShelterBar-0.5.3-macos-arm64.zip
+dist/releases/v0.5.3/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固定 Finder 图标布局和隐藏的中英双语安装说明。脚本校验 DMG 内部校验和、只读挂载后的 Finder 元数据和内容、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。
@@ -84,7 +86,7 @@ DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固�
 
 ## 发布检查
 
-- 将 `v0.5.2` 标记为 **Pre-release**，公开说明系统要求、辅助功能必需、屏幕录制可选、未公证状态和已知限制。
+- 将 `v0.5.3` 标记为 **Pre-release**，公开说明系统要求、辅助功能必需、屏幕录制可选、未公证状态和已知限制。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
 - 自动化测试与归档校验不等于授权后的原始图标捕获与第三方移动兼容性测试；未完成真实会话验收前，不应宣称完整兼容性已验证。
