@@ -2,21 +2,21 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.3 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.3) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.4 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.4) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/ShelterBar-0.5.3-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/ShelterBar-0.5.3-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.3/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/ShelterBar-0.5.4-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/ShelterBar-0.5.4-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/SHA256SUMS)
 
 这是 **早期预览版**，采用 ad-hoc 签名，尚无 Developer ID 签名或 Apple 公证。如果首次打开被系统阻止，可按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，在确认来源后通过“系统设置 → 隐私与安全性 → 仍要打开”允许该应用（如系统提供此选项）。
 
 启动后会先询问“辅助功能”权限；检测到授权成功后，会立即继续询问“屏幕录制”权限。辅助功能用于发现和移动图标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.3 修复刘海屏上“macOS 未接受这个图标的位置调整”问题：可见收纳箱同时作为收纳边界，不再创建可能滞留在摄像头区域的隐形分隔线。移动前会按完整原生状态窗口检查落点，被刘海遮挡时会展开全部图标并给出明确恢复提示。v0.5.2 的两项权限串联引导继续保留。
+v0.5.4 修复“无法安全整理当前菜单栏”的复发问题：兼容 macOS 26 合成显示的状态栏窗口，等待移动动画与辅助功能坐标同步，并忽略未参与整理的失效辅助功能条目。收纳箱紧挨刘海时会自动调整边界来完成收纳。已在本机验证 Shadowrocket、Chrome、网易邮箱大师的实际收纳与拖回，以及重启恢复。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -123,7 +123,7 @@ compatibility. See [docs/MVP.md](docs/MVP.md) for acceptance.
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.3/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.5.4/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Website

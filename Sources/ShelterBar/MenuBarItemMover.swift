@@ -46,19 +46,17 @@ final class MenuBarItemMover {
         movementFailureMessage = nil
         guard AccessibilityPermission.isGranted, item.isMovable,
               let frame = item.menuBarReference.currentFrame(), MenuBarGeometry.isOnMenuBar(frame) else { return false }
-        let nativeWindows = MenuBarNativeWindow.currentWindows()
-        guard let nativeSource = MenuBarNativeWindow.match(
-            axFrame: frame,
-            clientPID: item.menuBarReference.pid,
-            windows: nativeWindows
-        ), let nativeDestination = nativeSeparator(windows: nativeWindows) else { return false }
+        guard let native = await MenuBarNativeWindow.resolvePair(
+            sourceFrame: item.menuBarReference.currentFrame, sourcePID: item.menuBarReference.pid,
+            destinationFrame: { self.boundaryFrame }, destinationPID: getpid()
+        ) else { return false }
         var destinationWasObstructed = false
         let moved = await VerifiedMenuBarMove.perform(
             to: placement, readItem: item.menuBarReference.currentFrame,
             readDivider: { self.boundaryFrame },
             menuBarRegion: MenuBarGeometry.menuBarRegion(containing:),
-            readInsertionFrame: { nativeDestination.frame },
-            readSourceFrame: { nativeSource.frame },
+            readInsertionFrame: { native.destination.frame },
+            readSourceFrame: { native.source.frame },
             pickupPoint: { frame in
                 MenuBarGeometry.visibleFrame(frame).map { CGPoint(x: $0.midX, y: frame.midY) }
             },
@@ -70,25 +68,58 @@ final class MenuBarItemMover {
             requestedDropPoint: dropPoint,
             send: { frame, end in
                 guard let region = MenuBarGeometry.menuBarRegion(containing: frame),
+                      let destination = self.boundaryFrame,
                       region.contains(end) else { return false }
-                return await self.commandDrag(item, from: frame, to: end, placement: placement)
+                return await self.commandDrag(from: frame, clientPID: item.menuBarReference.pid,
+                    to: end, placement: placement, destination: destination, destinationPID: getpid())
             }
         )
         if destinationWasObstructed {
+            // A leftmost boundary may sit next to the notch. Inserting another
+            // full window on its left is impossible, but the equivalent order
+            // can be reached by moving our own boundary to the item's right.
+            // The engine subsequently restores intervening residents before
+            // collapse, so none are silently adopted into the collected set.
+            if placement == .collected, await moveBoundary(after: item) { return true }
             movementFailureMessage = "ShelterBar 左侧空间被刘海遮挡。请按住 Command 将收纳箱向右拖动，或先退出一个菜单栏应用，然后重试。"
         }
         return moved
     }
 
-    private func commandDrag(_ item: ShelfItem, from frame: CGRect, to end: CGPoint,
-                             placement: MenuBarPlacement) async -> Bool {
+    private func moveBoundary(after item: ShelfItem) async -> Bool {
+        guard !Task.isCancelled, let target = item.menuBarReference.currentFrame(),
+              MenuBarGeometry.isOnMenuBar(target) else { return false }
+        guard let native = await MenuBarNativeWindow.resolvePair(
+            sourceFrame: { self.boundaryFrame }, sourcePID: getpid(),
+            destinationFrame: item.menuBarReference.currentFrame, destinationPID: item.menuBarReference.pid
+        ) else { return false }
+        let moved = await VerifiedMenuBarMove.perform(
+            to: .resident, readItem: { self.boundaryFrame },
+            readDivider: item.menuBarReference.currentFrame,
+            menuBarRegion: MenuBarGeometry.menuBarRegion(containing:),
+            readInsertionFrame: { native.destination.frame },
+            readSourceFrame: { native.source.frame },
+            isDestinationFrameAllowed: MenuBarGeometry.isFullyVisible,
+            send: { frame, end in
+                guard let destination = item.menuBarReference.currentFrame() else { return false }
+                return await self.commandDrag(from: frame, clientPID: getpid(), to: end,
+                    placement: .resident, destination: destination, destinationPID: item.menuBarReference.pid)
+            }
+        )
+        return moved && isOnCollectedSide(item)
+    }
+
+    private func commandDrag(from frame: CGRect, clientPID: pid_t, to end: CGPoint,
+                             placement: MenuBarPlacement, destination: CGRect,
+                             destinationPID: pid_t) async -> Bool {
         guard !Task.isCancelled, let source = CGEventSource(stateID: .hidSystemState),
               let exposed = MenuBarGeometry.visibleFrame(frame) else { return false }
         let start = CGPoint(x: exposed.midX, y: frame.midY)
         let windows = MenuBarNativeWindow.currentWindows()
         guard let nativeSource = MenuBarNativeWindow.match(axFrame: frame,
-                  clientPID: item.menuBarReference.pid, windows: windows),
-              let nativeDestination = nativeSeparator(windows: windows) else { return false }
+                  clientPID: clientPID, windows: windows),
+              let nativeDestination = MenuBarNativeWindow.match(axFrame: destination,
+                  clientPID: destinationPID, windows: windows) else { return false }
         guard let region = MenuBarGeometry.menuBarRegion(containing: frame),
               MenuBarGeometry.menuBarRegion(containing: nativeSource.frame) == region,
               MenuBarGeometry.menuBarRegion(containing: nativeDestination.frame) == region,
@@ -125,12 +156,6 @@ final class MenuBarItemMover {
         }
         return true
     }
-
-    private func nativeSeparator(windows: [MenuBarNativeWindow]? = nil) -> MenuBarNativeWindow? {
-        guard let frame = boundaryFrame else { return nil }
-        return MenuBarNativeWindow.match(axFrame: frame, clientPID: getpid(),
-                                         windows: windows ?? MenuBarNativeWindow.currentWindows())
-    }
 }
 
 extension MenuBarItemMover: MenuBarLayoutDriving {
@@ -142,6 +167,10 @@ extension MenuBarItemMover: MenuBarLayoutDriving {
         if isOnCollectedSide(item) { return .collected }
         guard let frame = item.menuBarReference.currentFrame() else { return nil }
         if MenuBarGeometry.isOnMenuBar(frame) { return .resident }
-        return isCollapsed ? .collected : nil
+        // Real collapsed items move horizontally offscreen, retaining their
+        // menu-bar row. A helper's stale bottom-of-screen AX rectangle is not
+        // proof that ShelterBar collected it.
+        return isCollapsed && MenuBarGeometry.isInMenuBarRow(frame, regions: MenuBarGeometry.menuBarRegions)
+            ? .collected : nil
     }
 }

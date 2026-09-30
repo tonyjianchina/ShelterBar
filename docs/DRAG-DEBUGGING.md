@@ -1,6 +1,10 @@
 # Native drag regression (2026-09-24)
 
-Status: release-target-only candidate **does not resolve the user-reported failure**.
+Current status (2026-09-29): v0.5.4 native collection/return and restart checks
+pass on the built-in notched display. The captured v0.5.3 failure and fix are
+documented below. Earlier traces remain as historical evidence.
+
+Historical status: release-target-only candidate **does not resolve the user-reported failure**.
 The user reproduced the same Shadowrocket error after granting permissions and
 restarting this exact build. Do not present the packet unit test as an end-to-end fix.
 
@@ -98,3 +102,51 @@ blocked: fresh tccd entries at 20:44:18 report `Failed to match existing code
 requirement` for both Accessibility and ScreenCapture. Do not rebuild again just
 to retry this candidate; it needs user-mediated authorization for this unchanged
 binary first. No TCC database or privacy toggle was modified by the agent.
+
+## v0.5.3 recurrence and verified v0.5.4 fix (2026-09-29)
+
+`osascript Tools/Diagnostics/CheckReconciliation.applescript` reproduced the
+installed v0.5.3 failure repeatedly, exit 1:
+`FAIL: 无法安全整理当前菜单栏，已展开全部图标。`
+
+The source discovery query used `.optionOnScreenOnly`. On this machine it
+returned zero status-layer windows, while `.optionAll` returned Control Center's
+hosted native windows at the live AX coordinates. Chrome AX `(857,4.5,24,24)`
+matched native window 4816 `(850,0,38,33)`; ShelterBar AX `(1062,4.5,24,24)`
+matched window 6039 `(1055,0,38,33)`. Neither native record had an on-screen flag.
+The captured regression test failed both matches before the fix and passed after.
+
+Full native testing then exposed two secondary failures. Reordered AX geometry
+updated before native-window animation; a failed pair matched again after 150 ms.
+Pair discovery now waits up to 450 ms without relaxing the strict matcher.
+Lark Helper also retained AX `(-1,981,56,24)` with no native status window.
+It must neither participate in resident verification nor be adopted as collected
+when the boundary expands. Real collapsed Shadowrocket geometry retained its
+menu-bar row, `(-2127,4.5,36,24)`.
+
+A boundary at the leftmost safe position also needs an inverse move: move our
+boundary after the selected item, then restore other residents before collapse.
+The engine still verifies every actual participant before persisting success.
+
+Observed native input checks (ordinary mouse input, actual production app):
+
+- Shadowrocket: `(913,4.5,36,24)` → `(-2127,4.5,36,24)` → `(913,4.5,36,24)`.
+- Chrome: `(955,4.5,24,24)` → `(-2119,4.5,24,24)` → `(955,4.5,24,24)`.
+- NetEase Mail: `(1181,4.5,67,24)` → `(-2127,4.5,67,24)` → `(947,4.5,67,24)`.
+- Shelf count follows 0 → 1 → 0 in each cycle, remaining at 1 through multiple
+  background polls. Lark's stale entry is not adopted.
+- Quitting and restarting restores the saved Shadowrocket collection. Explicit
+  refresh passes with both an empty and a populated shelf.
+
+These are native local checks, not a blanket multi-display compatibility claim.
+No TCC database, code-requirement record or privacy toggle was modified.
+
+Final-package acceptance: the native cycles above ran the release executable
+from the development host with existing permissions. The v0.5.4 DMG and ZIP
+passed signature, binary equality and checksum checks. Installing that DMG at
+`/Applications/ShelterBar.app` and launching normally reported Accessibility
+permission missing, so the final normal-launch drag check is **blocked**, not
+passed. The user must reauthorize the new ad-hoc build before that acceptance
+check can continue. No privacy control was changed or bypassed. The native
+scripts now reject missing permission explicitly instead of counting a
+permission-only panel as successful reconciliation.

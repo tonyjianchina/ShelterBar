@@ -15,6 +15,36 @@ private func nativeWindow(
                         ownerBundleID: ownerBundleID)
 }
 
+@Test("composited macOS 26 status windows remain discoverable for live AX items")
+@MainActor
+func nativeWindowFindsCompositedStatusItems() {
+    // Captured on 2026-09-29: visible Chrome and ShelterBar AX items,
+    // hosted by Control Center, are absent from optionOnScreenOnly but
+    // present in optionAll. Neither record has kCGWindowIsOnscreen.
+    let records: [[String: Any]] = [
+        [kCGWindowNumber as String: CGWindowID(4816),
+         kCGWindowOwnerPID as String: pid_t(542),
+         kCGWindowLayer as String: nativeStatusLayer,
+         kCGWindowBounds as String: CGRect(x: 850, y: 0, width: 38, height: 33).dictionaryRepresentation],
+        [kCGWindowNumber as String: CGWindowID(6039),
+         kCGWindowOwnerPID as String: pid_t(542),
+         kCGWindowLayer as String: nativeStatusLayer,
+         kCGWindowBounds as String: CGRect(x: 1055, y: 0, width: 38, height: 33).dictionaryRepresentation],
+    ]
+    let windows = MenuBarNativeWindow.currentWindows(
+        readWindowInfo: { options in options == .optionAll ? records : [] },
+        ownerBundleID: { $0 == 542 ? "com.apple.controlcenter" : nil }
+    )
+    #expect(MenuBarNativeWindow.match(
+        axFrame: CGRect(x: 857, y: 4.5, width: 24, height: 24),
+        clientPID: 16237, windows: windows
+    )?.id == 4816)
+    #expect(MenuBarNativeWindow.match(
+        axFrame: CGRect(x: 1062, y: 4.5, width: 24, height: 24),
+        clientPID: 71597, windows: windows
+    )?.id == 6039)
+}
+
 @Test("native status matching accepts captured Shadowrocket and thin divider geometry")
 func nativeWindowMatchesCapturedGeometry() {
     let examples: [(CGRect, CGRect)] = [
@@ -89,4 +119,40 @@ func nativeWindowGeometryToleranceIsBounded() {
             nativeWindow(frame: rejected),
         ]) == nil)
     }
+}
+
+@Test("sequential moves wait for native animation to catch up with live AX geometry")
+@MainActor
+func nativeWindowAwaitsCoherentPair() async {
+    var attempt = 0
+    let sourceAX = CGRect(x: 883, y: 4.5, width: 24, height: 24)
+    let destinationAX = CGRect(x: 1075, y: 4.5, width: 24, height: 24)
+    let pair = await MenuBarNativeWindow.resolvePair(
+        sourceFrame: { sourceAX }, sourcePID: 42,
+        destinationFrame: { destinationAX }, destinationPID: 43,
+        readWindows: {
+            [nativeWindow(id: 1, pid: 42,
+                          frame: CGRect(x: attempt < 3 ? 941 : 876, y: 0, width: 38, height: 33)),
+             nativeWindow(id: 2, pid: 43,
+                          frame: CGRect(x: 1068, y: 0, width: 38, height: 33))]
+        }, wait: { attempt += 1 }
+    )
+    #expect(attempt == 3)
+    #expect(pair?.source.id == 1)
+    #expect(pair?.destination.id == 2)
+}
+
+@Test("unmatched native windows time out without relaxing ownership or geometry")
+@MainActor
+func nativeWindowPairTimesOut() async {
+    var waits = 0
+    let frame = CGRect(x: 900, y: 0, width: 38, height: 33)
+    let pair = await MenuBarNativeWindow.resolvePair(
+        sourceFrame: { frame }, sourcePID: 42,
+        destinationFrame: { frame }, destinationPID: 43,
+        readWindows: { [nativeWindow(id: 1, pid: 99, frame: frame)] },
+        wait: { waits += 1 }
+    )
+    #expect(pair == nil)
+    #expect(waits == 9)
 }

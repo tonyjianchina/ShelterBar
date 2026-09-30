@@ -64,3 +64,13 @@ func expandedBoundaryUsesTrailingHandleFrame() {
     #expect(MenuBarGeometry.trailingControlFrame(expanded, regions: [menuBar])
         == CGRect(x: 895, y: 4, width: 24, height: 24))
 }
+
+@Test("collapsed status items keep their row while stale helper AX entries do not")
+@MainActor
+func hiddenItemsExcludeOffRowAXRemnants() {
+    let row = CGRect(x: 0, y: 0, width: 1512, height: 32)
+    #expect(MenuBarGeometry.isInMenuBarRow(
+        CGRect(x: -2127, y: 4.5, width: 36, height: 24), regions: [row]))
+    #expect(!MenuBarGeometry.isInMenuBarRow(
+        CGRect(x: -1, y: 981, width: 56, height: 24), regions: [row]))
+}

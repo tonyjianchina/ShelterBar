@@ -77,6 +77,7 @@ public enum MenuBarReconciliation {
 
         if request.newItemPolicy == .collect {
             for item in request.items where newItemIDs.contains(item.id) {
+                guard item.placement != nil else { continue }
                 guard item.isMovable || item.placement == .collected else { continue }
                 if !desiredCollectedIDs.contains(item.id) {
                     adoptedCollectedIDs.insert(item.id)
@@ -90,7 +91,9 @@ public enum MenuBarReconciliation {
         for item in request.items {
             let desired: MenuBarPlacement = desiredCollectedIDs.contains(item.id) ? .collected : .resident
             guard let observed = item.placement else {
-                unresolvedItemIDs.insert(item.id)
+                // AX may retain a helper's menu item after its native window
+                // disappears. Only an explicitly managed item needs recovery.
+                if desired == .collected { unresolvedItemIDs.insert(item.id) }
                 continue
             }
             guard observed != desired else { continue }

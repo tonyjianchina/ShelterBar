@@ -1,4 +1,4 @@
-# ShelterBar v0.5.3 preview acceptance
+# ShelterBar v0.5.4 preview acceptance
 
 ## Agreed behavior
 
@@ -59,6 +59,12 @@ cycle. The More menu can always show all top icons.
 
 ## Acceptance checks
 
+- [x] Native session (2026-09-29): actual collect/return cycles for Shadowrocket,
+  Chrome and NetEase Mail, stable membership through polling, restart restoration
+  and repeated refresh on a built-in notched display. Commands and evidence are
+  recorded in `Tools/Diagnostics/README.md` and `docs/DRAG-DEBUGGING.md`.
+- [x] Automated: composited status-window discovery, asynchronous native/AX
+  geometry, unmanaged stale AX entries and preservation of real participants.
 - [x] Automated: dropping into the shelf yields a single collect action.
 - [x] Automated: releasing elsewhere or Escape cancels, including before the
   movement threshold; ordinary clicks remain clicks.
@@ -79,7 +85,7 @@ cycle. The More menu can always show all top icons.
   or failure and falls back safely when no snapshot is available.
 - [x] Packaging: the DMG stores a Finder icon-view layout with a branded
   background, ShelterBar on the left, and the Applications alias on the right.
-- [ ] v0.5.3 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.4 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility and Screen Recording through

@@ -101,6 +101,12 @@ enum MenuBarGeometry {
         return regions.first { $0.contains(CGPoint(x: frame.midX, y: frame.midY)) }
     }
 
+    static func isInMenuBarRow(_ frame: CGRect, regions: [CGRect]) -> Bool {
+        frame.width > 1 && frame.height > 1 && regions.contains {
+            frame.midY >= $0.minY && frame.midY < $0.maxY
+        }
+    }
+
     static func isSafeDrop(_ point: CGPoint) -> Bool { dropRegions.contains { $0.contains(point) } }
 
     static func statusFrame(_ item: NSStatusItem, help: String) -> CGRect? {

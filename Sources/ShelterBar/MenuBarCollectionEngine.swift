@@ -145,16 +145,17 @@ final class MenuBarCollectionEngine {
 
         model.refresh()
         let items = model.allItems
-        if !didSeedInventory {
-            knownItemIDs = Set(items.map(\.id))
-            didSeedInventory = true
-        }
         let observed = items.map {
             ObservedMenuBarItem(
                 id: $0.id,
                 placement: driver.observedPlacement(of: $0),
                 isMovable: $0.isMovable
             )
+        }
+        let availableIDs = Set(observed.filter { $0.placement != nil }.map(\.id))
+        if !didSeedInventory {
+            knownItemIDs = availableIDs
+            didSeedInventory = true
         }
         let previouslyCollectedIDs = model.collectedIDs
         let plan = MenuBarReconciliation.plan(MenuBarReconciliationRequest(
@@ -176,7 +177,7 @@ final class MenuBarCollectionEngine {
                 model.setCollected(false, id: id)
             }
             for id in plan.adoptedCollectedIDs { model.setCollected(true, id: id) }
-            knownItemIDs.formUnion(items.map(\.id))
+            knownItemIDs.formUnion(availableIDs)
             model.refresh()
             phase = .idle
 
@@ -302,6 +303,14 @@ final class MenuBarCollectionEngine {
         await driver.revealHiddenSection()
         try Task.checkCancellation()
 
+        // Protect every real participant, including residents displaced by
+        // this transaction. Unmanaged AX remnants with no observable placement
+        // cannot be required to reappear in a menu bar they never occupied.
+        let participantIDs = Set(model.scan().filter {
+            driver.observedPlacement(of: $0) != nil || desiredCollectedIDs.contains($0.id)
+        }.map(\.id))
+            .union(preferredMove.map { [$0.id] } ?? [])
+
         if let preferredMove {
             guard let item = model.scan().first(where: { $0.id == preferredMove.id }),
                   await driver.move(item, to: preferredMove.placement, dropPoint: preferredMove.dropPoint) else {
@@ -349,8 +358,10 @@ final class MenuBarCollectionEngine {
         }
         try Task.checkCancellation()
 
-        let verified = model.scan().allSatisfy { item in
-            let desired: MenuBarPlacement = desiredCollectedIDs.contains(item.id) ? .collected : .resident
+        let liveItems = Dictionary(model.scan().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let verified = participantIDs.allSatisfy { id in
+            guard let item = liveItems[id] else { return false }
+            let desired: MenuBarPlacement = desiredCollectedIDs.contains(id) ? .collected : .resident
             return driver.observedPlacement(of: item) == desired
         }
         guard verified else {
