@@ -16,6 +16,7 @@ final class MenuBarItemMover {
 
     func revealHiddenSection() async {
         boundary.length = NSStatusItem.squareLength
+        MenuBarStatusHandle.refresh(on: boundary.button)
         isCollapsed = false
         try? await Task.sleep(for: .milliseconds(220))
     }
@@ -25,10 +26,12 @@ final class MenuBarItemMover {
         boundary.length = max(500, min(width * 2, 10_000))
         isCollapsed = true
         try? await Task.sleep(for: .milliseconds(250))
+        MenuBarStatusHandle.refresh(on: boundary.button)
     }
 
     func revealImmediately() {
         boundary.length = NSStatusItem.squareLength
+        MenuBarStatusHandle.refresh(on: boundary.button)
         isCollapsed = false
     }
 

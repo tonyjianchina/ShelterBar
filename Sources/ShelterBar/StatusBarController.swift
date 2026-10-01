@@ -47,12 +47,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         super.init()
         statusItem.autosaveName = "ShelterBar.Handle"
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "archivebox.fill", accessibilityDescription: "打开收纳栏")
-            image?.isTemplate = true
-            button.image = image
-            button.imagePosition = .imageRight
-            button.imageHugsTitle = false
-            button.imageScaling = .scaleProportionallyDown
+            MenuBarStatusHandle.install(on: button).store(in: &subscriptions)
             button.toolTip = MenuBarItemMover.handleHelp
             button.setAccessibilityIdentifier("shelterbar.handle")
             button.target = self

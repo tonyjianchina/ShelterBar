@@ -150,3 +150,34 @@ passed. The user must reauthorize the new ad-hoc build before that acceptance
 check can continue. No privacy control was changed or bypassed. The native
 scripts now reject missing permission explicitly instead of counting a
 permission-only panel as successful reconciliation.
+
+## Missing ShelterBar handle after collection (2026-10-01)
+
+v0.5.4 build 10 retained a live status item, but its archive glyph disappeared
+after collection. The AX item expanded to 3026 points. AppKit's image-only
+button cell still centered the icon despite `.imageRight`, placing the glyph
+near x1505 in local coordinates instead of the visible x3002...3026 edge.
+`CheckStatusHandle --legacy` reproduces the offscreen pixels and exits 1.
+
+A trailing NSImageView passed detached button layout tests but failed actual
+hosted-window capture after collapse (local builds 11/12). Explicit redraw did
+not reliably repair it. Do not count a subview's frame as a visible icon.
+
+Build 14 uses a native template image with transparent leading space and the
+archive pixels at its trailing edge. It preserves the standard status button,
+target/action, and accessibility label. Frame notifications refresh the image
+when the system finishes resizing; explicit boundary transitions refresh it too.
+
+Verification: 92 tests pass, including rendered alpha bounds, asynchronous
+button-size changes, and native template/accessibility properties. The installed
+locally signed build 14 restored saved collection on normal launch, retaining
+the original collected entries. Actual hosted capture while collapsed showed native width 3040 points,
+6080×66 pixels, glyph alpha bounds `(6027,21,26,26)`, and a nonempty trailing
+handle at `(1096,4.5,24,24)` on the built-in screen. Repeated captures pass.
+The earlier subview candidate produced a completely transparent captured surface.
+
+No TCC database or privacy switches were changed. Local builds use the existing
+`ShelterBar Local Code Signing` identity. The September 29 DMG in dist/releases
+is still build 10 and must be rebuilt before any publication; this change has
+not been published as a download. This is a handle-visibility fix, not proof
+that every collected third-party icon can be captured without ScreenCapture access.

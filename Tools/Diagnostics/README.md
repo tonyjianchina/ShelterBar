@@ -28,3 +28,35 @@ swiftc -swift-version 6 Sources/ShelterBar/MenuBarNativeWindow.swift Tools/Diagn
 
 `Drag.swift` is a low-level ordinary mouse drag helper for diagnosis. Its four
 coordinates must come from a fresh AX snapshot or screenshot, not stale values.
+
+## Visible status handle
+
+The AppKit pixel check does not change the desktop. The legacy configuration
+must fail; the production configuration must put the actual nontransparent
+glyph pixels in the trailing visible square, not merely create a status item.
+
+```sh
+swiftc -swift-version 6 Sources/ShelterBar/MenuBarStatusHandle.swift Tools/Diagnostics/CheckStatusHandle.swift -o /tmp/shelter-status-handle
+/tmp/shelter-status-handle --legacy
+/tmp/shelter-status-handle
+```
+
+Inspect the running installed app's real hosted status-window pixels:
+
+```sh
+swiftc -swift-version 6 -parse-as-library \
+  Sources/ShelterBar/MenuBarIconCapture.swift \
+  Sources/ShelterBar/MenuBarNativeWindow.swift \
+  Sources/ShelterBar/ScreenCapturePermission.swift \
+  Sources/ShelterBar/MenuBarIconPresentation.swift \
+  Sources/ShelterBar/ShelfItemSource.swift \
+  Tools/Diagnostics/CaptureStatusHandle.swift -o /tmp/shelter-capture-handle
+/tmp/shelter-capture-handle
+```
+
+This read-only check requires existing diagnostic permissions. It strictly
+matches ShelterBar's own status window, crops the trailing handle, saves
+`/tmp/shelter-status-handle-capture.png`, and rejects an empty image. Inspect the
+PNG too: nonempty pixels alone do not establish the correct glyph. Optional
+`--inspect-surface` reports the complete own-window alpha bounds for diagnosis.
+Run after collection and restart, not just while the boundary is square.
