@@ -84,6 +84,30 @@ func engineIgnoresUnmanagedAXRemnant() async {
     #expect(model.collectedIDs == ["vpn", "lark-remnant"])
 }
 
+@Test("collection is not persisted if the driver cannot preserve the visible entry")
+@MainActor
+func engineRejectsUnsafeCollapse() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("vpn", hidden: false)]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["vpn": .resident]
+    driver.onCollapse = { [weak driver] in
+        driver?.isCollapsed = false
+        driver?.movementFailureMessage = "入口不可见，已展开菜单栏。"
+    }
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    let result = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
+    #expect(result.message == "入口不可见，已展开菜单栏。")
+    #expect(model.collectedIDs.isEmpty)
+    #expect(!driver.isCollapsed)
+}
+
 @Test("a resident participating in a transaction cannot disappear during collapse")
 @MainActor
 func engineRejectsLostParticipatingResident() async {

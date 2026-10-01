@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class StatusBarController: NSObject, NSWindowDelegate {
     private let statusItem: NSStatusItem
+    private let boundaryItem: NSStatusItem
     private let panel: ShelfPanel
     private let model: ShelfViewModel
     private let engine: MenuBarCollectionEngine
@@ -24,8 +25,19 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     init(source: any ShelfItemSource) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem.autosaveName = "ShelterBar.Handle"
+        // Seed only the new spacer next to the entry. Do not overwrite saved positions.
+        let handlePosition = UserDefaults.standard.double(forKey: "NSStatusItem Preferred Position ShelterBar.Handle")
+        UserDefaults.standard.register(defaults: [
+            "NSStatusItem Preferred Position ShelterBar.Boundary": handlePosition + 38
+        ])
+        boundaryItem = NSStatusBar.system.statusItem(withLength: MenuBarItemMover.revealedBoundaryLength)
+        boundaryItem.autosaveName = "ShelterBar.Boundary"
+        boundaryItem.button?.toolTip = MenuBarItemMover.boundaryHelp
+        boundaryItem.button?.setAccessibilityIdentifier("shelterbar.boundary")
+        boundaryItem.button?.setAccessibilityLabel("收纳边界")
         let createdModel = ShelfViewModel(source: source)
-        let createdMover = MenuBarItemMover(boundary: statusItem)
+        let createdMover = MenuBarItemMover(boundary: boundaryItem, handle: statusItem)
         let createdCapture = MenuBarIconCapture()
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
@@ -45,9 +57,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         )
         panel = ShelfPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
-        statusItem.autosaveName = "ShelterBar.Handle"
         if let button = statusItem.button {
-            MenuBarStatusHandle.install(on: button).store(in: &subscriptions)
+            MenuBarStatusHandle.install(on: button)
             button.toolTip = MenuBarItemMover.handleHelp
             button.setAccessibilityIdentifier("shelterbar.handle")
             button.target = self

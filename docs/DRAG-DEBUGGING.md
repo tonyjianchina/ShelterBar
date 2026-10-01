@@ -168,7 +168,7 @@ archive pixels at its trailing edge. It preserves the standard status button,
 target/action, and accessibility label. Frame notifications refresh the image
 when the system finishes resizing; explicit boundary transitions refresh it too.
 
-Verification: 92 tests pass, including rendered alpha bounds, asynchronous
+Historical verification (insufficient; user reproduced missing entry): 92 tests pass, including rendered alpha bounds, asynchronous
 button-size changes, and native template/accessibility properties. The installed
 locally signed build 14 restored saved collection on normal launch, retaining
 the original collected entries. Actual hosted capture while collapsed showed native width 3040 points,
@@ -179,5 +179,47 @@ The earlier subview candidate produced a completely transparent captured surface
 No TCC database or privacy switches were changed. Local builds use the existing
 `ShelterBar Local Code Signing` identity. The September 29 DMG in dist/releases
 is still build 10 and must be rebuilt before any publication; this change has
-not been published as a download. This is a handle-visibility fix, not proof
+not been published as a download. This was a handle-visibility candidate, not proof
 that every collected third-party icon can be captured without ScreenCapture access.
+
+## Composited-screen recurrence and independent entry candidate (2026-10-01)
+
+The user again supplied a screenshot without the archive glyph. Capturing the
+private hosted window with `ignoreGlobalClipSingleWindow` had **not** established
+visibility in the actual menu bar. Do not repeat that acceptance mistake.
+
+`/tmp/shelter-capture-handle --composite` reproduced the installed build 14
+failure twice: glyph/background contrast was 0.00064 and 0.00145. The captured
+menu strip clearly showed Wi-Fi, battery, Spotlight and Control Center while the
+expected entry at `(1096,4,24,25)` was only blue background.
+
+A size-only probe (build 15) kept the same entry and image implementation, but
+did not widen it during collapse. The same screen check passed twice at contrast
+0.44656, and the actual menu strip visibly contained the white archive glyph.
+This isolates the failure to using an oversized item as the visible entry; it
+does not establish an undocumented WindowServer implementation detail.
+
+Build 17 separates the always-square clickable entry from the oversized spacer.
+The new spacer's initial preferred position is seeded beside the existing entry
+without overwriting saved positions. Before collapse, the mover verifies that
+the entry is fully visible and on the spacer's resident side. If an inverse
+notch-safe movement has displaced it, the mover reorders the entry and verifies
+again. Failed safety verification keeps the menu expanded. The engine must not
+persist a successful collection when the driver declined collapse.
+
+The engine regression failed before that guard (nil error and wrongly persisted
+collection), then passed. All **93 tests pass**. Installed build 17's signature
+and executable equality with `dist/ShelterBar.app` pass. Native AX reports a
+24-point entry and a separate 3026-point collapsed spacer; the original four
+saved entries remain. Only the temporary diagnostic probe's own saved ID was
+removed during cleanup. No TCC or privacy setting was changed.
+
+**Final native visual acceptance is BLOCKED, not passed.** During subsequent
+checks, both the actual menu strip and the system Wi-Fi positive-control capture
+became blank/black. Both rectangle and explicit-display ScreenCaptureKit APIs
+showed this. The diagnostic now exits 2 for this condition instead of mistaking
+it for an app-specific failure or success. CUA could not attach to ShelterBar's
+window. A user-visible screenshot and click check, followed by restart and
+collect/return verification with a working positive control, are still needed.
+Build 17 is installed locally for confirmation, not uploaded or packaged as a
+validated release. The release directory still contains older build 10 files.

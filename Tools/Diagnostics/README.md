@@ -31,9 +31,9 @@ coordinates must come from a fresh AX snapshot or screenshot, not stale values.
 
 ## Visible status handle
 
-The AppKit pixel check does not change the desktop. The legacy configuration
-must fail; the production configuration must put the actual nontransparent
-glyph pixels in the trailing visible square, not merely create a status item.
+The AppKit pixel check does not change the desktop. The legacy oversized button
+must fail; the production independent square entry must contain its glyph.
+This is a drawing check, not proof of visibility in the composited menu bar.
 
 ```sh
 swiftc -swift-version 6 Sources/ShelterBar/MenuBarStatusHandle.swift Tools/Diagnostics/CheckStatusHandle.swift -o /tmp/shelter-status-handle
@@ -52,11 +52,22 @@ swiftc -swift-version 6 -parse-as-library \
   Sources/ShelterBar/ShelfItemSource.swift \
   Tools/Diagnostics/CaptureStatusHandle.swift -o /tmp/shelter-capture-handle
 /tmp/shelter-capture-handle
+/tmp/shelter-capture-handle --composite
 ```
 
 This read-only check requires existing diagnostic permissions. It strictly
 matches ShelterBar's own status window, crops the trailing handle, saves
 `/tmp/shelter-status-handle-capture.png`, and rejects an empty image. Inspect the
-PNG too: nonempty pixels alone do not establish the correct glyph. Optional
+PNG too: nonempty pixels alone do not establish the correct glyph **or actual
+screen visibility**. Build 14 passed this private-window test while its entry
+remained absent from the user's screen. Optional
 `--inspect-surface` reports the complete own-window alpha bounds for diagnosis.
-Run after collection and restart, not just while the boundary is square.
+`--composite` also captures only the menu-bar strip and compares the visible
+entry with the glyph mask. A system Wi-Fi positive control must have contrast;
+if the whole menu-bar capture is unavailable/blank, exit 2 means **blocked**,
+not pass or app-specific failure. Exit 1 indicates a failed glyph check.
+Run after collection and restart, not just with all collected items revealed.
+
+`CaptureMenuStrip.swift` is a secondary read-only diagnostic using an explicit
+display filter with `includeMenuBar = true`. It saves only the rightmost 540×33
+menu-bar points to `/tmp/shelter-menubar-display.png`; it makes no pass claim.

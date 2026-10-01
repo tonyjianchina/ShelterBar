@@ -19,15 +19,14 @@ private func visiblePixels(_ image: NSImage) throws -> CGRect {
                   height: bounds.height * image.size.height / CGFloat(pixels.height))
 }
 
-@Test("the archive glyph stays in the visible trailing handle through collapse and reveal")
+@Test("the archive glyph fits the independent square entry")
 @MainActor
-func statusHandleRemainsVisibleWhenExpanded() throws {
+func statusHandleFitsSquareEntry() throws {
     _ = NSApplication.shared
     let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
     MenuBarStatusHandle.install(on: button)
-    for (width, height) in [(24.0, 24.0), (3026.0, 24.0), (6002.0, 24.0), (3026.0, 22.0), (24.0, 24.0)] {
+    for (width, height) in [(24.0, 24.0), (26.0, 24.0), (22.0, 22.0)] {
         button.setFrameSize(CGSize(width: width, height: height))
-        MenuBarStatusHandle.refresh(on: button)
         let image = try #require(button.image)
         let imageFrame = try #require(button.cell?.imageRect(forBounds: button.bounds))
         let pixels = try visiblePixels(image)
@@ -45,28 +44,21 @@ func statusHandleRemainsVisibleWhenExpanded() throws {
 @MainActor
 func statusHandleKeepsNativeButton() throws {
     _ = NSApplication.shared
-    let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0, width: 3026, height: 24))
+    let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
     MenuBarStatusHandle.install(on: button)
     #expect(button.subviews.isEmpty)
     #expect(button.image?.isTemplate == true)
     #expect(button.accessibilityLabel() == "打开收纳栏")
-    let original = button.image
-    MenuBarStatusHandle.refresh(on: button)
-    #expect(button.image === original)
+    #expect(button.image?.size == CGSize(width: 16, height: 16))
 }
 
-@Test("actual button frame notifications refresh the native image after resize")
+@Test("a misplaced or oversized entry cannot be considered safe to collapse")
 @MainActor
-func statusHandleTracksAsynchronousFrameChanges() async {
-    _ = NSApplication.shared
-    let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0, width: 24, height: 24))
-    let observation = MenuBarStatusHandle.install(on: button)
-    for width in [3026.0, 24.0, 6002.0, 24.0] {
-        button.setFrameSize(CGSize(width: width, height: 24))
-        try? await Task.sleep(for: .milliseconds(10))
-        let actualWidth = button.image?.size.width ?? 0
-        let expectedWidth = CGFloat(max(16, width - 8))
-        #expect(abs(actualWidth - expectedWidth) < 0.01)
-    }
-    withExtendedLifetime(observation) {}
+func statusHandleMustStayOnResidentSide() {
+    let boundary = CGRect(x: 1040, y: 4.5, width: 3, height: 24)
+    #expect(MenuBarGeometry.isOnResidentSide(handle: CGRect(x: 1060, y: 4.5, width: 24, height: 24), boundary: boundary))
+    #expect(!MenuBarGeometry.isOnResidentSide(handle: CGRect(x: 1010, y: 4.5, width: 24, height: 24), boundary: boundary))
+    #expect(!MenuBarGeometry.isOnResidentSide(handle: CGRect(x: 1042, y: 4.5, width: 24, height: 24), boundary: boundary))
+    #expect(!MenuBarGeometry.isOnResidentSide(handle: CGRect(x: 1060, y: 500, width: 24, height: 24), boundary: boundary))
+    #expect(!MenuBarGeometry.isOnResidentSide(handle: CGRect(x: 1060, y: 4.5, width: 3026, height: 24), boundary: boundary))
 }

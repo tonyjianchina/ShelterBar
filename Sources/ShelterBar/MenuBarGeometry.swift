@@ -123,4 +123,10 @@ enum MenuBarGeometry {
         let handle = CGRect(x: frame.maxX - width, y: frame.minY, width: width, height: frame.height)
         return regions.contains(where: { $0.contains(handle) }) ? handle : nil
     }
+
+    static func isOnResidentSide(handle: CGRect, boundary: CGRect) -> Bool {
+        handle.width > 1 && handle.width <= handle.height + 2
+            && handle.minX >= boundary.maxX
+            && abs(handle.midY - boundary.midY) < 2
+    }
 }

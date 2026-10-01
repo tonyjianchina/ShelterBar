@@ -4,35 +4,85 @@ import ShelterBarCore
 @MainActor
 final class MenuBarItemMover {
     static let handleHelp = "ShelterBar · 打开收纳栏"
+    static let boundaryHelp = "ShelterBar · 收纳边界"
+    static let revealedBoundaryLength: CGFloat = 3
     private let boundary: NSStatusItem
+    private let handle: NSStatusItem
     private(set) var isCollapsed = false
     private(set) var movementFailureMessage: String?
 
-    init(boundary: NSStatusItem) { self.boundary = boundary }
+    init(boundary: NSStatusItem, handle: NSStatusItem) {
+        self.boundary = boundary
+        self.handle = handle
+    }
 
     var boundaryFrame: CGRect? {
-        MenuBarGeometry.statusFrame(boundary, help: Self.handleHelp)
+        MenuBarGeometry.statusFrame(boundary, help: Self.boundaryHelp)
+    }
+
+    private var handleFrame: CGRect? {
+        MenuBarGeometry.statusFrame(handle, help: Self.handleHelp)
     }
 
     func revealHiddenSection() async {
-        boundary.length = NSStatusItem.squareLength
-        MenuBarStatusHandle.refresh(on: boundary.button)
+        boundary.length = Self.revealedBoundaryLength
         isCollapsed = false
         try? await Task.sleep(for: .milliseconds(220))
     }
 
     func collapseHiddenSection() async {
+        // Never widen the clickable entry: macOS 26 can omit an oversized
+        // status window from the composited menu bar, including its tail.
+        guard await ensureHandleOnResidentSide() else {
+            movementFailureMessage = "ShelterBar 入口的位置不安全，已展开菜单栏。请按住 Command 将收纳箱向右拖动后重试。"
+            revealImmediately()
+            return
+        }
         let width = NSScreen.screens.map(\.frame.width).max() ?? 1440
         boundary.length = max(500, min(width * 2, 10_000))
         isCollapsed = true
         try? await Task.sleep(for: .milliseconds(250))
-        MenuBarStatusHandle.refresh(on: boundary.button)
+        if !hasSafeHandle {
+            movementFailureMessage = "ShelterBar 入口被遮挡，已展开菜单栏。"
+            revealImmediately()
+        }
     }
 
     func revealImmediately() {
-        boundary.length = NSStatusItem.squareLength
-        MenuBarStatusHandle.refresh(on: boundary.button)
+        boundary.length = Self.revealedBoundaryLength
         isCollapsed = false
+    }
+
+    private var hasSafeHandle: Bool {
+        guard handle.length == NSStatusItem.squareLength,
+              let handleFrame, let boundaryFrame else { return false }
+        return MenuBarGeometry.isFullyVisible(handleFrame)
+            && MenuBarGeometry.isOnResidentSide(handle: handleFrame, boundary: boundaryFrame)
+    }
+
+    private func ensureHandleOnResidentSide() async -> Bool {
+        if hasSafeHandle { return true }
+        guard let native = await MenuBarNativeWindow.resolvePair(
+            sourceFrame: { self.handleFrame }, sourcePID: getpid(),
+            destinationFrame: { self.boundaryFrame }, destinationPID: getpid()
+        ) else { return false }
+        // An inverse notch-safe move can put the boundary after our entry.
+        // Move the fixed entry to its right, then verify before hiding.
+        let moved = await VerifiedMenuBarMove.perform(
+            to: .resident, readItem: { self.handleFrame }, readDivider: { self.boundaryFrame },
+            menuBarRegion: MenuBarGeometry.menuBarRegion(containing:),
+            readInsertionFrame: { native.destination.frame }, readSourceFrame: { native.source.frame },
+            pickupPoint: { frame in
+                MenuBarGeometry.visibleFrame(frame).map { CGPoint(x: $0.midX, y: frame.midY) }
+            },
+            isDestinationFrameAllowed: MenuBarGeometry.isFullyVisible,
+            send: { frame, end in
+                guard let destination = self.boundaryFrame else { return false }
+                return await self.commandDrag(from: frame, clientPID: getpid(), to: end,
+                    placement: .resident, destination: destination, destinationPID: getpid())
+            }
+        )
+        return moved && hasSafeHandle
     }
 
     func isOnCollectedSide(_ item: ShelfItem) -> Bool {

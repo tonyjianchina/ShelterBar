@@ -7,7 +7,8 @@ struct CheckStatusHandle {
     @MainActor
     static func main() {
         _ = NSApplication.shared
-        let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0, width: 3026, height: 24))
+        let button = NSStatusBarButton(frame: CGRect(x: 0, y: 0,
+            width: CommandLine.arguments.contains("--legacy") ? 3026 : 24, height: 24))
         if CommandLine.arguments.contains("--legacy") {
             button.title = ""
             button.image = NSImage(systemSymbolName: "archivebox.fill", accessibilityDescription: "打开收纳栏")

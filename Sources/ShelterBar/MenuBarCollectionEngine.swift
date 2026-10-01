@@ -355,6 +355,11 @@ final class MenuBarCollectionEngine {
             driver.revealImmediately()
         } else {
             await driver.collapseHiddenSection()
+            guard driver.isCollapsed else {
+                throw CollectionEngineError.message(
+                    driver.movementFailureMessage ?? "无法安全保留 ShelterBar 入口，已展开菜单栏。"
+                )
+            }
         }
         try Task.checkCancellation()
 
