@@ -10,6 +10,11 @@ case "$version" in
 esac
 release_dir="$project_dir/dist/releases/v$version"
 asset_name="ShelterBar-$version-macos-arm64"
+dmg_python=${SHELTERBAR_DMG_PYTHON:-"$project_dir/.build/dmg-tools/bin/python"}
+if ! "$dmg_python" -c 'import ds_store, mac_alias' 2>/dev/null; then
+    echo "DMG tools missing. Create .build/dmg-tools with Python 3.10+ and install scripts/dmg-requirements.txt; see docs/RELEASE.md." >&2
+    exit 1
+fi
 
 # A machine-local self-signed identity is useful for preserving TCC permissions
 # during development, but must never be shipped to other Macs. Preview releases
@@ -58,8 +63,9 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
 图标读取：使用 ScreenCaptureKit，仅截取与进程 PID、状态窗口及辅助功能
 （AX）范围严格匹配的单个状态图标。截图仅缓存在内存中，不采集音频、
-不录制视频、不把截图写入磁盘，也不上传截图。单色图标随外观配色，彩色
-及多灰度状态图标保留原色，均保持比例。可见时捕获，收纳栏打开时尝试更新
+不录制视频、不把截图写入磁盘，也不上传截图。单色及灰阶图标随外观调整
+对比度，同时保留灰阶细节和彩色标记；彩色图标保留原色，均保持比例。
+可见时捕获，收纳栏打开时尝试更新
 隐藏图标；收纳栏关闭时，定时任务不会截图。失败保留上次成功图像，
 没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
@@ -81,8 +87,9 @@ ShelterBar is a menu-bar app and does not show a Dock icon.
 ScreenCaptureKit captures a single original status icon only after strictly
 matching its process PID, status window, and accessibility (AX) bounds. Images
 are cached in memory: no audio capture, video recording, screenshot files,
-or network uploads. Monochrome glyphs follow the shelf appearance; colored and
-multi-shade status images retain their colors. Aspect ratios are preserved.
+or network uploads. Monochrome and neutral shaded glyphs adapt their contrast
+to the shelf appearance, preserving tonal detail and colored badges. Color-led
+status images retain their colors. Aspect ratios are preserved.
 Icons are captured while visible; hidden icons receive refresh attempts while
 the shelf is open. The periodic task does not capture while the shelf is closed.
 A failed refresh retains the last successful image. If no capture is available,
@@ -118,38 +125,9 @@ fi
 /usr/bin/SetFile -a C "$layout_mount_dir"
 /usr/bin/SetFile -a V "$layout_mount_dir/.background" "$layout_mount_dir/.VolumeIcon.icns"
 
-osascript - "ShelterBar $version" <<'APPLESCRIPT'
-on run argv
-  set volumeName to item 1 of argv
-
-  tell application "Finder"
-    tell disk volumeName
-      open
-      set installerWindow to container window
-      set current view of installerWindow to icon view
-      set toolbar visible of installerWindow to false
-      set statusbar visible of installerWindow to false
-      set pathbar visible of installerWindow to false
-      set bounds of installerWindow to {180, 120, 900, 630}
-
-      set viewOptions to icon view options of installerWindow
-      set arrangement of viewOptions to not arranged
-      set icon size of viewOptions to 112
-      set text size of viewOptions to 16
-      set background picture of viewOptions to file ".background:ShelterBar.png"
-
-      set position of item "ShelterBar.app" of installerWindow to {170, 286}
-      set position of item "Applications" of installerWindow to {550, 286}
-
-      update without registering applications
-      delay 2
-      close installerWindow
-      open
-      delay 2
-    end tell
-  end tell
-end run
-APPLESCRIPT
+# Generate Finder's on-disk layout directly: no UI automation, app registration,
+# or installation is needed on the release machine.
+"$dmg_python" "$project_dir/Tools/DMGLayout.py" "$layout_mount_dir"
 
 sync
 hdiutil detach "$layout_device" >/dev/null
@@ -170,6 +148,7 @@ test "$(readlink "$mount_dir/Applications")" = /Applications
 test -f "$mount_dir/.DS_Store"
 test -f "$mount_dir/.background/ShelterBar.png"
 test -f "$mount_dir/.background/INSTALL.txt"
+"$dmg_python" "$project_dir/Tools/DMGLayout.py" "$mount_dir" --verify
 codesign --verify --strict --verbose=2 "$mount_dir/ShelterBar.app"
 cmp "$app_dir/Contents/MacOS/ShelterBar" "$mount_dir/ShelterBar.app/Contents/MacOS/ShelterBar"
 cmp "$app_dir/Contents/Info.plist" "$mount_dir/ShelterBar.app/Contents/Info.plist"

@@ -16,7 +16,7 @@
 
 启动后会先询问“辅助功能”权限；检测到授权成功后，会立即继续询问“屏幕录制”权限。辅助功能用于发现和移动图标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.4 修复“无法安全整理当前菜单栏”的复发问题：兼容 macOS 26 合成显示的状态栏窗口，等待移动动画与辅助功能坐标同步，并忽略未参与整理的失效辅助功能条目。收纳箱紧挨刘海时会自动调整边界来完成收纳。已在本机验证 Shadowrocket、Chrome、网易邮箱大师的实际收纳与拖回，以及重启恢复。
+v0.5.4（build 19）包含原生窗口发现、菜单栏入口和图标对比度修复：兼容 macOS 26 合成显示的状态栏窗口，等待移动动画与辅助功能坐标同步，忽略未参与整理的失效条目；可见入口与收起边界分离，并在收起前检查入口位置；白色及灰阶图标会随收纳栏外观调整对比度，保留彩色标记。详见 [版本说明](docs/releases/v0.5.4.md)。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -58,7 +58,8 @@ only when its process PID, status window, and accessibility (AX) bounds match
 strictly. Captured images are cached in memory. ShelterBar does not capture
 audio, record video, save screenshots to disk, or upload them.
 
-Monochrome glyphs adapt to the shelf's appearance; colored and multi-shade
+Monochrome and neutral shaded glyphs adapt their contrast to the shelf's
+appearance while preserving tonal detail and small colored badges. Color-led
 status images retain their original colors. All images preserve their aspect
 ratio. Icons are captured while visible; hidden icons receive refresh attempts
 while the shelf is open. The periodic task does not capture while the shelf is
@@ -66,14 +67,14 @@ closed. A failed refresh keeps the last successful image; without one, the shelf
 uses a placeholder without interrupting collection. This is a cached
 snapshot, not a guarantee that every changing status will update immediately.
 
-macOS owns the real menu-bar views. ShelterBar uses its visible archive handle as
-the collection boundary, puts collected items to its left, and expands the same
-handle leftward to move them off the top row. Keeping the entry point and boundary
-as one status item prevents an invisible divider from becoming stranded under a
-camera housing. Each destination frame is checked against the display and camera
-housing before a move is posted, and fresh accessibility geometry must confirm the
-result before saved placement changes. Failed moves leave the bar expanded and
-display an explanation.
+macOS owns the real menu-bar views. ShelterBar keeps a fixed-width visible archive
+entry separate from the expanding collection boundary. Collected items sit to
+the boundary's left; the entry stays on its resident side. Before collapsing,
+ShelterBar checks that the entry is in the display's safe area and outside the
+camera housing. Each destination frame is checked before a move is posted, and
+fresh accessibility geometry must confirm the result before saved placement
+changes. Failed moves or entry checks leave the bar expanded and display an
+explanation.
 
 Some system items (clock, Control Center, camera/microphone indicator) are not
 draggable through ShelterBar. Items without an accessible menu-bar element
@@ -119,6 +120,8 @@ compatibility. See [docs/MVP.md](docs/MVP.md) for acceptance.
 ## Package a release
 
 ```sh
+python3.11 -m venv .build/dmg-tools
+.build/dmg-tools/bin/pip install -r scripts/dmg-requirements.txt
 ./scripts/package-release.sh
 ```
 
