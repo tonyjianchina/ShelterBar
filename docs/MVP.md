@@ -1,4 +1,4 @@
-# ShelterBar v0.5.4 preview acceptance
+# ShelterBar v0.5.5 preview acceptance
 
 ## Agreed behavior
 
@@ -9,12 +9,13 @@
   into it. Dragging a shelf item back into the right-hand top-bar area restores
   that real item. No shortcut or Command modifier is required.
 - The shelf omits icons that are still visible on the top bar.
-- Accessibility is required for discovery and native movement; Screen Recording
+- Accessibility and Input Monitoring are required for discovery, physical drag
+  interception, and native movement; Screen Recording
   permission is optional and enables capture of the original menu-bar status icons. The
   earlier permission-free running-app proxy prototype is replaced.
-- On first launch, permission onboarding requests Accessibility first. As soon
-  as that grant is observed, it requests Screen Recording once and skips any
-  permission that is already granted.
+- On first launch, permission onboarding requests Accessibility and Input
+  Monitoring first. As soon as all input capabilities are observed, it requests
+  Screen Recording once and skips any permission that is already granted.
 - The shelf shows captured status icons with their aspect ratio preserved.
   Monochrome glyphs follow the shelf appearance; colored and multi-shade status
   images retain their original colors.
@@ -39,7 +40,9 @@ updates for every animated or changing status.
 
 Top-item drag interception is enabled only while the shelf is visible; the
 event tap can remain installed while the shelf is closed.
-It has a cached hit map, skips tagged synthetic events, and does no AX queries
+It is installed and re-enabled only while Accessibility, event listening, and
+event synthesis are all authorized. Permission loss cancels the active gesture
+and releases physical input. It has a cached hit map, skips tagged synthetic events, and does no AX queries
 in the event callback. An AppKit dragging source reports shelf-item releases in
 the top-right menu-bar area even though other apps cannot accept our drag data.
 
@@ -69,6 +72,8 @@ cycle. The More menu can always show all top icons.
 - [x] Automated: releasing elsewhere or Escape cancels, including before the
   movement threshold; ordinary clicks remain clicks.
 - [x] Automated: our synthetic movement events bypass our input tap.
+- [x] Automated: missing or revoked input access releases physical events and
+  cancels an in-flight gesture.
 - [x] Automated: an ignored OS move fails; fresh geometry must confirm success.
 - [x] Automated: cross-display rows cannot be confused.
 - [x] Automated: a destination intersecting the camera housing is rejected before input is posted.
@@ -85,10 +90,10 @@ cycle. The More menu can always show all top icons.
   or failure and falls back safely when no snapshot is available.
 - [x] Packaging: the DMG stores a Finder icon-view layout with a branded
   background, ShelterBar on the left, and the Applications alias on the right.
-- [ ] v0.5.4 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.5 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
-- [ ] Authorized native session: grant Accessibility and Screen Recording through
+- [ ] Authorized native session: grant Accessibility, Input Monitoring, and Screen Recording through
   the in-app controls, restart if necessary, and confirm the original third-party
   status glyphs appear rather than application icons.
 - [ ] Authorized native session: verify monochrome appearance, original colored

@@ -55,7 +55,8 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。
 打开“应用程序”中的 ShelterBar，按提示在“系统设置 → 隐私与安全性
-→ 辅助功能”中授权。授权成功后，应用会继续询问“屏幕录制”；它仅用于
+→ 辅助功能”和“输入监控”中授权。两项都生效后，应用会继续询问
+“屏幕录制”；它仅用于
 读取原始菜单栏状态图标，可以拒绝或稍后开启。未授权时使用占位图标，
 收纳与恢复功能仍然可用。
 应用内提供“允许读取图标”和“打开设置”，授权后可能需要退出并重新打开。
@@ -77,8 +78,8 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 Apple 官方说明：https://support.apple.com/zh-cn/102445
 
 Install: drag ShelterBar.app to Applications, then eject this disk image.
-Open ShelterBar from Applications and allow Accessibility. Once granted, the app
-immediately asks for optional Screen Recording to show original status icons;
+Open ShelterBar from Applications and allow Accessibility and Input Monitoring.
+Once both are active, the app asks for optional Screen Recording to show original status icons;
 placeholders are used without it.
 Use “允许读取图标” (Allow icon access) or “打开设置” (Open Settings) in the app.
 You may need to quit and reopen ShelterBar after granting permission.

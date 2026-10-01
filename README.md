@@ -2,21 +2,21 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.4 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.4) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.5 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.5) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/ShelterBar-0.5.4-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/ShelterBar-0.5.4-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.4/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/ShelterBar-0.5.5-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/ShelterBar-0.5.5-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/SHA256SUMS)
 
 这是 **早期预览版**，采用 ad-hoc 签名，尚无 Developer ID 签名或 Apple 公证。如果首次打开被系统阻止，可按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，在确认来源后通过“系统设置 → 隐私与安全性 → 仍要打开”允许该应用（如系统提供此选项）。
 
-启动后会先询问“辅助功能”权限；检测到授权成功后，会立即继续询问“屏幕录制”权限。辅助功能用于发现和移动图标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
+启动后会先询问“辅助功能”和“输入监控”权限；只有两项都生效后，才会继续询问“屏幕录制”权限。前两项用于发现、拦截拖动并移动图标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.4（build 19）包含原生窗口发现、菜单栏入口和图标对比度修复：兼容 macOS 26 合成显示的状态栏窗口，等待移动动画与辅助功能坐标同步，忽略未参与整理的失效条目；可见入口与收起边界分离，并在收起前检查入口位置；白色及灰阶图标会随收纳栏外观调整对比度，保留彩色标记。详见 [版本说明](docs/releases/v0.5.4.md)。
+v0.5.5（build 20）修复权限切换或临时签名更新后，鼠标可以移动但全局点击可能失效的问题。ShelterBar 现在只有在辅助功能、输入监听和事件发送能力全部可用时才拦截拖动；权限中途失效会立即放行物理事件并取消手势。v0.5.4 的原生窗口发现、入口保护和图标对比度修复全部保留。详见 [版本说明](docs/releases/v0.5.5.md)。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -29,10 +29,10 @@ top-right menu-bar area to open a row underneath it.
 
 ## Use
 
-1. Grant **Accessibility** when ShelterBar requests it. ShelterBar detects the
-   grant and immediately continues to the Screen Recording request. If an older development
-   build is already listed, switch ShelterBar off and on in System Settings →
-   Privacy & Security → Accessibility.
+1. Grant **Accessibility** and **Input Monitoring** when ShelterBar requests them.
+   ShelterBar waits for both capabilities before continuing to Screen Recording.
+   If an older development build is already listed, switch ShelterBar off and on
+   in both sections under System Settings → Privacy & Security.
 2. The **Screen Recording** request follows automatically and remains optional.
    It shows the original status icons; collection
    and restoration continue to work with placeholders when it is denied. Use the in-app
@@ -51,8 +51,8 @@ match its menu bar. There are no app-created top-bar icon proxies.
 
 ## Permissions and boundaries
 
-Accessibility is required to discover other apps' menu-bar items, intercept a
-drag while the shelf is open, and request native rearrangement. Screen Recording
+Accessibility and Input Monitoring are required to discover other apps' menu-bar
+items, intercept a drag while the shelf is open, and request native rearrangement. Screen Recording
 is optional and allows ScreenCaptureKit to capture an individual original status icon
 only when its process PID, status window, and accessibility (AX) bounds match
 strictly. Captured images are cached in memory. ShelterBar does not capture
@@ -126,7 +126,7 @@ python3.11 -m venv .build/dmg-tools
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.4/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.5.5/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Website

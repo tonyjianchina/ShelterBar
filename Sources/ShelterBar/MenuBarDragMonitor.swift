@@ -14,8 +14,17 @@ final class MenuBarDragMonitor {
     private var enabled = false
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private let hasEventAccess: @MainActor () -> Bool
+
+    init(hasEventAccess: @escaping @MainActor () -> Bool = { AccessibilityPermission.isGranted }) {
+        self.hasEventAccess = hasEventAccess
+    }
 
     func start() -> Bool {
+        guard hasEventAccess() else {
+            stop()
+            return false
+        }
         if let eventTap { return CGEvent.tapIsEnabled(tap: eventTap) }
         let types: [CGEventType] = [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .keyDown]
         let mask = types.reduce(CGEventMask(0)) { $0 | (1 << $1.rawValue) }
@@ -28,8 +37,11 @@ final class MenuBarDragMonitor {
                     let monitor = Unmanaged<MenuBarDragMonitor>.fromOpaque(context).takeUnretainedValue()
                     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                         monitor.gesture.cancel()
+                        monitor.activeID = nil
                         monitor.onOutcome?(.cancel)
-                        if let tap = monitor.eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+                        if monitor.hasEventAccess(), let tap = monitor.eventTap {
+                            CGEvent.tapEnable(tap: tap, enable: true)
+                        }
                         return false
                     }
                     return monitor.consume(type, event: event)
@@ -50,6 +62,7 @@ final class MenuBarDragMonitor {
         runLoopSource = nil
         eventTap = nil
         gesture.cancel()
+        activeID = nil
     }
 
     func update(isEnabled: Bool, items: [ShelfItem], shelfFrame: CGRect) {
@@ -61,6 +74,11 @@ final class MenuBarDragMonitor {
 
     @discardableResult
     func consume(_ type: CGEventType, event: CGEvent) -> Bool {
+        guard hasEventAccess() else {
+            gesture.cancel()
+            activeID = nil
+            return false
+        }
         guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticEventTag else { return false }
         let point = event.location
         switch type {
