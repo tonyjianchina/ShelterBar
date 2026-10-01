@@ -71,3 +71,19 @@ Run after collection and restart, not just with all collected items revealed.
 `CaptureMenuStrip.swift` is a secondary read-only diagnostic using an explicit
 display filter with `includeMenuBar = true`. It saves only the rightmost 540×33
 menu-bar points to `/tmp/shelter-menubar-display.png`; it makes no pass claim.
+
+## Shelf icon contrast
+
+`swift test --filter 'capturedShadedGlyphContrast|capturedBadgePreservesColorAndDetails|shadedShelfDrawingFollowsAppearance'`
+exercises capture classification through actual production drawing, with light
+and dark appearance, shaded neutral details, alpha preservation and a small
+colored badge. These must not be tested using only flat template glyphs.
+
+`CaptureShelfPanel.swift` captures only ShelterBar's own shelf window into
+`/tmp/shelter-shelf-panel.png`. Inspect it after installing and opening the shelf;
+it checks rendered panel contents, not menu-bar entry visibility or interaction.
+
+`CheckShelfContrast.swift` accepts bundle IDs for known neutral status icons and
+checks their production capture/render path on a light shelf. It requires one
+capture per supplied bundle; unavailable/offscreen captures exit 2 (blocked).
+It is not a general contrast test for arbitrary colored logos.

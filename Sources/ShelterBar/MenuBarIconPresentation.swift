@@ -58,12 +58,21 @@ enum MenuBarIconPresentation {
 
     private static func drawPixels(_ image: NSImage, in rect: NSRect, tintColor: NSColor) {
         guard rect.width > 0, rect.height > 0, let context = NSGraphicsContext.current else { return }
+        // Resolve captured neutral variants against this view's label tint,
+        // not the appearance of the menu bar when its pixels were captured.
+        let color = tintColor.usingColorSpace(.deviceRGB)
+        let brightness = color.map { $0.redComponent * 0.2126 + $0.greenComponent * 0.7152 + $0.blueComponent * 0.0722 } ?? 0
+        let appearance = NSAppearance(named: brightness > 0.5 ? .darkAqua : .aqua)
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
         // Isolate the alpha mask so tinting never paints over the shelf background.
         if image.isTemplate { context.cgContext.beginTransparencyLayer(auxiliaryInfo: nil) }
-        image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
-                   respectFlipped: true, hints: nil)
+        let drawImage = {
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
+                       respectFlipped: true, hints: nil)
+        }
+        if let appearance { appearance.performAsCurrentDrawingAppearance(drawImage) }
+        else { drawImage() }
         if image.isTemplate {
             tintColor.setFill()
             rect.fill(using: .sourceIn)

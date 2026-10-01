@@ -123,6 +123,7 @@ enum MenuBarGlyphImage {
         guard rendered else { return nil }
         var visible = 0, colored = 0, transparent = 0
         var darkest = 255, lightest = 0, solidPixels = 0
+        var grayTotal = 0, grayWeight = 0
         for index in stride(from: 0, to: pixels.count, by: 4) {
             let alpha = Int(pixels[index + 3])
             if alpha < 12 { transparent += 1; continue }
@@ -136,12 +137,46 @@ enum MenuBarGlyphImage {
                 darkest = min(darkest, gray)
                 lightest = max(lightest, gray)
                 solidPixels += 1
+                grayTotal += gray * alpha
+                grayWeight += alpha
             }
         }
         guard visible > 0 else { return nil }
         let image = NSImage(cgImage: source, size: logicalSize)
         image.isTemplate = transparent > width * height / 5 && colored == 0 &&
             solidPixels > 0 && lightest - darkest <= 16
+        // Shading and captured shadows make real neutral glyphs multi-tone.
+        // Keep those details, but choose a dark/light variant for the shelf
+        // instead of leaving a captured white glyph white on a light panel.
+        // A small colored status badge must not prevent the neutral body from
+        // adapting. Preserve every chromatic pixel; never invert a color-led icon.
+        if !image.isTemplate, transparent > width * height / 5, colored * 8 <= visible, grayWeight > 0 {
+            for index in stride(from: 0, to: pixels.count, by: 4) {
+                let alpha = Int(pixels[index + 3])
+                let channels = [Int(pixels[index]), Int(pixels[index + 1]), Int(pixels[index + 2])]
+                guard (channels.max()! - channels.min()!) * 255 <= 14 * alpha else { continue }
+                for channel in 0..<3 { pixels[index + channel] = UInt8(max(0, alpha - Int(pixels[index + channel]))) }
+            }
+            if let provider = CGDataProvider(data: Data(pixels) as CFData),
+               let inverse = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                    bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue),
+                    provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) {
+                let inverseImage = NSImage(cgImage: inverse, size: logicalSize)
+                let originallyLight = grayTotal > grayWeight * 127
+                let lightBackground = originallyLight ? inverseImage : image
+                let darkBackground = originallyLight ? image : inverseImage
+                let adaptive = NSImage(size: logicalSize, flipped: false) { rect in
+                    let appearance = NSAppearance.currentDrawing()
+                    let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                    (dark ? darkBackground : lightBackground).draw(in: rect, from: .zero,
+                        operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                    return true
+                }
+                adaptive.cacheMode = .never
+                return adaptive
+            }
+        }
         return image
     }
 }
