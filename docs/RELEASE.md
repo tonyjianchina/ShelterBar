@@ -1,4 +1,4 @@
-# ShelterBar v0.5.5 预览版
+# ShelterBar v0.5.6 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 26.0 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.5](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.5) 下载 [ShelterBar-0.5.5-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/ShelterBar-0.5.5-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/ShelterBar-0.5.5-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.6](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.6) 下载 [ShelterBar-0.5.6-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.6/ShelterBar-0.5.6-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.6/ShelterBar-0.5.6-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 首次打开时，如果 macOS 提示无法验证开发者或无法检查恶意软件，在确认下载来源及 SHA256 校验值后，可进入 **系统设置 → 隐私与安全性 → 仍要打开**，再确认“打开”。先尝试打开应用，系统才可能显示这个按钮。受管理设备可能不提供该选项；不要关闭 Gatekeeper 或移除系统安全策略。
 
@@ -21,11 +21,17 @@
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。本版已完成下述本机真实拖动检查，但原始图标捕获及移动的完整兼容性仍须针对具体第三方应用、显示器配置和 macOS 版本验证，不能仅由自动化测试确认。
 
-## v0.5.5（build 20）修复内容
+## v0.5.6（build 21）修复内容
+
+修复点击“授予输入权限”后没有反馈的问题。macOS 不再弹出授权框且权限仍未开通时，应用会打开对应的系统权限设置页，并在收纳栏显示操作提示；系统设置打开失败时显示手动授权说明。重复点击按钮仍然有效，后台轮询不会反复打开设置。已经完整授权时不再请求。
+
+107 项自动化测试通过；本机验证了启动和按钮点击后进入辅助功能设置、收纳栏提示可见。未替用户切换隐私开关，不将导航验证等同于完整授权验收。完整变更见 [发布说明](releases/v0.5.6.md)。
+
+## v0.5.5（build 20）安全修复保留
 
 修复权限切换、重装或临时签名更新后，macOS 可能仍报告辅助功能可用，但输入监听或事件发送已经失效，导致 ShelterBar 吞掉鼠标按下而无法完成合成手势的问题。该状态会表现为鼠标仍能移动，但整个系统无法点击或切换窗口。
 
-ShelterBar 现在把辅助功能、输入监听和事件发送作为一个不可分割的权限门：缺少任意一项时不安装事件拦截；运行中权限失效时立即取消手势并放行后续物理事件；系统禁用 Event Tap 后，也只有权限恢复完整才会重新启用。99 项自动化测试全部通过，新增覆盖启动时缺权和拖动中撤权两种情况。完整变更见 [发布说明](releases/v0.5.5.md)。
+ShelterBar 把辅助功能、输入监听和事件发送作为一个不可分割的权限门：缺少任意一项时不安装事件拦截；运行中权限失效时立即取消手势并放行后续物理事件；系统禁用 Event Tap 后，也只有权限恢复完整才会重新启用。v0.5.5 的 99 项自动化测试全部通过，新增覆盖启动时缺权和拖动中撤权两种情况。历史变更见 [发布说明](releases/v0.5.5.md)。
 
 ## v0.5.4 功能延续
 
@@ -53,7 +59,7 @@ macOS 26 合成显示菜单栏时，实际托管图标的控制中心窗口可�
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.5/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.6/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -62,7 +68,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.5-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.6-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -82,9 +88,9 @@ python3.11 -m venv .build/dmg-tools
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.5/ShelterBar-0.5.5-macos-arm64.dmg
-dist/releases/v0.5.5/ShelterBar-0.5.5-macos-arm64.zip
-dist/releases/v0.5.5/SHA256SUMS
+dist/releases/v0.5.6/ShelterBar-0.5.6-macos-arm64.dmg
+dist/releases/v0.5.6/ShelterBar-0.5.6-macos-arm64.zip
+dist/releases/v0.5.6/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固定 Finder 图标布局和隐藏的中英双语安装说明。布局直接写入磁盘元数据，不需要控制 Finder、安装或启动应用。脚本校验 DMG 内部校验和、只读挂载后的图标位置和背景引用、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。可通过 `SHELTERBAR_DMG_PYTHON` 指定已安装这两个锁定依赖的 Python 解释器。
@@ -102,7 +108,7 @@ DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固�
 
 ## 发布检查
 
-- 将 `v0.5.5` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、未公证状态和已知限制。
+- 将 `v0.5.6` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、未公证状态和已知限制。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
 - 自动化测试与归档校验不等于授权后的原始图标捕获与第三方移动兼容性测试；未完成真实会话验收前，不应宣称完整兼容性已验证。

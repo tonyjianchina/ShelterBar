@@ -7,6 +7,7 @@ final class ShelfViewModel: ObservableObject {
     @Published private(set) var residentItems: [ShelfItem] = []
     @Published var hasAccessibilityPermission = AccessibilityPermission.isGranted
     @Published var hasScreenCapturePermission = ScreenCapturePermission.isGranted
+    @Published var inputPermissionHint: String?
     @Published var screenCapturePermissionHint: String?
     @Published var isPinned = UserDefaults.standard.bool(forKey: "shelf.isPinned")
     @Published var isBusy = false
@@ -25,6 +26,10 @@ final class ShelfViewModel: ObservableObject {
     private let isVisible: @MainActor (CGRect) -> Bool
     private var sessionCollected = Set<String>()
     var allItems: [ShelfItem] { Array(knownItems.values) }
+
+    var inputPermissionGuidance: String {
+        inputPermissionHint ?? "允许辅助功能和输入监控后，即可拖动顶部图标"
+    }
 
     init(
         source: any ShelfItemSource, defaults: UserDefaults = .standard,
@@ -132,7 +137,10 @@ final class ShelfViewModel: ObservableObject {
     }
 
     func requestAccessibilityPermission() { onPermissionRequest?() }
-    func openAccessibilitySettings() { AccessibilityPermission.openSettings() }
+    func openAccessibilitySettings() {
+        inputPermissionHint = (AccessibilityPermission.openSettings()
+            ? AccessibilityPermission.RequestResult.settingsOpened : .settingsUnavailable).guidance
+    }
     func requestScreenCapturePermission() { onScreenCapturePermissionRequest?() }
     func openScreenCaptureSettings() { ScreenCapturePermission.openSettings() }
 }

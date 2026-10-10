@@ -28,8 +28,9 @@ struct ShelfView: View {
             }.fixedSize()
             Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             if !model.hasAccessibilityPermission {
-                Text("允许辅助功能和输入监控后，即可拖动顶部图标")
+                Text(model.inputPermissionGuidance)
                     .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .lineLimit(2).help(model.inputPermissionGuidance)
                 Button("授予输入权限", action: model.requestAccessibilityPermission).controlSize(.small)
                 Button("打开设置", action: model.openAccessibilitySettings).controlSize(.small)
             } else if let message = model.message {

@@ -1,12 +1,41 @@
 import AppKit
 import ApplicationServices
 import Testing
+import ShelterBarCore
 @testable import ShelterBar
 
 @MainActor
 private final class FixtureSource: ShelfItemSource {
     var entries: [ShelfItem] = []
     func items() -> [ShelfItem] { entries }
+}
+
+@Test("the shelf permission button exposes a silent request failure without marking access granted")
+@MainActor
+func shelfInputPermissionButtonShowsFallbackGuidance() {
+    let model = ShelfViewModel(source: FixtureSource(), isTrusted: { false })
+    model.hasAccessibilityPermission = false
+    var settingsAttempts = 0
+    let operations = AccessibilityPermission.RequestOperations(
+        requestAccessibility: {}, canListen: { false }, requestListening: { false },
+        canPost: { false }, requestPosting: { false }, isGranted: { false },
+        openSettings: { settingsAttempts += 1; return false }
+    )
+    let coordinator = PermissionOnboardingCoordinator(
+        accessibilityGranted: { false }, screenCaptureGranted: { false },
+        requestAccessibility: {
+            model.inputPermissionHint = AccessibilityPermission.request(using: operations).guidance
+        },
+        requestScreenCapture: { Issue.record("Missing input access must not advance to recording") }
+    )
+    model.onPermissionRequest = { coordinator.requestAccessibility() }
+    #expect(coordinator.advance() == .requestAccessibility)
+    let beforeClick = settingsAttempts
+    model.requestAccessibilityPermission()
+    model.refresh()
+    #expect(settingsAttempts == beforeClick + 1)
+    #expect(model.inputPermissionGuidance.contains("无法打开系统设置"))
+    #expect(!model.hasAccessibilityPermission)
 }
 
 @MainActor

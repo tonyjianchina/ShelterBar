@@ -43,7 +43,10 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         permissionOnboarding = PermissionOnboardingCoordinator(
             accessibilityGranted: { AccessibilityPermission.isGranted },
             screenCaptureGranted: { ScreenCapturePermission.isGranted },
-            requestAccessibility: { AccessibilityPermission.request() },
+            requestAccessibility: {
+                createdModel.inputPermissionHint = AccessibilityPermission.request().guidance
+                createdModel.hasAccessibilityPermission = AccessibilityPermission.isGranted
+            },
             requestScreenCapture: {
                 createdModel.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
                 createdModel.hasScreenCapturePermission = ScreenCapturePermission.isGranted
@@ -198,6 +201,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private func updatePermissionState() {
         model.hasAccessibilityPermission = AccessibilityPermission.isGranted
         model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+        if model.hasAccessibilityPermission { model.inputPermissionHint = nil }
         if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
     }
 
