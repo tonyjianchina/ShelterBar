@@ -213,3 +213,42 @@ func shadedShelfDrawingFollowsAppearance() throws {
         #expect(expectedBright ? body.redComponent > 0.75 : body.redComponent < 0.25)
     }
 }
+
+@Test("light colored captures get a contrasting plate only on a light shelf")
+@MainActor
+func lightColoredIconGetsContrastBackdrop() throws {
+    let pale = try #require(CGContext(data: nil, width: 32, height: 32, bitsPerComponent: 8,
+        bytesPerRow: 32 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+    pale.setFillColor(CGColor(red: 1, green: 0.95, blue: 0.75, alpha: 1))
+    pale.fill(CGRect(x: 8, y: 4, width: 16, height: 24))
+    let icon = try #require(MenuBarGlyphImage.make(from: pale.makeImage()!, logicalSize: CGSize(width: 16, height: 16)))
+    #expect(!icon.isTemplate)
+    let light = try #require(NSAppearance(named: .aqua)), dark = try #require(NSAppearance(named: .darkAqua))
+    #expect(MenuBarIconPresentation.contrastBackdrop(for: icon, appearance: light) != nil)
+    #expect(MenuBarIconPresentation.contrastBackdrop(for: icon, appearance: dark) == nil)
+    #expect(MenuBarIconPresentation.contrastBackdrop(for: sampleIcon(template: false), appearance: light) == nil)
+    #expect(MenuBarIconPresentation.contrastBackdrop(for: sampleIcon(template: true), appearance: light) == nil)
+
+    var bitmap: NSBitmapImageRep?
+    light.performAsCurrentDrawingAppearance {
+        let canvas = NSImage(size: NSSize(width: 32, height: 42), flipped: false) { rect in
+            NSColor.white.setFill()
+            rect.fill()
+            MenuBarIconPresentation.draw(icon, in: rect)
+            return true
+        }
+        bitmap = try? raster(canvas)
+    }
+    let pixelsBitmap = try #require(bitmap)
+    var center = [Int](repeating: 0, count: 4)
+    pixelsBitmap.getPixel(&center, atX: 16, y: 21)
+    // Glyph pixels keep their original color.
+    #expect(center[0] > 242 && center[2] < 210)
+    var plate = [Int](repeating: 0, count: 4)
+    pixelsBitmap.getPixel(&plate, atX: 16, y: 11)
+    var outside = [Int](repeating: 0, count: 4)
+    pixelsBitmap.getPixel(&outside, atX: 1, y: 1)
+    #expect(plate[0] < 200)
+    #expect(outside[0] > 242)
+}

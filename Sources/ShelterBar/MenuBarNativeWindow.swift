@@ -60,17 +60,32 @@ struct MenuBarNativeWindow: Equatable {
         }
     }
 
+    /// Includes off-screen status windows, e.g. items pushed off by the
+    /// boundary. `currentWindows()` already reads the full list on macOS 26.
+    @MainActor
+    static func allWindows() -> [MenuBarNativeWindow] { currentWindows() }
+
+    /// Only windows WindowServer currently marks on-screen (e.g. the replicant
+    /// a user can actually click on the active display).
+    @MainActor
+    static func onScreenWindows() -> [MenuBarNativeWindow] {
+        currentWindows(readWindowInfo: { _ in
+            CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        })
+    }
+
     static func match(
         axFrame: CGRect,
         clientPID: pid_t,
-        windows: [MenuBarNativeWindow]
+        windows: [MenuBarNativeWindow],
+        maximumWidth: CGFloat = 1024
     ) -> MenuBarNativeWindow? {
-        guard hasStatusSize(axFrame), clientPID > 0 else { return nil }
+        guard hasStatusSize(axFrame, maximumWidth: maximumWidth), clientPID > 0 else { return nil }
         let statusLayer = Int(CGWindowLevelForKey(.statusWindow))
         let matches = windows.filter { window in
             window.layer == statusLayer
                 && (window.pid == clientPID || window.ownerBundleID == "com.apple.controlcenter")
-                && hasStatusSize(window.frame)
+                && hasStatusSize(window.frame, maximumWidth: maximumWidth)
                 && abs(window.frame.midX - axFrame.midX) <= 3
                 && abs(window.frame.midY - axFrame.midY) <= 5
                 && abs(window.frame.width - axFrame.width) <= 16
@@ -78,9 +93,9 @@ struct MenuBarNativeWindow: Equatable {
         return matches.count == 1 ? matches.first : nil
     }
 
-    private static func hasStatusSize(_ frame: CGRect) -> Bool {
+    private static func hasStatusSize(_ frame: CGRect, maximumWidth: CGFloat = 1024) -> Bool {
         !frame.isNull && !frame.isInfinite
-            && frame.width > 0 && frame.width <= 1024
+            && frame.width > 0 && frame.width <= maximumWidth
             && frame.height > 0 && frame.height <= 100
     }
 }

@@ -36,12 +36,18 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         boundaryItem.button?.toolTip = MenuBarItemMover.boundaryHelp
         boundaryItem.button?.setAccessibilityIdentifier("shelterbar.boundary")
         boundaryItem.button?.setAccessibilityLabel("收纳边界")
-        let createdModel = ShelfViewModel(source: source)
+        let createdModel = ShelfViewModel(source: source, iconStore: MenuBarIconDiskCache())
         let createdMover = MenuBarItemMover(boundary: boundaryItem, handle: statusItem)
         let createdCapture = MenuBarIconCapture()
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
-            accessibilityGranted: { AccessibilityPermission.isGranted },
+            accessibilityGranted: {
+                AccessibilityPermission.readyForScreenCaptureOnboarding(
+                    accessibility: AccessibilityPermission.isAccessibilityTrusted,
+                    listenEvents: CGPreflightListenEventAccess(),
+                    postEvents: CGPreflightPostEventAccess()
+                )
+            },
             screenCaptureGranted: { ScreenCapturePermission.isGranted },
             requestAccessibility: {
                 createdModel.inputPermissionHint = AccessibilityPermission.request().guidance
@@ -56,6 +62,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             model: createdModel,
             driver: createdMover,
             capture: { await createdCapture.capture($0) },
+            press: { await MenuBarMenuOpener.open($0, target: createdMover.clickTarget(for: $0)) },
             transitionShield: MenuBarTransitionShield()
         )
         panel = ShelfPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -218,7 +225,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     private func positionPanel() {
-        guard let cgAnchor = MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
+        guard let cgAnchor = Self.visibleHandleFrame()
+                ?? MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
         let ready = model.hasAccessibilityPermission
@@ -234,6 +242,38 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             display: true
         )
         updateMonitor()
+    }
+
+    /// The handle's on-screen window on the display the pointer is on, so the
+    /// shelf opens right under the icon the user clicked (each display has
+    /// its own copy of every status item).
+    static func visibleHandleFrame() -> CGRect? {
+        let mouse = CGEvent(source: nil)?.location ?? .zero
+        let status = Int(CGWindowLevelForKey(.statusWindow))
+        let own = Bundle.main.bundleIdentifier ?? "com.jensen.shelterbar"
+        // The collapsed divider is mostly off-screen, so pair against all
+        // windows; the handle itself must be on screen.
+        let windows = MenuBarNativeWindow.allWindows().filter { $0.layer == status }
+        let info = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        let names = Dictionary(info.compactMap { entry -> (CGWindowID, String)? in
+            guard let id = entry[kCGWindowNumber as String] as? CGWindowID else { return nil }
+            return (id, entry[kCGWindowName as String] as? String ?? "")
+        }, uniquingKeysWith: { first, _ in first })
+        let onScreen = Set(MenuBarNativeWindow.onScreenWindows().map(\.id))
+        // The handle is the right half of the divider/handle pair.
+        let handles = windows.filter { window in
+            guard onScreen.contains(window.id) else { return false }
+            let name = names[window.id] ?? ""
+            guard name == "ShelterBar.Handle" || name == own || window.pid == getpid() else { return false }
+            return name == "ShelterBar.Handle" || windows.contains { other in
+                other.id != window.id && abs(other.frame.maxX - window.frame.minX) <= 1
+                    && abs(other.frame.minY - window.frame.minY) <= 1
+                    && ((names[other.id] ?? "") == own || other.pid == getpid())
+            }
+        }
+        let screens = NSScreen.screens.map { MenuBarGeometry.quartz($0.frame) }
+        let mouseScreen = screens.first { $0.contains(mouse) }
+        return handles.first { window in mouseScreen?.contains(CGPoint(x: window.frame.midX, y: window.frame.midY)) == true }?.frame
     }
 
     private func updateMonitor() {
@@ -263,14 +303,29 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     private func activate(_ id: String) {
-        run(.activate(id: id))
+        guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
+        // Close the shelf first: a focus change while the item's menu opens
+        // would dismiss that menu immediately.
+        let panelNumber = panel.windowNumber
+        if panel.isVisible { panel.orderOut(nil) }
+        run(.activate(id: id), prelude: {
+            // Confirm the panel is really gone before anything moves.
+            let deadline = ContinuousClock.now + .milliseconds(200)
+            while ContinuousClock.now < deadline {
+                let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+                if !info.contains(where: { ($0[kCGWindowNumber as String] as? Int) == panelNumber }) { return }
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            menuBarMoveLog.notice("shelf panel still on screen after 200ms")
+        })
     }
 
     private func revealAll() {
         run(.revealAll)
     }
 
-    private func run(_ command: MenuBarCollectionCommand, clearMessage: Bool = true) {
+    private func run(_ command: MenuBarCollectionCommand, clearMessage: Bool = true,
+                     prelude: (@MainActor () async -> Void)? = nil) {
         guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
         let pendingIconRefresh = iconRefreshTask
         pendingIconRefresh?.cancel()
@@ -278,6 +333,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         operation = Task { @MainActor [weak self] in
             guard let self else { return }
             await pendingIconRefresh?.value
+            await prelude?()
             guard !Task.isCancelled else {
                 operation = nil
                 updateMonitor()
@@ -293,6 +349,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             if outcome.shouldDismissShelf {
                 presentation.handle(.itemActivated)
                 if !presentation.isVisible { hideShelf() }
+            }
+            if presentation.isVisible && !panel.isVisible {
+                // Pinned, or the activation failed: bring the shelf back.
+                model.refresh()
+                positionPanel()
+                panel.makeKeyAndOrderFront(nil)
             }
             model.refresh()
             if panel.isVisible { positionPanel() }

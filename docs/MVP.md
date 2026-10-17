@@ -1,4 +1,4 @@
-# ShelterBar v0.5.5 preview acceptance
+# ShelterBar v0.5.7 preview acceptance
 
 ## Agreed behavior
 
@@ -13,9 +13,10 @@
   interception, and native movement; Screen Recording
   permission is optional and enables capture of the original menu-bar status icons. The
   earlier permission-free running-app proxy prototype is replaced.
-- On first launch, permission onboarding requests Accessibility and Input
-  Monitoring first. As soon as all input capabilities are observed, it requests
-  Screen Recording once and skips any permission that is already granted.
+- On first launch, permission onboarding requests Accessibility and Input Monitoring first. As soon
+  as Accessibility trust is observed it requests Screen Recording once, without waiting for
+  Input Monitoring or event posting, and skips any permission that is already granted. The
+  drag tap itself still requires all three input capabilities.
 - The shelf shows captured status icons with their aspect ratio preserved.
   Monochrome glyphs follow the shelf appearance; colored and multi-shade status
   images retain their original colors.
@@ -27,8 +28,11 @@ is template-rendered by AppKit. The transparent click overlay and top proxies
 have been removed.
 
 ScreenCaptureKit captures a single status icon only after strictly matching its
-process PID, status window, and AX bounds. Images are cached in memory, without
-audio capture, video recording, screenshot files, or network uploads. The app
+process PID, status window, and AX bounds. Images are kept in memory; only collected
+items' small PNGs are persisted to `~/Library/Application Support/ShelterBar/IconCache/`
+(index.json plus at most 128 entries / 4 MB) so the shelf shows them after a restart. An
+entry is pruned as soon as its item is no longer collected. No audio capture, video
+recording, full screenshots, or network uploads. The app
 offers **允许读取图标** (Allow icon access) and **打开设置** (Open Settings) controls;
 permission changes may require quitting and reopening ShelterBar.
 
@@ -46,19 +50,27 @@ and releases physical input. It has a cached hit map, skips tagged synthetic eve
 in the event callback. An AppKit dragging source reports shelf-item releases in
 the top-right menu-bar area even though other apps cannot accept our drag data.
 
-A single movement operation reveals the archive handle at its normal width, requests a native Command
+A single movement operation reveals the collection boundary (a separate 3 pt
+status item left of the fixed-width archive handle), requests a native Command
 drag, observes the actual result, verifies other residents, and only then
-expands the same handle leftward and saves placement. The handle is both the visible
-entry point and the collection boundary, so a separate invisible divider cannot be
-stranded under the camera housing. The proposed destination frame must be fully
-outside any camera housing before native input is sent. Failure/cancellation reveals all items with
-feedback; no unverified success is persisted. Screen changes cancel the
+expands the boundary leftward and saves placement. Before collapsing, the handle
+must be a square control on the boundary's resident side (fully visible, or on
+an auto-hidden full-screen row); otherwise nothing is saved. The proposed native
+destination frame must be fully outside any camera housing before input is sent;
+if the slot left of the boundary is under the notch, the boundary itself is
+moved to the item's right instead. A single refused item is reported and left
+visible instead of revealing every collected item; no unverified success is
+persisted. Full-screen and auto-hidden menu bars and the notch are handled. Screen changes cancel the
 operation. Stable identities restore across launches; ambiguous ones do not.
 
-Opening a collected item's menu defers re-collection until the next explicit
-shelf opening. Newly discovered movable items are automatically adopted into the
-collected set; an item already off-row remains in place without an expand/collapse
-cycle. The More menu can always show all top icons.
+Opening a collected item's menu temporarily borrows a visible slot right under
+the shelf panel for that one item only, opens its menu, waits for the menu to
+close (plus a grace period), and moves it back. A pending-restore record is
+written before the borrow, so a crash mid-way is repaired on the next launch;
+the cursor is restored after each synthetic drag. Without room (e.g. beside the
+notch) it explains instead of expanding. Newly discovered movable items are automatically
+adopted into the collected set; an item already off-row remains in place without
+an expand/collapse cycle. The More menu can always show all top icons.
 
 ## Acceptance checks
 
@@ -82,7 +94,9 @@ cycle. The More menu can always show all top icons.
 - [x] Automated: newly discovered visible and already-hidden items are collected
   without enumerating app or icon identities.
 - [x] Automated: Screen Recording is requested exactly once after Accessibility
-  changes from denied to granted.
+  changes from denied to granted, even while Input Monitoring is still pending.
+- [x] Automated: borrowed-slot planning avoids the notch and screen edges; pending
+  restores are recorded and replayed; icon disk cache prune/limits.
 - [x] Automated: onboarding skips both prompts when both permissions are granted.
 - [x] Automated: revoking permission clears actionable entries.
 - [x] Automated: ambiguous identities are not persisted for a later session.
@@ -90,7 +104,7 @@ cycle. The More menu can always show all top icons.
   or failure and falls back safely when no snapshot is available.
 - [x] Packaging: the DMG stores a Finder icon-view layout with a branded
   background, ShelterBar on the left, and the Applications alias on the right.
-- [ ] v0.5.5 UI inspection: shelf layout, original-icon rendering, transition
+- [ ] v0.5.7 UI inspection: shelf layout, original-icon rendering, transition
   masking, and readable
   authorization controls.
 - [ ] Authorized native session: grant Accessibility, Input Monitoring, and Screen Recording through
@@ -111,8 +125,12 @@ Some apps do not publish accessible menu-bar items. Mandatory system controls
 Original status-icon capture requires Screen Recording permission and a strict
 window/AX match. Some third-party status windows or hidden items may be
 unavailable to ScreenCaptureKit; cached images can become stale until a later
-successful capture. OS movement refusal is reported and leaves the bar expanded.
-This ad-hoc signed preview has no Developer ID signature or Apple notarization,
-and permissions may need to be granted again after rebuilding. Complete native
+successful capture. OS movement refusal of one item is reported and leaves that
+item visible. This preview is signed with the fixed self-signed certificate
+"ShelterBar Self-Signed" but has no Developer ID signature or Apple notarization;
+upgrading from an ad-hoc build (v0.5.6 or earlier) needs one re-grant of
+Accessibility, Input Monitoring and Screen Recording, later updates keep them.
+Opening a collected item's menu can flicker the cursor briefly, the item returns
+about 1.5 s after the menu closes, and macOS 27 will likely need a new approach. Complete native
 third-party compatibility remains unverified until the authorized capture and
 real drag acceptance checks above have succeeded.

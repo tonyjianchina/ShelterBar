@@ -23,6 +23,19 @@ enum AccessibilityPermission {
         accessibility && listenEvents && postEvents
     }
 
+    // Screen recording is independent of the event-tap gate. Onboarding moves
+    // on to it as soon as AX trust exists, instead of waiting for input
+    // monitoring and event posting to settle as well.
+    static var isAccessibilityTrusted: Bool { AXIsProcessTrusted() }
+
+    static func readyForScreenCaptureOnboarding(
+        accessibility: Bool,
+        listenEvents: Bool,
+        postEvents: Bool
+    ) -> Bool {
+        accessibility
+    }
+
     @MainActor
     struct RequestOperations {
         var requestAccessibility: () -> Void
