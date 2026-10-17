@@ -103,8 +103,19 @@ for offset in [0.0, 31.0, 62.0] {
     chevron.stroke()
 }
 
-("安装完成后即可推出磁盘映像" as NSString).draw(
-    in: NSRect(x: 180, y: 30, width: 360, height: 20),
+// First-launch hint: the preview is not notarized, so Gatekeeper blocks the
+// first open. Keep it below the icon labels (icons sit at y = 286 from the top).
+let hintAttributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+    .foregroundColor: NSColor(calibratedRed: 0.129, green: 0.153, blue: 0.161, alpha: 0.86),
+    .paragraphStyle: paragraph,
+]
+("拖到「应用程序」后，首次打开请到「隐私与安全性」点「仍要打开」" as NSString).draw(
+    in: NSRect(x: 40, y: 50, width: 640, height: 20),
+    withAttributes: hintAttributes
+)
+("First launch: System Settings › Privacy & Security › Open Anyway · 安装完成后即可推出磁盘映像" as NSString).draw(
+    in: NSRect(x: 40, y: 28, width: 640, height: 18),
     withAttributes: footerAttributes
 )
 

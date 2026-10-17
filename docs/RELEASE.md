@@ -6,18 +6,25 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.7](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.7) 下载 [ShelterBar-0.5.7-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)。打开后会看到图形化安装窗口，将左侧 **ShelterBar** 拖到右侧 **Applications** 文件夹即可安装，随后推出磁盘映像。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.7](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.7) 下载 [ShelterBar-0.5.7-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
-首次打开时，如果 macOS 提示无法验证开发者或无法检查恶意软件，在确认下载来源及 SHA256 校验值后，可进入 **系统设置 → 隐私与安全性 → 仍要打开**，再确认“打开”。先尝试打开应用，系统才可能显示这个按钮。受管理设备可能不提供该选项；不要关闭 Gatekeeper 或移除系统安全策略。
+### 安装与第一次打开
+
+1. **安装**：打开 DMG，把 ShelterBar 拖进「应用程序」（Applications）文件夹，然后推出磁盘。
+2. **第一次打开**：在访达的「应用程序」文件夹里双击 ShelterBar（刚安装时，聚焦搜索可能要过几分钟才能搜到）。ShelterBar 没有经过 Apple 公证，系统会拦下并提示无法验证，先点「完成」关闭提示；然后打开「系统设置 → 隐私与安全性」，往下滚到「安全性」部分，点 ShelterBar 旁边的「仍要打开」，再确认一次「打开」（可能需要输入登录密码）。macOS 15 起，右键「打开」已不能绕过这一步。
+   - 高级用户也可以在核对 SHA256 后，在终端运行 `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`，再双击打开。
+   - 每次下载只需放行一次。以后下载新版本覆盖安装时，如果系统再次拦下，按同样步骤放行即可；辅助功能等授权会保留，不用重新授权（从 v0.5.6 及更早版本升级除外，需重新授权一次）。
+3. **打开之后**：ShelterBar 只在菜单栏运行，没有 Dock 图标，也没有普通窗口——请留意屏幕右上角菜单栏里新出现的收纳箱图标，点它即可展开收纳栏。首次启动时，收纳栏会自动在图标下方展开，并按引导请求授权：先是「辅助功能」和「输入监控」（必需），辅助功能生效后再请求「屏幕录制」（可选，只用于显示原始图标）。
+
+先尝试打开一次应用，「隐私与安全性」里才会出现「仍要打开」按钮。请先确认下载来源及 SHA256 校验值；受管理设备可能不提供该选项；不要关闭 Gatekeeper 或全局关闭系统安全策略。
 
 这套说明依据 [Apple：在 Mac 上安全地打开 App](https://support.apple.com/zh-cn/102445)。若系统提示应用已损坏或包含恶意软件，请停止打开，重新核对下载和问题原因。
 
-启动后应用会依次引导权限：
+权限引导的细节：
 
 - **辅助功能与输入监控**：首先询问；在“系统设置 → 隐私与安全性”中允许 ShelterBar，用于发现、拦截拖动并移动菜单栏图标。缺少任何一项都不会开始拦截鼠标。
 - **屏幕录制（可选）**：辅助功能一生效就立即继续询问（不再等待输入监控全部生效），用于读取原始菜单栏状态图标。拒绝或稍后授权时，收纳与恢复仍可用，收纳栏使用占位图标。
 
-它是菜单栏应用，不显示 Dock 图标。
 
 **从 v0.5.6 及更早版本升级：** 旧版本是 ad-hoc 签名，签名身份变化后需要重新授予一次辅助功能、输入监控和屏幕录制（列表里已有旧条目时，先关闭再打开，或移除后重新添加）。之后用同一证书签名的版本会保留这些授权。
 

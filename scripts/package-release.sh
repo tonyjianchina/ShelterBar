@@ -77,7 +77,7 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 读取原始菜单栏状态图标，可以拒绝或稍后开启。未授权时使用占位图标，
 收纳与恢复功能仍然可用。
 应用内提供“允许读取图标”和“打开设置”，授权后可能需要退出并重新打开。
-应用显示在菜单栏，不显示 Dock 图标。
+应用只显示在菜单栏，没有 Dock 图标和窗口；请留意右上角菜单栏的收纳箱图标。
 
 图标读取：使用 ScreenCaptureKit，仅截取与进程 PID、状态窗口及辅助功能
 （AX）范围严格匹配的单个状态图标。只有已收纳图标的小尺寸 PNG 会缓存到
@@ -92,9 +92,11 @@ Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 本预览版使用固定自签名证书“ShelterBar Self-Signed”签名，没有 Developer ID
 签名或 Apple 公证。从 v0.5.6 及更早（ad-hoc）版本升级，需要重新授予一次辅助
 功能、输入监控和屏幕录制；之后的更新会保留授权。
-如果首次打开被阻止，请先核实下载来源及 SHA256 校验值，再到
-“系统设置 → 隐私与安全性”点击“仍要打开”，随后确认“打开”。
-如果系统未提供该选项，请勿绕过安全策略；受管理设备可能不允许例外。
+第一次打开：在访达“应用程序”里双击 ShelterBar。因为没有经过 Apple 公证，
+系统会拦下；先点“完成”，再到“系统设置 → 隐私与安全性”，往下滚到“安全性”，
+点“仍要打开”，再确认“打开”。macOS 15 起右键“打开”已不能绕过。
+请先核实下载来源及 SHA256 校验值；受管理设备可能不提供该选项。
+每次下载只需放行一次。
 Apple 官方说明：https://support.apple.com/zh-cn/102445
 
 Install: drag ShelterBar.app to Applications, then eject this disk image.
@@ -104,7 +106,8 @@ immediately asks for optional Screen Recording to show original status icons;
 placeholders are used without it.
 Use “允许读取图标” (Allow icon access) or “打开设置” (Open Settings) in the app.
 You may need to quit and reopen ShelterBar after granting permission.
-ShelterBar is a menu-bar app and does not show a Dock icon.
+ShelterBar runs only in the menu bar: no Dock icon and no window. Look for its
+archive-box icon at the top right of the menu bar.
 
 ScreenCaptureKit captures a single original status icon only after strictly
 matching its process PID, status window, and accessibility (AX) bounds. Images
@@ -125,8 +128,10 @@ This preview is signed with the fixed self-signed "ShelterBar Self-Signed"
 certificate, without Developer ID signing or Apple notarization. Upgrading from
 an ad-hoc build (v0.5.6 or earlier) needs one re-grant of Accessibility, Input
 Monitoring and Screen Recording; later updates keep them.
-If macOS blocks the first launch, verify the download source and SHA256, then use
-System Settings > Privacy & Security > Open Anyway and confirm Open.
+macOS blocks the first launch because the app is not notarized: click Done, then
+open System Settings > Privacy & Security, scroll to Security, click Open Anyway
+and confirm Open. Control-click > Open no longer bypasses this on macOS 15+.
+Verify the download source and SHA256 first. Approve once per download.
 Managed devices may not offer an exception. Do not disable Gatekeeper.
 Apple guidance: https://support.apple.com/102445
 INSTALL

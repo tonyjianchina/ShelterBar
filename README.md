@@ -8,11 +8,21 @@
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)：打开后将左侧 ShelterBar 拖到右侧 Applications 文件夹。
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
 - [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip)：解压后将应用移入“应用程序”。
 - [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/SHA256SUMS)
 
-这是 **早期预览版**。自 v0.5.7 起使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名（不再是 ad-hoc），但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。首次打开如被系统阻止，请在确认来源与 SHA256 后，按照 [Apple 官方说明](https://support.apple.com/zh-cn/102445) 通过“系统设置 → 隐私与安全性 → 仍要打开”允许该应用（如系统提供此选项）；不要关闭 Gatekeeper。
+这是 **早期预览版**。自 v0.5.7 起使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名（不再是 ad-hoc），但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。
+
+### 安装与第一次打开
+
+1. **安装**：打开 DMG，把 ShelterBar 拖进「应用程序」（Applications）文件夹，然后推出磁盘。
+2. **第一次打开**：在访达的「应用程序」文件夹里双击 ShelterBar（刚安装时，聚焦搜索可能要过几分钟才能搜到）。ShelterBar 没有经过 Apple 公证，系统会拦下并提示无法验证，先点「完成」关闭提示；然后打开「系统设置 → 隐私与安全性」，往下滚到「安全性」部分，点 ShelterBar 旁边的「仍要打开」，再确认一次「打开」（可能需要输入登录密码）。macOS 15 起，右键「打开」已不能绕过这一步。
+   - 高级用户也可以在核对 SHA256 后，在终端运行 `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`，再双击打开。
+   - 每次下载只需放行一次。以后下载新版本覆盖安装时，如果系统再次拦下，按同样步骤放行即可；辅助功能等授权会保留，不用重新授权（从 v0.5.6 及更早版本升级除外，需重新授权一次）。
+3. **打开之后**：ShelterBar 只在菜单栏运行，没有 Dock 图标，也没有普通窗口——请留意屏幕右上角菜单栏里新出现的收纳箱图标，点它即可展开收纳栏。首次启动时，收纳栏会自动在图标下方展开，并按引导请求授权：先是「辅助功能」和「输入监控」（必需），辅助功能生效后再请求「屏幕录制」（可选，只用于显示原始图标）。
+
+请先确认下载来源与 SHA256；不要关闭 Gatekeeper。受管理的 Mac 可能不提供「仍要打开」。参考 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
 
 **从 v0.5.6 及更早版本（ad-hoc 签名）升级：** 签名身份变化后，macOS 会把它视为新应用，需要重新授予一次“辅助功能”“输入监控”和“屏幕录制”（如列表里已有旧的 ShelterBar，先将其关闭再打开，或移除后重新添加）。此后的版本使用同一证书签名，授权会自动保留。
 
@@ -28,6 +38,27 @@ v0.5.7（build 22）改用固定自签名证书，后续升级保留权限；修
 
 A mouse-first macOS 26 menu-bar shelf. Click the archive icon in the original
 top-right menu-bar area to open a row underneath it.
+
+## Install and first launch
+
+1. **Install:** open the DMG, drag ShelterBar into Applications, then eject the disk image.
+2. **First launch:** double-click ShelterBar in Finder → Applications (Spotlight may need a
+   few minutes to index a fresh install). ShelterBar is not notarized by Apple, so macOS
+   blocks it: click **Done**, open **System Settings → Privacy & Security**, scroll down to
+   **Security**, click **Open Anyway** next to ShelterBar and confirm **Open** (you may be
+   asked for your password). Since macOS 15, Control-click → Open no longer bypasses this.
+   - Advanced: after checking the SHA256, run
+     `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`, then open the app.
+   - Approve once per download. If macOS blocks a newly downloaded update, repeat the same
+     step; permission grants are kept (except when upgrading from v0.5.6 or earlier).
+3. **After launch:** ShelterBar runs only in the menu bar — no Dock icon and no regular
+   window. Look for the new archive-box icon at the top right of the menu bar. On first
+   launch the shelf opens under it and onboarding asks for **Accessibility** and **Input
+   Monitoring** (required), then **Screen Recording** (optional, only for original icons)
+   once Accessibility is granted.
+
+Verify the download source and SHA256 first, and do not disable Gatekeeper. Managed
+Macs may not offer Open Anyway. See [Apple's guidance](https://support.apple.com/102445).
 
 ## Use
 
@@ -106,8 +137,8 @@ This is an early preview release, not a notarized release. Since v0.5.7 it is
 signed with the fixed self-signed certificate "ShelterBar Self-Signed", so macOS
 keeps Accessibility, Input Monitoring and Screen Recording grants across
 updates. Upgrading from an ad-hoc build (v0.5.6 or earlier) requires granting
-them once more. The first launch may still need System Settings → Privacy &
-Security → Open Anyway. Avoid running another menu-bar manager at the same time.
+them once more. The first launch needs System Settings → Privacy & Security →
+Open Anyway (see Install and first launch). Avoid running another menu-bar manager at the same time.
 
 ## Build and run
 
