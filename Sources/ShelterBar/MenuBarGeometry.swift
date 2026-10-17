@@ -67,7 +67,49 @@ enum MenuBarGeometry {
         return segments.max { $0.width < $1.width }
     }
 
-    private static var cameraHousingRegions: [CGRect] {
+    /// A synthetic release under the notch has no menu bar slot to land on.
+    static func isUnderCameraHousing(_ point: CGPoint) -> Bool {
+        isUnderCameraHousing(point, excluded: cameraHousingRegions)
+    }
+
+    static func isUnderCameraHousing(_ point: CGPoint, excluded: [CGRect]) -> Bool {
+        excluded.contains { $0.insetBy(dx: -2, dy: 0).contains(point) }
+    }
+
+    /// Same display row as the menu bar, even while the notch hides the item
+    /// or a full-screen space has slid the whole bar above the display.
+    static func isOnMenuBarRow(_ frame: CGRect) -> Bool {
+        menuBarRow(containing: frame) != nil
+    }
+
+    static func menuBarRow(containing frame: CGRect) -> CGRect? {
+        menuBarRow(containing: frame, regions: menuBarRegions)
+    }
+
+    static func menuBarRow(containing frame: CGRect, regions: [CGRect]) -> CGRect? {
+        guard frame.width > 1, frame.height > 1 else { return nil }
+        return menuBarRegion(containing: frame, regions: regions)
+            ?? hiddenMenuBarRegion(containing: frame, regions: regions)
+    }
+
+    /// An auto-hidden menu bar (full-screen space, or "automatically hide")
+    /// keeps its items laid out just above the top edge of their display.
+    static let hiddenRowDepth: CGFloat = 80
+
+    static func hiddenMenuBarRegion(containing frame: CGRect) -> CGRect? {
+        hiddenMenuBarRegion(containing: frame, regions: menuBarRegions)
+    }
+
+    static func hiddenMenuBarRegion(containing frame: CGRect, regions: [CGRect]) -> CGRect? {
+        guard frame.width > 0, frame.height > 0 else { return nil }
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        return regions.first { region in
+            CGRect(x: region.minX, y: region.minY - hiddenRowDepth,
+                   width: region.width, height: hiddenRowDepth).contains(center)
+        }
+    }
+
+    static var cameraHousingRegions: [CGRect] {
         NSScreen.screens.compactMap { screen in
             guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea,
                   right.minX > left.maxX else { return nil }
@@ -90,9 +132,9 @@ enum MenuBarGeometry {
 
     static func statusFrame(_ item: NSStatusItem, help: String) -> CGRect? {
         if AccessibilityPermission.isGranted, let frame = MenuBarAX.ownItemFrame(help: help),
-           menuBarRegion(containing: frame) != nil { return frame }
+           menuBarRow(containing: frame) != nil { return frame }
         guard let button = item.button, let window = button.window else { return nil }
         let frame = quartz(window.convertToScreen(button.convert(button.bounds, to: nil)))
-        return menuBarRegion(containing: frame) != nil ? frame : nil
+        return menuBarRow(containing: frame) != nil ? frame : nil
     }
 }

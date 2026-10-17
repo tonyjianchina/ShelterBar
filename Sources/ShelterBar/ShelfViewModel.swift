@@ -24,14 +24,19 @@ final class ShelfViewModel: ObservableObject {
     private let isTrusted: @MainActor () -> Bool
     private let isVisible: @MainActor (CGRect) -> Bool
     private var sessionCollected = Set<String>()
+    /// Glyphs persisted from earlier captures; used while an item is stowed
+    /// off-screen and cannot be captured again (e.g. right after launch).
+    private let iconStore: MenuBarIconDiskCache?
     var allItems: [ShelfItem] { Array(knownItems.values) }
 
     init(
         source: any ShelfItemSource, defaults: UserDefaults = .standard,
         isTrusted: @escaping @MainActor () -> Bool = { AccessibilityPermission.isGranted },
-        isVisible: @escaping @MainActor (CGRect) -> Bool = MenuBarGeometry.isOnMenuBar
+        isVisible: @escaping @MainActor (CGRect) -> Bool = MenuBarGeometry.isOnMenuBar,
+        iconStore: MenuBarIconDiskCache? = nil
     ) {
         self.source = source
+        self.iconStore = iconStore
         self.defaults = defaults
         self.isTrusted = isTrusted
         self.isVisible = isVisible
@@ -68,6 +73,9 @@ final class ShelfViewModel: ObservableObject {
             if let snapshot = iconCache[id] {
                 item.icon = snapshot.image
                 item.hasMenuBarIcon = true
+            } else if hasScreenCapturePermission, let cached = iconStore?.image(for: id) {
+                item.icon = cached
+                item.hasMenuBarIcon = true
             } else {
                 item.icon = MenuBarIconPresentation.placeholder(accessibilityDescription: item.title)
                 item.hasMenuBarIcon = false
@@ -75,6 +83,7 @@ final class ShelfViewModel: ObservableObject {
             byID[id] = item
         }
         knownItems = byID
+        if !fresh.isEmpty { iconStore?.prune(keeping: collectedIDs) }
         let order = defaults.stringArray(forKey: "shelf.itemOrder") ?? []
         let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: min)
         let ordered = byID.values.sorted {
@@ -94,8 +103,10 @@ final class ShelfViewModel: ObservableObject {
             refresh()
             return
         }
+        let collected = collectedIDs
         for snapshot in snapshots where knownItems[snapshot.id]?.menuBarReference.pid == snapshot.pid {
             iconCache[snapshot.id] = snapshot
+            if collected.contains(snapshot.id) { iconStore?.store(snapshot.image, for: snapshot.id) }
         }
         refresh()
     }
@@ -103,11 +114,17 @@ final class ShelfViewModel: ObservableObject {
         iconCache[item.id]?.pid == item.menuBarReference.pid
     }
     func item(withID id: String) -> ShelfItem? { knownItems[id] }
+    /// Shelf items that show only a placeholder (no live or persisted glyph).
+    var itemsMissingIcons: [ShelfItem] { items.filter { !$0.hasMenuBarIcon } }
     func setCollected(_ value: Bool, id: String) {
         var ids = Set(defaults.stringArray(forKey: "shelf.collectedItems") ?? [])
         if value {
-            if knownItems[id]?.hasPersistentIdentity == true { ids.insert(id) }
-            else { sessionCollected.insert(id) }
+            if knownItems[id]?.hasPersistentIdentity == true {
+                ids.insert(id)
+                if hasScreenCapturePermission, let snapshot = iconCache[id] {
+                    iconStore?.store(snapshot.image, for: id)
+                }
+            } else { sessionCollected.insert(id) }
         } else {
             ids.remove(id)
             sessionCollected.remove(id)
@@ -124,6 +141,20 @@ final class ShelfViewModel: ObservableObject {
         order.insert(id, at: index)
         defaults.set(order, forKey: "shelf.itemOrder")
         refresh()
+    }
+
+    var pendingRestore: MenuBarPendingRestore? {
+        get {
+            defaults.data(forKey: "shelf.pendingRestore")
+                .flatMap { try? JSONDecoder().decode(MenuBarPendingRestore.self, from: $0) }
+        }
+        set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: "shelf.pendingRestore")
+            } else {
+                defaults.removeObject(forKey: "shelf.pendingRestore")
+            }
+        }
     }
 
     func setPinned(_ value: Bool) {

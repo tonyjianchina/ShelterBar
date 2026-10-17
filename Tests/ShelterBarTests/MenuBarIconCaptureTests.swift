@@ -113,3 +113,61 @@ func multitoneGlyphKeepsItsDetails() {
     let image = MenuBarGlyphImage.make(from: context.makeImage()!, logicalSize: CGSize(width: 24, height: 24))
     #expect(image?.isTemplate == false)
 }
+
+private func capturedWhiteGlyph(alpha: CGFloat) -> CGImage {
+    let context = CGContext(data: nil, width: 48, height: 48, bitsPerComponent: 8,
+        bytesPerRow: 48 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    // A vibrancy-rendered white glyph: partially opaque body, a darker
+    // antialiased rim and a few pixels tinted by the blue wallpaper.
+    context.setFillColor(CGColor(gray: 1, alpha: alpha))
+    context.fillEllipse(in: CGRect(x: 10, y: 10, width: 28, height: 28))
+    context.setStrokeColor(CGColor(gray: 0.65, alpha: 0.2))
+    context.stroke(CGRect(x: 9, y: 9, width: 30, height: 30), width: 1)
+    context.setBlendMode(.copy)
+    context.setFillColor(CGColor(red: 0.8, green: 0.88, blue: 1, alpha: alpha))
+    context.fill(CGRect(x: 22, y: 22, width: 3, height: 3))
+    return context.makeImage()!
+}
+
+@Test("white glyphs captured over a tinted menu bar still become templates")
+@MainActor
+func tintedWhiteGlyphBecomesTemplate() throws {
+    let size = CGSize(width: 24, height: 24)
+    let opaque = try #require(MenuBarGlyphImage.make(from: capturedWhiteGlyph(alpha: 0.92), logicalSize: size))
+    #expect(opaque.isTemplate)
+    let faint = try #require(MenuBarGlyphImage.make(from: capturedWhiteGlyph(alpha: 0.55), logicalSize: size))
+    #expect(faint.isTemplate)
+    #expect(faint.size == size)
+    // Faint vibrancy glyphs are restored to full opacity before tinting.
+    var pixelRect = CGRect(x: 0, y: 0, width: 48, height: 48)
+    let cgImage = try #require(faint.cgImage(forProposedRect: &pixelRect, context: nil, hints: nil))
+    let bitmap = NSBitmapImageRep(cgImage: cgImage)
+    var center = [Int](repeating: 0, count: 4)
+    bitmap.getPixel(&center, atX: 24, y: 16)
+    #expect(center[3] > 242)
+}
+
+@Test("genuinely colored icons with white details stay colored and get a tone")
+@MainActor
+func coloredIconWithWhiteDetailsStaysColored() {
+    let context = CGContext(data: nil, width: 48, height: 48, bitsPerComponent: 8,
+        bytesPerRow: 48 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(CGColor(red: 0.45, green: 0.4, blue: 0.95, alpha: 1))
+    context.fill(CGRect(x: 6, y: 12, width: 36, height: 24))
+    context.setFillColor(CGColor(gray: 1, alpha: 1))
+    context.fill(CGRect(x: 14, y: 18, width: 20, height: 12))
+    let image = MenuBarGlyphImage.make(from: context.makeImage()!, logicalSize: CGSize(width: 24, height: 24))
+    #expect(image?.isTemplate == false)
+    #expect(image.map(MenuBarGlyphImage.tone(of:)) == .mixed)
+
+    let pale = CGContext(data: nil, width: 48, height: 48, bitsPerComponent: 8,
+        bytesPerRow: 48 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    pale.setFillColor(CGColor(red: 1, green: 0.95, blue: 0.75, alpha: 1))
+    pale.fill(CGRect(x: 16, y: 8, width: 16, height: 32))
+    let light = MenuBarGlyphImage.make(from: pale.makeImage()!, logicalSize: CGSize(width: 24, height: 24))
+    #expect(light?.isTemplate == false)
+    #expect(light.map(MenuBarGlyphImage.tone(of:)) == .light)
+}

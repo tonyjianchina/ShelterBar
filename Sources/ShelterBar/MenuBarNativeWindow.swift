@@ -10,8 +10,15 @@ struct MenuBarNativeWindow: Equatable {
     let ownerBundleID: String?
 
     @MainActor
-    static func currentWindows() -> [MenuBarNativeWindow] {
-        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
+    static func currentWindows() -> [MenuBarNativeWindow] { windows(.optionOnScreenOnly) }
+
+    /// Includes off-screen status windows, e.g. items pushed off by the divider.
+    @MainActor
+    static func allWindows() -> [MenuBarNativeWindow] { windows(.optionAll) }
+
+    @MainActor
+    private static func windows(_ option: CGWindowListOption) -> [MenuBarNativeWindow] {
+        guard let windows = CGWindowListCopyWindowInfo(option, kCGNullWindowID)
             as? [[String: Any]] else { return [] }
         return windows.compactMap { info in
             guard let id = info[kCGWindowNumber as String] as? CGWindowID,
@@ -29,14 +36,15 @@ struct MenuBarNativeWindow: Equatable {
     static func match(
         axFrame: CGRect,
         clientPID: pid_t,
-        windows: [MenuBarNativeWindow]
+        windows: [MenuBarNativeWindow],
+        maximumWidth: CGFloat = 1024
     ) -> MenuBarNativeWindow? {
-        guard hasStatusSize(axFrame), clientPID > 0 else { return nil }
+        guard hasStatusSize(axFrame, maximumWidth: maximumWidth), clientPID > 0 else { return nil }
         let statusLayer = Int(CGWindowLevelForKey(.statusWindow))
         let matches = windows.filter { window in
             window.layer == statusLayer
                 && (window.pid == clientPID || window.ownerBundleID == "com.apple.controlcenter")
-                && hasStatusSize(window.frame)
+                && hasStatusSize(window.frame, maximumWidth: maximumWidth)
                 && abs(window.frame.midX - axFrame.midX) <= 3
                 && abs(window.frame.midY - axFrame.midY) <= 5
                 && abs(window.frame.width - axFrame.width) <= 16
@@ -44,9 +52,9 @@ struct MenuBarNativeWindow: Equatable {
         return matches.count == 1 ? matches.first : nil
     }
 
-    private static func hasStatusSize(_ frame: CGRect) -> Bool {
+    private static func hasStatusSize(_ frame: CGRect, maximumWidth: CGFloat = 1024) -> Bool {
         !frame.isNull && !frame.isInfinite
-            && frame.width > 0 && frame.width <= 1024
+            && frame.width > 0 && frame.width <= maximumWidth
             && frame.height > 0 && frame.height <= 100
     }
 }

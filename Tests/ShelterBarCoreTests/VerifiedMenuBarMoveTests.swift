@@ -221,3 +221,40 @@ func nativeInsertionMissingWindowFails() async {
     )
     #expect(!result)
 }
+
+@Test("a release that would land under the notch is refused before posting")
+@MainActor
+func notchDestinationIsRefused() async {
+    var reason: String?
+    let result = await VerifiedMenuBarMove.perform(
+        to: .collected,
+        readItem: { CGRect(x: 900, y: 5, width: 64, height: 24) },
+        readDivider: { CGRect(x: 868, y: 5, width: 3, height: 24) },
+        menuBarRegion: menuBarRegion,
+        isDropAllowed: { !CGRect(x: 665, y: 0, width: 185, height: 32).contains($0) },
+        report: { reason = $0 },
+        send: { _, _ in
+            Issue.record("A release under the camera housing must not be sent.")
+            return true
+        }, wait: {}
+    )
+    #expect(!result)
+    #expect(reason?.contains("camera housing") == true)
+}
+
+@Test("a slow system relayout is still confirmed within the verification window")
+@MainActor
+func slowRelayoutIsConfirmed() async {
+    var frame = CGRect(x: 950, y: 5, width: 24, height: 24)
+    let divider = CGRect(x: 900, y: 5, width: 3, height: 24)
+    var waits = 0
+    let result = await VerifiedMenuBarMove.perform(
+        to: .collected, readItem: { frame }, readDivider: { divider },
+        menuBarRegion: menuBarRegion, send: { _, _ in true },
+        wait: {
+            waits += 1
+            if waits == 11 { frame.origin.x = 860 }
+        }
+    )
+    #expect(result)
+}

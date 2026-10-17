@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import ShelterBarCore
 
 @MainActor
@@ -10,6 +11,32 @@ protocol MenuBarLayoutDriving: AnyObject {
     func collapseHiddenSection() async
     func revealImmediately()
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint?) async -> Bool
+    /// Diagnostic reason for the most recent rejected move, if known.
+    var lastMoveFailure: String? { get }
+    /// The active display's menu bar has slid away (e.g. a full-screen space).
+    var isMenuBarAutoHidden: Bool { get }
+    /// User-initiated work may briefly show an auto-hidden bar to move items.
+    var mayRevealAutoHiddenMenuBar: Bool { get set }
+    /// The item is on a visible menu bar right now, so a click can land on it.
+    func isClickable(_ item: ShelfItem) -> Bool
+    /// After revealing, make the item clickable (e.g. show an auto-hidden bar).
+    func prepareForClick(_ item: ShelfItem) async -> Bool
+    /// Shows an auto-hidden menu bar if needed; true when it is visible.
+    func showMenuBarIfAutoHidden() async -> Bool
+    /// IDs of collected items, left to right.
+    func collectedOrder(_ items: [ShelfItem]) -> [String]
+    /// Moves only this collected item into a visible slot by the handle.
+    func borrowVisibleSlot(for item: ShelfItem) async -> MenuBarBorrowResult
+    /// Returns a borrowed item to the left of its former right neighbour.
+    func returnFromVisibleSlot(_ item: ShelfItem, before neighbor: ShelfItem?) async -> Bool
+    /// Waits (bounded) while the user is moving the mouse or holding keys.
+    func waitUntilUserIdle(maximum: Duration) async
+}
+
+extension MenuBarLayoutDriving {
+    var lastMoveFailure: String? { nil }
+    var isMenuBarAutoHidden: Bool { false }
+    func waitUntilUserIdle(maximum: Duration) async {}
 }
 
 enum MenuBarReconcileReason: Equatable {
@@ -56,7 +83,8 @@ final class MenuBarCollectionEngine {
     private let capture: @MainActor ([ShelfItem]) async -> [MenuBarIconSnapshot]
     private let accessibilityGranted: @MainActor () -> Bool
     private let screenCaptureGranted: @MainActor () -> Bool
-    private let press: @MainActor (ShelfItem) -> Bool
+    private let press: @MainActor (ShelfItem) async -> Bool
+    private let awaitMenuClosed: @MainActor (ShelfItem) async -> Void
     private let transitionShield: MenuBarTransitionShield?
     private var knownItemIDs = Set<String>()
     private var didSeedInventory = false
@@ -68,7 +96,8 @@ final class MenuBarCollectionEngine {
         capture: @escaping @MainActor ([ShelfItem]) async -> [MenuBarIconSnapshot],
         accessibilityGranted: @escaping @MainActor () -> Bool = { AccessibilityPermission.isGranted },
         screenCaptureGranted: @escaping @MainActor () -> Bool = { ScreenCapturePermission.isGranted },
-        press: @escaping @MainActor (ShelfItem) -> Bool = { $0.menuBarReference.press() },
+        press: @escaping @MainActor (ShelfItem) async -> Bool = { await MenuBarMenuOpener.open($0) },
+        awaitMenuClosed: @escaping @MainActor (ShelfItem) async -> Void = { await MenuBarMenuOpener.waitUntilClosed($0) },
         transitionShield: MenuBarTransitionShield? = nil
     ) {
         self.model = model
@@ -77,6 +106,7 @@ final class MenuBarCollectionEngine {
         self.accessibilityGranted = accessibilityGranted
         self.screenCaptureGranted = screenCaptureGranted
         self.press = press
+        self.awaitMenuClosed = awaitMenuClosed
         self.transitionShield = transitionShield
     }
 
@@ -139,6 +169,19 @@ final class MenuBarCollectionEngine {
         }
 
         model.refresh()
+        if reason == .launch, let pending = model.pendingRestore {
+            // A click reveal was interrupted (quit or crash): put the item
+            // back before its former right neighbour first.
+            model.pendingRestore = nil
+            let scanned = model.scan()
+            if let item = scanned.first(where: { $0.id == pending.id }), item.isMovable,
+               driver.observedPlacement(of: item) == .resident {
+                menuBarMoveLog.notice("restoring \(pending.id, privacy: .public) left visible by an interrupted click reveal")
+                let neighbor = pending.rightNeighbor.flatMap { id in scanned.first { $0.id == id } }
+                _ = await driver.returnFromVisibleSlot(item, before: neighbor)
+                model.refresh()
+            }
+        }
         let items = model.allItems
         if !didSeedInventory {
             knownItemIDs = Set(items.map(\.id))
@@ -164,7 +207,25 @@ final class MenuBarCollectionEngine {
                 || !plan.unresolvedItemIDs.isEmpty
                 || (!plan.desiredCollectedIDs.isEmpty && !driver.isCollapsed)
                 || (plan.desiredCollectedIDs.isEmpty && driver.isCollapsed)
-            if needsPhysicalChange {
+            let userInitiated = reason == .userRefresh || reason == .shelfOpened
+            // "刷新并恢复收纳" briefly reveals stowed items to capture glyphs that
+            // are neither live nor persisted yet.
+            let missingIcons = reason == .userRefresh && model.hasScreenCapturePermission
+                && !plan.desiredCollectedIDs.isEmpty && !model.itemsMissingIcons.isEmpty
+            if missingIcons, !needsPhysicalChange {
+                let count = model.itemsMissingIcons.count
+                menuBarMoveLog.notice("refresh: \(count) stowed icons have no image; revealing briefly to capture")
+            }
+            let needsMoves = !plan.moves.isEmpty || !plan.unresolvedItemIDs.isEmpty
+            if needsPhysicalChange, needsMoves, !userInitiated, driver.isMenuBarAutoHidden {
+                // Never move the cursor for background work; retry once the
+                // menu bar is visible again instead of expanding everything.
+                phase = .idle
+                return .ignored
+            }
+            if needsPhysicalChange || missingIcons {
+                driver.mayRevealAutoHiddenMenuBar = userInitiated
+                defer { driver.mayRevealAutoHiddenMenuBar = false }
                 try await applyLayout(collected: plan.desiredCollectedIDs)
             }
             for id in previouslyCollectedIDs.subtracting(plan.desiredCollectedIDs) {
@@ -178,7 +239,7 @@ final class MenuBarCollectionEngine {
             let adoptedCount = plan.adoptedCollectedIDs.count
             return MenuBarCollectionOutcome(
                 message: adoptedCount == 0 ? nil : "已自动收纳 \(adoptedCount) 个新增图标。",
-                didChangeLayout: needsPhysicalChange || adoptedCount > 0
+                didChangeLayout: needsPhysicalChange || missingIcons || adoptedCount > 0
             )
         } catch {
             return await degrade(error)
@@ -201,6 +262,8 @@ final class MenuBarCollectionEngine {
         }
         var desired = model.collectedIDs
         if placement == .collected { desired.insert(id) } else { desired.remove(id) }
+        driver.mayRevealAutoHiddenMenuBar = true
+        defer { driver.mayRevealAutoHiddenMenuBar = false }
         do {
             try await applyLayout(collected: desired, preferredMove: (id, placement, dropPoint))
             model.setCollected(placement == .collected, id: id)
@@ -208,6 +271,14 @@ final class MenuBarCollectionEngine {
             model.refresh()
             phase = .idle
             return MenuBarCollectionOutcome(didChangeLayout: true)
+        } catch CollectionEngineError.preferredMoveRejected(let message) {
+            // The rest of the layout was restored and verified; only this one
+            // item keeps its previous side, so nothing else is unstowed.
+            knownItemIDs.insert(id)
+            model.message = message
+            model.refresh()
+            phase = .idle
+            return MenuBarCollectionOutcome(message: message, didChangeLayout: true)
         } catch {
             return await degrade(error)
         }
@@ -222,35 +293,118 @@ final class MenuBarCollectionEngine {
         guard let item = model.item(withID: id) ?? model.scan().first(where: { $0.id == id }) else {
             return MenuBarCollectionOutcome(message: "这个图标已退出或暂时不可用。")
         }
-        if driver.observedPlacement(of: item) == .resident {
-            guard press(item) else {
-                return MenuBarCollectionOutcome(message: "这个项目未响应点击，请在顶部打开。")
-            }
-            return MenuBarCollectionOutcome(shouldDismissShelf: true)
+        let notResponding = MenuBarCollectionOutcome(message: "这个项目未响应点击，请在顶部打开。")
+        if driver.isClickable(item) {
+            return await press(item) ? MenuBarCollectionOutcome(shouldDismissShelf: true) : notResponding
         }
-
         phase = .applying
+        driver.mayRevealAutoHiddenMenuBar = true
+        defer { driver.mayRevealAutoHiddenMenuBar = false }
+        func fresh() -> ShelfItem { model.scan().first(where: { $0.id == id }) ?? item }
+        // Preferred path: move only the clicked item into view, so the other
+        // stowed icons never appear in the menu bar.
+        let order = driver.collectedOrder(model.scan())
+        if driver.isCollapsed, item.isMovable, let index = order.firstIndex(of: id),
+           await driver.showMenuBarIfAutoHidden() {
+            let neighborID = order.dropFirst(index + 1).first
+            // Persist before moving: a quit mid-reveal is repaired at launch.
+            model.pendingRestore = MenuBarPendingRestore(
+                id: id, leftNeighbor: index > 0 ? order[index - 1] : nil, rightNeighbor: neighborID
+            )
+            defer { model.pendingRestore = nil }
+            await driver.waitUntilUserIdle(maximum: .milliseconds(1500))
+            let borrowed = await driver.borrowVisibleSlot(for: fresh())
+            if case let .noRoom(reason) = borrowed {
+                menuBarMoveLog.notice("no room to reveal \(id, privacy: .public) alone: \(reason, privacy: .public)")
+                if driver.observedPlacement(of: fresh()) != .collected {
+                    do { try await applyLayout(collected: model.collectedIDs) } catch { return await degrade(error) }
+                }
+                phase = .idle
+                model.refresh()
+                return MenuBarCollectionOutcome(message: "顶部菜单栏没有空位显示「\(item.title)」（可能被刘海遮挡）。请关闭一些菜单栏图标，或在外接显示器上打开。")
+            }
+            if borrowed == .borrowed {
+                let target = fresh()
+                let opened = await press(target)
+                if opened { await awaitMenuClosed(target) }
+                _ = await driver.showMenuBarIfAutoHidden()
+                // The item is visible right now: refresh its persisted glyph.
+                await recaptureVisible([fresh()])
+                await driver.waitUntilUserIdle(maximum: .seconds(5))
+                _ = await driver.showMenuBarIfAutoHidden()
+                let neighbor = neighborID.flatMap { nid in model.scan().first(where: { $0.id == nid }) }
+                let returned = await driver.returnFromVisibleSlot(fresh(), before: neighbor)
+                if !(returned && driver.isCollapsed && driver.collectedOrder(model.scan()) == order) {
+                    menuBarMoveLog.error("single-item restore of \(id, privacy: .public) incomplete; repairing layout")
+                    do {
+                        try await applyLayout(collected: model.collectedIDs)
+                    } catch {
+                        return await degrade(error)
+                    }
+                }
+                phase = .idle
+                model.refresh()
+                return opened ? MenuBarCollectionOutcome(shouldDismissShelf: true) : notResponding
+            }
+            if driver.observedPlacement(of: fresh()) != .collected {
+                // The borrow moved it but it is not usable (e.g. under the
+                // notch): put the layout back before the fallback below.
+                do {
+                    try await applyLayout(collected: model.collectedIDs)
+                } catch {
+                    return await degrade(error)
+                }
+                phase = .applying
+            }
+        }
+        menuBarMoveLog.notice("single-item reveal unavailable for \(id, privacy: .public); falling back to expanding the hidden section")
+        return await activateByRevealingAll(item: item, id: id, notResponding: notResponding)
+    }
+
+    private func activateByRevealingAll(item: ShelfItem, id: String,
+                                        notResponding: MenuBarCollectionOutcome) async -> MenuBarCollectionOutcome {
+        // Last resort: reveal the whole hidden section, open the menu, keep it
+        // revealed until the menu closes, then stow everything again.
+        phase = .applying
+        let wasCollapsed = driver.isCollapsed
+        let collected = model.collectedIDs
+        await driver.revealHiddenSection()
+        func fresh() -> ShelfItem { model.scan().first(where: { $0.id == id }) ?? item }
+        var target = fresh()
+        var movedOut = false
+        var ready = await driver.prepareForClick(target)
+        if !ready, target.isMovable, driver.observedPlacement(of: target) == .collected {
+            // The notch can still hide a revealed item; borrow a visible slot.
+            movedOut = await driver.move(target, to: .resident, dropPoint: nil)
+            target = fresh()
+            if movedOut { ready = await driver.prepareForClick(target) }
+        }
+        let opened = ready ? await press(target) : false
+        if opened { await awaitMenuClosed(target) }
+        await recaptureVisible(model.scan().filter { collected.contains($0.id) })
         do {
-            try await withTransition(over: transitionRegion(for: item)) {
-                await self.driver.revealHiddenSection()
-                guard let live = self.model.scan().first(where: { $0.id == id }) else {
-                    throw CollectionEngineError.message("这个项目未响应点击，已展开顶部图标。")
-                }
-                if live.isMovable,
-                   !(await self.driver.move(live, to: .resident, dropPoint: nil)) {
-                    throw CollectionEngineError.message("这个项目未响应点击，已展开顶部图标。")
-                }
-                guard self.press(live) else {
-                    throw CollectionEngineError.message("这个项目未响应点击，已展开顶部图标。")
+            if movedOut {
+                target = fresh()
+                guard await driver.move(target, to: .collected, dropPoint: nil) else {
+                    throw CollectionEngineError.message("打开后未能把图标收回收纳栏，已展开菜单栏。")
                 }
             }
-            suspendAutomaticReconciliation = true
-            model.refresh()
-            phase = .idle
-            return MenuBarCollectionOutcome(didChangeLayout: true, shouldDismissShelf: true)
+            if wasCollapsed { try await restoreLayout(collected: collected) }
         } catch {
             return await degrade(error)
         }
+        phase = .idle
+        model.refresh()
+        return opened ? MenuBarCollectionOutcome(shouldDismissShelf: true) : notResponding
+    }
+
+    /// Opportunistically captures items while they are on screen.
+    private func recaptureVisible(_ items: [ShelfItem]) async {
+        guard model.hasScreenCapturePermission, !items.isEmpty, !Task.isCancelled else { return }
+        for item in items { model.remember(item) }
+        let snapshots = await capture(items)
+        guard !Task.isCancelled, !snapshots.isEmpty else { return }
+        model.applyMenuBarIcons(snapshots)
     }
 
     private func refreshPresentation() async -> MenuBarCollectionOutcome {
@@ -288,17 +442,41 @@ final class MenuBarCollectionEngine {
     }
 
     private func applyLayoutUnshielded(
-        collected desiredCollectedIDs: Set<String>,
+        collected requestedCollectedIDs: Set<String>,
         preferredMove: (id: String, placement: MenuBarPlacement, dropPoint: CGPoint?)?
     ) async throws {
+        var desiredCollectedIDs = requestedCollectedIDs
         phase = .applying
-        await driver.revealHiddenSection()
+        // Already revealed (e.g. at launch): nothing to expand. This also
+        // lets an auto-hidden bar be collapsed without touching the cursor.
+        let needsMoves = preferredMove != nil || model.scan().contains { item in
+            item.isMovable && driver.observedPlacement(of: item)
+                != (desiredCollectedIDs.contains(item.id) ? .collected : .resident)
+        }
+        if driver.isCollapsed || needsMoves { await driver.revealHiddenSection() }
         try Task.checkCancellation()
 
         if let preferredMove {
-            guard let item = model.scan().first(where: { $0.id == preferredMove.id }),
-                  await driver.move(item, to: preferredMove.placement, dropPoint: preferredMove.dropPoint) else {
-                throw CollectionEngineError.message("macOS 未接受这个图标的位置调整，已展开菜单栏。")
+            let item = model.scan().first(where: { $0.id == preferredMove.id })
+            var moved = false
+            if let item {
+                moved = await driver.move(item, to: preferredMove.placement, dropPoint: preferredMove.dropPoint)
+            }
+            if !moved {
+                try Task.checkCancellation()
+                // Nothing else has changed yet: put the previous layout back
+                // instead of expanding every collected icon.
+                try await restoreLayout(collected: model.collectedIDs)
+                let name = item?.title ?? model.item(withID: preferredMove.id)?.title ?? "这个图标"
+                let side = preferredMove.placement == .collected ? "收纳" : "放回菜单栏"
+                let hint = driver.lastMoveFailure.map { reason in
+                    if reason.contains("camera housing") { return "（目标位置被刘海遮挡）" }
+                    if reason.contains("auto-hidden") { return "（当前屏幕的菜单栏已自动隐藏，例如全屏应用）" }
+                    return ""
+                } ?? ""
+                throw CollectionEngineError.preferredMoveRejected(
+                    "macOS 未接受「\(name)」的位置调整\(hint)，未能\(side)；其它图标保持原状，可稍后重试。"
+                )
             }
         }
 
@@ -312,12 +490,30 @@ final class MenuBarCollectionEngine {
         }
 
         scan = model.scan()
+        var refused: [ShelfItem] = []
         for item in scan where item.isMovable && desiredCollectedIDs.contains(item.id)
             && driver.observedPlacement(of: item) != .collected {
-            guard await driver.move(item, to: .collected, dropPoint: nil) else {
-                throw CollectionEngineError.message("部分收纳图标未能移动，已展开菜单栏。")
+            if !(await driver.move(item, to: .collected, dropPoint: nil)) {
+                try Task.checkCancellation()
+                guard driver.observedPlacement(of: model.scan().first { $0.id == item.id } ?? item) != .collected else { continue }
+                // Only a drag that was delivered but ignored by the host
+                // means "this item cannot be stowed"; anything else (stale
+                // geometry, notch, display change) is a transient failure.
+                guard driver.lastMoveFailure?.contains("never observed") == true else {
+                    throw CollectionEngineError.message("部分收纳图标未能移动，已展开菜单栏。")
+                }
+                // One item the host refuses to move (e.g. Now Playing) stays
+                // in the menu bar instead of unstowing everything else.
+                menuBarMoveLog.error("leaving \(item.id, privacy: .public) in the menu bar: \(self.driver.lastMoveFailure ?? "move refused", privacy: .public)")
+                refused.append(item)
+                desiredCollectedIDs.remove(item.id)
+                if preferredMove?.id == item.id { throw CollectionEngineError.message("部分收纳图标未能移动，已展开菜单栏。") }
             }
             try Task.checkCancellation()
+        }
+        for item in refused { model.setCollected(false, id: item.id) }
+        if let first = refused.first {
+            model.message = "macOS 未允许移动「\(first.title)」，它已保留在菜单栏，其它图标照常收纳。"
         }
 
         scan = model.scan()
@@ -342,6 +538,23 @@ final class MenuBarCollectionEngine {
         }
         guard verified else {
             throw CollectionEngineError.message("系统没有完成布局调整，已恢复显示全部图标。")
+        }
+    }
+
+    /// Re-applies an already verified layout after a rejected single move.
+    private func restoreLayout(collected desiredCollectedIDs: Set<String>) async throws {
+        if desiredCollectedIDs.isEmpty {
+            driver.revealImmediately()
+        } else {
+            await driver.collapseHiddenSection()
+        }
+        try Task.checkCancellation()
+        let restored = model.scan().allSatisfy { item in
+            let desired: MenuBarPlacement = desiredCollectedIDs.contains(item.id) ? .collected : .resident
+            return driver.observedPlacement(of: item) == desired
+        }
+        guard restored else {
+            throw CollectionEngineError.message("macOS 未接受这个图标的位置调整，已展开菜单栏。")
         }
     }
 
@@ -389,5 +602,10 @@ final class MenuBarCollectionEngine {
 
 private enum CollectionEngineError: Error {
     case message(String)
-    var text: String { switch self { case let .message(text): text } }
+    case preferredMoveRejected(String)
+    var text: String {
+        switch self {
+        case let .message(text), let .preferredMoveRejected(text): text
+        }
+    }
 }

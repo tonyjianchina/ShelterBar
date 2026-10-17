@@ -11,11 +11,29 @@ esac
 release_dir="$project_dir/dist/releases/v$version"
 asset_name="ShelterBar-$version-macos-arm64"
 
-# A machine-local self-signed identity is useful for preserving TCC permissions
-# during development, but must never be shipped to other Macs. Preview releases
-# stay ad-hoc unless an explicit release identity is provided.
-SHELTERBAR_CODESIGN_IDENTITY=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:--} \
+# Releases are signed with a stable self-signed identity ("ShelterBar Self-Signed")
+# so the designated requirement stays constant and users' TCC grants survive
+# updates. Its private key lives only in the maintainer's keychain (+ offline
+# .p12 backup); never commit it. Set SHELTERBAR_RELEASE_CODESIGN_IDENTITY=- to
+# fall back to ad-hoc explicitly.
+release_identity=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:-"ShelterBar Self-Signed"}
+if [ "$release_identity" != - ] && ! security find-identity -p codesigning \
+        | grep -Fq "\"$release_identity\""; then
+    echo "Release signing identity '$release_identity' not found in the keychain." >&2
+    echo "Restore it from the .p12 backup (see docs/RELEASE.md); refusing to ship a build with a different requirement." >&2
+    exit 1
+fi
+SHELTERBAR_CODESIGN_IDENTITY=$release_identity SHELTERBAR_CODESIGN_CERT_NAME=$release_identity \
     "$project_dir/scripts/build-app.sh" release
+if [ "$release_identity" != - ] && [ -n "${SHELTERBAR_EXPECTED_DR:-}" ]; then
+    actual_dr=$(codesign -d -r- "$project_dir/dist/ShelterBar.app" 2>&1 | sed -n 's/^designated => //p')
+    if [ "$actual_dr" != "$SHELTERBAR_EXPECTED_DR" ]; then
+        echo "Designated requirement changed!" >&2
+        echo "  expected: $SHELTERBAR_EXPECTED_DR" >&2
+        echo "  actual:   $actual_dr" >&2
+        exit 1
+    fi
+fi
 app_dir="$project_dir/dist/ShelterBar.app"
 work_dir=$(mktemp -d "$project_dir/dist/.release.XXXXXX")
 mount_dir="$work_dir/mounted"
@@ -49,29 +67,33 @@ ShelterBar v$version - 预览版 / Preview
 Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。
-打开“应用程序”中的 ShelterBar，按提示在“系统设置 → 隐私与安全性
-→ 辅助功能”中授权。授权成功后，应用会继续询问“屏幕录制”；它仅用于
+打开“应用程序”中的 ShelterBar，按提示在“系统设置 → 隐私与安全性”
+中开启辅助功能和输入监控。辅助功能生效后，应用会立即询问“屏幕录制”；它仅用于
 读取原始菜单栏状态图标，可以拒绝或稍后开启。未授权时使用占位图标，
 收纳与恢复功能仍然可用。
 应用内提供“允许读取图标”和“打开设置”，授权后可能需要退出并重新打开。
 应用显示在菜单栏，不显示 Dock 图标。
 
 图标读取：使用 ScreenCaptureKit，仅截取与进程 PID、状态窗口及辅助功能
-（AX）范围严格匹配的单个状态图标。截图仅缓存在内存中，不采集音频、
-不录制视频、不把截图写入磁盘，也不上传截图。单色图标随外观配色，彩色
+（AX）范围严格匹配的单个状态图标。只有已收纳图标的小尺寸 PNG 会缓存到
+~/Library/Application Support/ShelterBar/IconCache/，移回菜单栏即删除；
+不采集音频、不录制视频、不保存整屏截图，也不上传任何图像。单色图标随外观配色，彩色
 及多灰度状态图标保留原色，均保持比例。可见时捕获，收纳栏打开时尝试更新
 隐藏图标；收纳栏关闭时，定时任务不会截图。失败保留上次成功图像，
 没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
 
-本预览版使用临时签名（ad-hoc），没有 Developer ID 签名或 Apple 公证。
+本预览版使用固定自签名证书“ShelterBar Self-Signed”签名，没有 Developer ID
+签名或 Apple 公证。从 v0.5.6 及更早（ad-hoc）版本升级，需要重新授予一次辅助
+功能、输入监控和屏幕录制；之后的更新会保留授权。
 如果首次打开被阻止，请先核实下载来源及 SHA256 校验值，再到
 “系统设置 → 隐私与安全性”点击“仍要打开”，随后确认“打开”。
 如果系统未提供该选项，请勿绕过安全策略；受管理设备可能不允许例外。
 Apple 官方说明：https://support.apple.com/zh-cn/102445
 
 Install: drag ShelterBar.app to Applications, then eject this disk image.
-Open ShelterBar from Applications and allow Accessibility. Once granted, the app
+Open ShelterBar from Applications and allow Accessibility and Input Monitoring.
+Once Accessibility is granted, the app
 immediately asks for optional Screen Recording to show original status icons;
 placeholders are used without it.
 Use “允许读取图标” (Allow icon access) or “打开设置” (Open Settings) in the app.
@@ -80,8 +102,9 @@ ShelterBar is a menu-bar app and does not show a Dock icon.
 
 ScreenCaptureKit captures a single original status icon only after strictly
 matching its process PID, status window, and accessibility (AX) bounds. Images
-are cached in memory: no audio capture, video recording, screenshot files,
-or network uploads. Monochrome glyphs follow the shelf appearance; colored and
+are kept in memory; only collected items' small PNGs are cached under
+~/Library/Application Support/ShelterBar/IconCache/ and pruned when restored.
+No audio capture, video recording, full screenshots, or network uploads. Monochrome glyphs follow the shelf appearance; colored and
 multi-shade status images retain their colors. Aspect ratios are preserved.
 Icons are captured while visible; hidden icons receive refresh attempts while
 the shelf is open. The periodic task does not capture while the shelf is closed.
@@ -90,7 +113,10 @@ the shelf uses a placeholder without interrupting collection or restoration.
 Full original-icon and native third-party movement compatibility still requires
 validation in an authorized macOS session.
 
-This preview is ad-hoc signed, without Developer ID signing or Apple notarization.
+This preview is signed with the fixed self-signed "ShelterBar Self-Signed"
+certificate, without Developer ID signing or Apple notarization. Upgrading from
+an ad-hoc build (v0.5.6 or earlier) needs one re-grant of Accessibility, Input
+Monitoring and Screen Recording; later updates keep them.
 If macOS blocks the first launch, verify the download source and SHA256, then use
 System Settings > Privacy & Security > Open Anyway and confirm Open.
 Managed devices may not offer an exception. Do not disable Gatekeeper.

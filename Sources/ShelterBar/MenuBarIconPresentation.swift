@@ -60,6 +60,12 @@ enum MenuBarIconPresentation {
         guard rect.width > 0, rect.height > 0, let context = NSGraphicsContext.current else { return }
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
+        if !image.isTemplate, let backdrop = contrastBackdrop(for: image) {
+            // Colored captures keep their pixels; a light icon taken from a dark
+            // menu bar (or the reverse) gets a soft plate so it stays legible.
+            backdrop.setFill()
+            NSBezierPath(roundedRect: rect.insetBy(dx: -3, dy: -2), xRadius: 5, yRadius: 5).fill()
+        }
         // Isolate the alpha mask so tinting never paints over the shelf background.
         if image.isTemplate { context.cgContext.beginTransparencyLayer(auxiliaryInfo: nil) }
         image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1,
@@ -68,6 +74,17 @@ enum MenuBarIconPresentation {
             tintColor.setFill()
             rect.fill(using: .sourceIn)
             context.cgContext.endTransparencyLayer()
+        }
+    }
+
+    static func contrastBackdrop(for image: NSImage,
+                                 appearance: NSAppearance = .currentDrawing()) -> NSColor? {
+        guard !image.isTemplate else { return nil }
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        switch MenuBarGlyphImage.tone(of: image) {
+        case .light where !isDark: return NSColor(white: 0, alpha: 0.42)
+        case .dark where isDark: return NSColor(white: 1, alpha: 0.5)
+        default: return nil
         }
     }
 }

@@ -28,9 +28,9 @@ struct ShelfView: View {
             }.fixedSize()
             Divider().frame(height: ShelfLayoutMetrics.dividerHeight)
             if !model.hasAccessibilityPermission {
-                Text("允许辅助功能后，即可拖动顶部图标")
+                Text("允许辅助功能和输入监控后，即可拖动顶部图标")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
-                Button("授予权限", action: model.requestAccessibilityPermission).controlSize(.small)
+                Button("授予输入权限", action: model.requestAccessibilityPermission).controlSize(.small)
                 Button("打开设置", action: model.openAccessibilitySettings).controlSize(.small)
             } else if let message = model.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -76,7 +76,7 @@ struct ShelfView: View {
                 Button("刷新并恢复收纳") { model.onRefresh?() }
                 Button("显示全部顶部图标", action: onRevealAll)
                 Divider()
-                Button("辅助功能设置", action: model.openAccessibilitySettings)
+                Button("输入控制权限", action: model.openAccessibilitySettings)
                 Button("屏幕录制设置", action: model.openScreenCaptureSettings)
                 Button("退出 ShelterBar", action: onQuit)
             } label: {

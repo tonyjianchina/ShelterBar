@@ -53,8 +53,28 @@ elif [ "$signing_identity" = - ]; then
 else
     echo "Signing with explicitly requested identity: $signing_identity" >&2
 fi
-codesign --force --sign "$signing_identity" --timestamp=none "$staged_app"
+bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$staged_app/Contents/Info.plist")
+set -- --force --sign "$signing_identity" --timestamp=none
+if [ "$signing_identity" != - ]; then
+    # Pin the designated requirement to bundle id + exact leaf certificate so
+    # TCC grants survive every future release signed with the same identity.
+    # A self-signed cert has no Apple anchor, so make the DR explicit.
+    leaf_sha1=$(security find-certificate -a -Z -c "${SHELTERBAR_CODESIGN_CERT_NAME:-$signing_identity}" 2>/dev/null \
+        | awk '/^SHA-1 hash:/ { print $3; exit }')
+    if [ -z "$leaf_sha1" ]; then
+        echo "Could not read the certificate hash for $signing_identity." >&2
+        exit 1
+    fi
+    set -- "$@" "-r=designated => identifier \"$bundle_id\" and certificate leaf = H\"$leaf_sha1\""
+    # Hardened runtime is optional without notarization; ShelterBar needs no
+    # runtime exceptions. Set SHELTERBAR_HARDENED_RUNTIME=0 to disable.
+    if [ "${SHELTERBAR_HARDENED_RUNTIME:-1}" = 1 ]; then
+        set -- "$@" --options runtime
+    fi
+fi
+codesign "$@" "$staged_app"
 codesign --verify --strict --verbose=2 "$staged_app"
+codesign -d -r- "$staged_app" 2>&1 | sed -n 's/^designated => /Designated requirement: /p' >&2
 rm -rf "$app_dir"
 mv "$staged_app" "$app_dir"
 echo "$app_dir"
