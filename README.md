@@ -2,15 +2,15 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.7 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.7) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.8 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.8) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 26.0 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/ShelterBar-0.5.8-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/ShelterBar-0.5.8-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/SHA256SUMS)
 
 这是 **早期预览版**。自 v0.5.7 起使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名（不再是 ad-hoc），但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。
 
@@ -28,7 +28,7 @@
 
 启动后会先请求“辅助功能”和“输入监控”权限；辅助功能一旦生效，就会立即询问“屏幕录制”，不再等待输入监控全部生效。前两项用于发现、拦截拖动并移动图标，缺少任何一项都不会开始拦截鼠标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.7（build 22）改用固定自签名证书，后续升级保留权限；修复浅色/白色图标对比度、全屏与自动隐藏菜单栏下的收纳、单个图标失败导致全部展开、刘海屏处理；点击收纳栏图标时只把这一个图标临时放回收纳栏正下方并打开其菜单，随后自动收回；图标缓存到磁盘，重启后不再显示“?”。详见 [版本说明](docs/releases/v0.5.7.md)。
+v0.5.8（build 23）取代未正式发布的 v0.5.7（build 22），功能相同，补充了安装与第一次打开的引导（含安装盘背景提示）。v0.5.7 起改用固定自签名证书，后续升级保留权限；修复浅色/白色图标对比度、全屏与自动隐藏菜单栏下的收纳、单个图标失败导致全部展开、刘海屏处理；点击收纳栏图标时只把这一个图标临时放回收纳栏正下方并打开其菜单，随后自动收回；图标缓存到磁盘，重启后不再显示“?”。详见 [版本说明](docs/releases/v0.5.8.md)。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。已收纳图标的小尺寸 PNG 会缓存到本机 `~/Library/Application Support/ShelterBar/IconCache/`，重启后直接显示；图标被移回菜单栏后即删除对应缓存，缓存从不上传。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -174,7 +174,7 @@ python3.11 -m venv .build/dmg-tools
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.7/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.5.8/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Maintainer: signing identity

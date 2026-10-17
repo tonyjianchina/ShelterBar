@@ -1,4 +1,4 @@
-# ShelterBar v0.5.7 预览版
+# ShelterBar v0.5.8 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 26.0 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.7](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.7) 下载 [ShelterBar-0.5.7-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.8](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.8) 下载 [ShelterBar-0.5.8-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/ShelterBar-0.5.8-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/ShelterBar-0.5.8-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 ### 安装与第一次打开
 
@@ -30,7 +30,11 @@
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。本版已完成下述本机真实拖动检查，但原始图标捕获及移动的完整兼容性仍须针对具体第三方应用、显示器配置和 macOS 版本验证，不能仅由自动化测试确认。
 
-## v0.5.7（build 22）更新内容
+## v0.5.8（build 23）更新内容
+
+v0.5.8 取代从未正式发布的 v0.5.7 草稿，应用功能与 v0.5.7 相同：安装盘背景新增“首次打开请到「隐私与安全性」点「仍要打开」”提示，安装盘 INSTALL.txt、README、官网和发布说明补充了第一次打开的放行步骤。完整说明见 [v0.5.8 发布说明](releases/v0.5.8.md)。
+
+## v0.5.7（build 22）更新内容（未单独发布，并入 v0.5.8）
 
 - 固定自签名证书签名，后续升级保留权限（从 ad-hoc 版本升级需重新授权一次）。
 - 修复白色/浅色彩色图标在收纳栏中看不清的问题。
@@ -78,7 +82,7 @@ v0.5.4–v0.5.6 的权限引导会等待辅助功能和输入监控全部生效�
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.7/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.8/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -87,7 +91,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.7-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.8-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -107,9 +111,9 @@ python3.11 -m venv .build/dmg-tools
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.7/ShelterBar-0.5.7-macos-arm64.dmg
-dist/releases/v0.5.7/ShelterBar-0.5.7-macos-arm64.zip
-dist/releases/v0.5.7/SHA256SUMS
+dist/releases/v0.5.8/ShelterBar-0.5.8-macos-arm64.dmg
+dist/releases/v0.5.8/ShelterBar-0.5.8-macos-arm64.zip
+dist/releases/v0.5.8/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固定 Finder 图标布局和隐藏的中英双语安装说明。布局直接写入磁盘元数据，不需要控制 Finder、安装或启动应用。脚本校验 DMG 内部校验和、只读挂载后的图标位置和背景引用、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。可通过 `SHELTERBAR_DMG_PYTHON` 指定已安装这两个锁定依赖的 Python 解释器。
@@ -155,7 +159,7 @@ SHELTERBAR_EXPECTED_DR='identifier "com.jensen.shelterbar" and certificate leaf 
 
 ## 发布检查
 
-- 将 `v0.5.7` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
+- 将 `v0.5.8` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
 - 打包前确认 `codesign -d -r- dist/ShelterBar.app` 输出的 DR 与上面的期望值一致。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
