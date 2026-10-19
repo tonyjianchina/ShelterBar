@@ -1,4 +1,5 @@
 import AppKit
+import CoreVideo
 import ScreenCaptureKit
 
 /// Keeps the visible menu bar stable while macOS temporarily lays out the
@@ -51,14 +52,43 @@ final class MenuBarTransitionShield {
 private enum MenuBarScreenshot {
     static func capture(region: CGRect) async -> NSImage? {
         guard ScreenCapturePermission.isGranted, region.width > 0, region.height > 0 else { return nil }
-        let configuration = SCScreenshotConfiguration()
+        if #available(macOS 26.0, *) {
+            let configuration = SCScreenshotConfiguration()
+            configuration.showsCursor = false
+            configuration.displayIntent = .local
+            configuration.dynamicRange = .sdr
+            guard let output = try? await SCScreenshotManager.captureScreenshot(
+                rect: region,
+                configuration: configuration
+            ), let image = output.sdrImage else { return nil }
+            return NSImage(cgImage: image, size: region.size)
+        } else {
+            return await captureWithDisplayFilter(region: region)
+        }
+    }
+
+    /// macOS 14–25 fallback for `captureScreenshot(rect:configuration:)`.
+    /// Capture the same display-space region through a display filter, at the
+    /// display's backing scale, and present it at the region's point size so
+    /// the shield matches the macOS 26 path.
+    private static func captureWithDisplayFilter(region: CGRect) async -> NSImage? {
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: true
+        ), let display = content.displays.first(where: {
+            $0.frame.contains(CGPoint(x: region.midX, y: region.midY))
+        }) else { return nil }
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let scale = CGFloat(filter.pointPixelScale)
+        guard scale > 0, scale <= 4 else { return nil }
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = region.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
+        configuration.width = max(1, Int(ceil(region.width * scale)))
+        configuration.height = max(1, Int(ceil(region.height * scale)))
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.showsCursor = false
-        configuration.displayIntent = .local
-        configuration.dynamicRange = .sdr
-        guard let output = try? await SCScreenshotManager.captureScreenshot(
-            rect: region,
-            configuration: configuration
-        ), let image = output.sdrImage else { return nil }
+        guard let image = try? await SCScreenshotManager.captureImage(
+            contentFilter: filter, configuration: configuration
+        ) else { return nil }
         return NSImage(cgImage: image, size: region.size)
     }
 }

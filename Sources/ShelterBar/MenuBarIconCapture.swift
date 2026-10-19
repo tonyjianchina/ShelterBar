@@ -83,12 +83,16 @@ final class MenuBarIconCapture {
             configuration.height = max(1, Int(ceil(size.height * scale)))
             configuration.pixelFormat = kCVPixelFormatType_32BGRA
             configuration.showsCursor = false
-            configuration.showMouseClicks = false
+            if #available(macOS 15.0, *) {
+                configuration.showMouseClicks = false
+            }
             configuration.capturesAudio = false
             configuration.shouldBeOpaque = false
             configuration.ignoreShadowsSingleWindow = true
             configuration.ignoreGlobalClipSingleWindow = true
-            configuration.includeChildWindows = false
+            if #available(macOS 14.2, *) {
+                configuration.includeChildWindows = false
+            }
             configuration.captureResolution = .best
             guard let pixels = try? await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: configuration
