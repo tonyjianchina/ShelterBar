@@ -107,7 +107,7 @@ python3.11 -m venv .build/dmg-tools
 ./scripts/package-release.sh
 ```
 
-脚本会显式构建 `arm64-apple-macosx26.0` 的 Release 可执行文件，读取 `Resources/Info.plist` 的版本，验证 plist 和架构，使用“ShelterBar Self-Signed”证书签名封装应用（钥匙串中找不到该身份时拒绝打包），并输出：
+脚本会显式构建 `arm64-apple-macosx14.0` 的 Release 可执行文件，读取 `Resources/Info.plist` 的版本，验证 plist 和架构，使用“ShelterBar Self-Signed”证书签名封装应用（钥匙串中找不到该身份时拒绝打包），并输出：
 
 ```text
 dist/ShelterBar.app

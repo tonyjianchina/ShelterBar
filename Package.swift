@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ShelterBar",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v14)],
     products: [
         .library(name: "ShelterBarCore", targets: ["ShelterBarCore"]),
         .executable(name: "ShelterBar", targets: ["ShelterBar"]),

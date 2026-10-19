@@ -36,7 +36,7 @@ v0.5.8（build 23）取代未正式发布的 v0.5.7（build 22），功能相同
 
 ## About
 
-A mouse-first macOS 26 menu-bar shelf. Click the archive icon in the original
+A mouse-first macOS 14 menu-bar shelf. Click the archive icon in the original
 top-right menu-bar area to open a row underneath it.
 
 ## Install and first launch
@@ -147,7 +147,7 @@ Open Anyway (see Install and first launch). Avoid running another menu-bar manag
 open dist/ShelterBar.app --args --preview
 ```
 
-The build targets Apple Silicon and macOS 26+. The first test build downloads the
+The build targets Apple Silicon and macOS 14+. The first test build downloads the
 official Swift Testing package (the Command Line Tools installation here does
 not expose a standalone Testing module).
 

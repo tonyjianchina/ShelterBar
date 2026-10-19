@@ -13,7 +13,13 @@ if [ "$(uname -s)" != Darwin ]; then
 fi
 
 # Keep the release architecture and deployment target independent of the host.
-target_triple=arm64-apple-macosx26.0
+target_triple=arm64-apple-macosx14.0
+deployment_target=${target_triple#arm64-apple-macosx}
+# The default Swift Build engine records the deployment target as the linked
+# SDK version (LC_BUILD_VERSION sdk). Linking "against SDK 14" would opt the app
+# into old-SDK compatibility behaviour on newer macOS, so record the real SDK.
+sdk_version=$(xcrun --sdk macosx --show-sdk-version)
+linker_flags="-Xlinker -platform_version -Xlinker macos -Xlinker $deployment_target -Xlinker $sdk_version"
 local_signing_name=${SHELTERBAR_LOCAL_SIGNING_NAME:-"ShelterBar Local Code Signing"}
 app_dir="$project_dir/dist/ShelterBar.app"
 mkdir -p "$project_dir/dist"
@@ -21,10 +27,12 @@ staging_root=$(mktemp -d "$project_dir/dist/.ShelterBar.XXXXXX")
 staged_app="$staging_root/ShelterBar.app"
 trap 'rm -rf "$staging_root"' EXIT
 
+# shellcheck disable=SC2086 # linker_flags is intentionally word-split.
 swift build --package-path "$project_dir" --configuration "$configuration" \
-    --triple "$target_triple" --force-resolved-versions --product ShelterBar
+    --triple "$target_triple" --force-resolved-versions --product ShelterBar $linker_flags
+# shellcheck disable=SC2086
 binary_path=$(swift build --package-path "$project_dir" --configuration "$configuration" \
-    --triple "$target_triple" --force-resolved-versions --show-bin-path)
+    --triple "$target_triple" --force-resolved-versions --show-bin-path $linker_flags)
 
 mkdir -p "$staged_app/Contents/MacOS"
 mkdir -p "$staged_app/Contents/Resources"

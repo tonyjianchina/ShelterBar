@@ -69,7 +69,7 @@ swift "$project_dir/Tools/GenerateDMGBackground.swift" \
     "$work_dir/image/.background/ShelterBar.png"
 cat > "$work_dir/image/.background/INSTALL.txt" <<INSTALL
 ShelterBar v$version - 预览版 / Preview
-Apple Silicon (M1 及更新芯片)，macOS 26.0 或更新版本。
+Apple Silicon (M1 及更新芯片)，macOS 14.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。
 打开“应用程序”中的 ShelterBar，按提示在“系统设置 → 隐私与安全性”
