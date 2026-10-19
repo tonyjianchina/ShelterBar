@@ -52,22 +52,31 @@ final class MenuBarTransitionShield {
 private enum MenuBarScreenshot {
     static func capture(region: CGRect) async -> NSImage? {
         guard ScreenCapturePermission.isGranted, region.width > 0, region.height > 0 else { return nil }
-        if #available(macOS 26.0, *) {
-            let configuration = SCScreenshotConfiguration()
-            configuration.showsCursor = false
-            configuration.displayIntent = .local
-            configuration.dynamicRange = .sdr
-            guard let output = try? await SCScreenshotManager.captureScreenshot(
-                rect: region,
-                configuration: configuration
-            ), let image = output.sdrImage else { return nil }
-            return NSImage(cgImage: image, size: region.size)
-        } else {
-            return await captureWithDisplayFilter(region: region)
+        if #available(macOS 26.0, *),
+           let image = await captureWithScreenshotConfiguration(region: region) {
+            return image
         }
+        // macOS 14–25 always use the display filter. On macOS 26 the rect
+        // screenshot can also fail (observed as SCStreamError -3811), so fall
+        // back there too instead of dropping the shield.
+        return await captureWithDisplayFilter(region: region)
     }
 
-    /// macOS 14–25 fallback for `captureScreenshot(rect:configuration:)`.
+    /// macOS 26 path. Returns nil on any failure so `capture` can fall back.
+    @available(macOS 26.0, *)
+    private static func captureWithScreenshotConfiguration(region: CGRect) async -> NSImage? {
+        let configuration = SCScreenshotConfiguration()
+        configuration.showsCursor = false
+        configuration.displayIntent = .local
+        configuration.dynamicRange = .sdr
+        guard let output = try? await SCScreenshotManager.captureScreenshot(
+            rect: region,
+            configuration: configuration
+        ), let image = output.sdrImage else { return nil }
+        return NSImage(cgImage: image, size: region.size)
+    }
+
+    /// Fallback for `captureScreenshot(rect:configuration:)`.
     /// Capture the same display-space region through a display filter, at the
     /// display's backing scale, and present it at the region's point size so
     /// the shield matches the macOS 26 path.
