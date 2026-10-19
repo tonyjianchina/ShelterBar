@@ -9,8 +9,12 @@ final class MenuBarItemMover {
     static let handleHelp = "ShelterBar · 打开收纳栏"
     static let boundaryHelp = "ShelterBar · 收纳边界"
     static let revealedBoundaryLength: CGFloat = 3
+    private static let boundaryPositionKey = "NSStatusItem Preferred Position ShelterBar.Boundary"
     private let boundary: NSStatusItem
     private let handle: NSStatusItem
+    /// The user's normal divider position, restored whenever the boundary is
+    /// revealed so the expanded divider and other menu-bar apps stay put.
+    private let normalBoundaryPosition: Double
     private(set) var isCollapsed = false
     /// User-facing explanation (Chinese) for the last unsafe/obstructed move.
     private(set) var movementFailureMessage: String?
@@ -22,6 +26,18 @@ final class MenuBarItemMover {
     init(boundary: NSStatusItem, handle: NSStatusItem) {
         self.boundary = boundary
         self.handle = handle
+        let stored = UserDefaults.standard.double(forKey: Self.boundaryPositionKey)
+        let maxWidth = NSScreen.screens.map(\.frame.width).max() ?? 2_000
+        if stored > 0, stored < maxWidth {
+            normalBoundaryPosition = stored
+        } else {
+            // A crash while collapsed can leave the oversized position behind.
+            let handlePosition = UserDefaults.standard.double(
+                forKey: "NSStatusItem Preferred Position ShelterBar.Handle"
+            )
+            normalBoundaryPosition = handlePosition > 0 ? handlePosition + 38 : 530
+            UserDefaults.standard.set(normalBoundaryPosition, forKey: Self.boundaryPositionKey)
+        }
     }
 
     var boundaryFrame: CGRect? {
@@ -33,6 +49,7 @@ final class MenuBarItemMover {
     }
 
     func revealHiddenSection() async {
+        restoreBoundaryPosition()
         boundary.length = Self.revealedBoundaryLength
         isCollapsed = false
         // Every revealed item is re-laid out by the system host (Control
@@ -55,14 +72,18 @@ final class MenuBarItemMover {
     func collapseHiddenSection() async {
         // Never widen the clickable entry: macOS 26 can omit an oversized
         // status window from the composited menu bar, including its tail.
+        let width = NSScreen.screens.map(\.frame.width).max() ?? 1440
+        let length = max(500, min(width * 2, 10_000))
+        if #available(macOS 26.0, *) {
+            applyAnchoredBoundaryPosition(length: length)
+        }
         guard await ensureHandleOnResidentSide() else {
             logUnsafeHandle("before collapse")
             movementFailureMessage = "ShelterBar 入口的位置不安全，已展开菜单栏。请按住 Command 将收纳箱向右拖动后重试。"
             revealImmediately()
             return
         }
-        let width = NSScreen.screens.map(\.frame.width).max() ?? 1440
-        boundary.length = max(500, min(width * 2, 10_000))
+        boundary.length = length
         isCollapsed = true
         try? await Task.sleep(for: .milliseconds(250))
         if !hasSafeHandle {
@@ -73,8 +94,35 @@ final class MenuBarItemMover {
     }
 
     func revealImmediately() {
+        restoreBoundaryPosition()
         boundary.length = Self.revealedBoundaryLength
         isCollapsed = false
+    }
+
+    private func restoreBoundaryPosition() {
+        UserDefaults.standard.set(normalBoundaryPosition, forKey: Self.boundaryPositionKey)
+    }
+
+    /// macOS 26 anchors an oversized status item at its left edge when the app
+    /// is linked for macOS 14–25. Start that item off-screen to the left so
+    /// its right edge still lands just left of the handle. Native 26 apps
+    /// clamp the same value to the right anchor, so this is harmless there.
+    private func applyAnchoredBoundaryPosition(length: CGFloat) {
+        guard let handleFrame, let screen = screen(containing: handleFrame) else { return }
+        let handleOffset = screen.frame.width - handleFrame.minX
+        UserDefaults.standard.set(
+            length + handleOffset + 80,
+            forKey: Self.boundaryPositionKey
+        )
+    }
+
+    private func screen(containing frame: CGRect) -> NSScreen? {
+        NSScreen.screens.first { screen in
+            let region = MenuBarGeometry.quartz(screen.frame)
+            return frame.midX >= region.minX && frame.midX <= region.maxX
+                && frame.midY >= region.minY - MenuBarGeometry.hiddenRowDepth
+                && frame.midY <= region.maxY
+        }
     }
 
     /// The entry must stay a square control on the resident side of the
