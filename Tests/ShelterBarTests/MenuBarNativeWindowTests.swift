@@ -61,6 +61,42 @@ func nativeWindowMatchesCapturedGeometry() {
     }
 }
 
+@Test("native status matching accepts external-display status windows hosted one layer below the nominal level")
+func nativeWindowMatchesExternalDisplayLayer() {
+    let axFrame = CGRect(x: 3187, y: -1078, width: 50, height: 24)
+    let hostedWindow = nativeWindow(
+        pid: 1141,
+        layer: nativeStatusLayer - 1,
+        frame: CGRect(x: 3188, y: -1080, width: 48, height: 30),
+        ownerBundleID: "com.apple.controlcenter"
+    )
+
+    #expect(MenuBarNativeWindow.match(
+        axFrame: axFrame,
+        clientPID: 42,
+        windows: [hostedWindow]
+    )?.id == hostedWindow.id)
+}
+
+@Test("native status matching prefers the nominal layer when both supported layers publish the same item")
+func nativeWindowPrefersNominalLayer() {
+    let frame = CGRect(x: 3187, y: -1078, width: 50, height: 24)
+    let nominal = nativeWindow(
+        id: 1, pid: 42, layer: nativeStatusLayer,
+        frame: CGRect(x: 3188, y: -1080, width: 48, height: 30)
+    )
+    let fallback = nativeWindow(
+        id: 2, pid: 1141, layer: nativeStatusLayer - 1,
+        frame: nominal.frame, ownerBundleID: "com.apple.controlcenter"
+    )
+
+    #expect(MenuBarNativeWindow.match(
+        axFrame: frame,
+        clientPID: 42,
+        windows: [fallback, nominal]
+    )?.id == nominal.id)
+}
+
 @Test("native status matching requires the client or verified Control Center ownership")
 func nativeWindowRequiresKnownOwner() {
     let frame = CGRect(x: 900, y: 0, width: 30, height: 30)
@@ -82,7 +118,7 @@ func nativeWindowRejectsAmbiguityAndOtherLayers() {
                               ownerBundleID: "com.apple.controlcenter")
     #expect(MenuBarNativeWindow.match(axFrame: frame, clientPID: 42,
                                       windows: [first, second]) == nil)
-    for layer in [0, 24, 26] {
+    for layer in [0, nativeStatusLayer + 1] {
         #expect(MenuBarNativeWindow.match(axFrame: frame, clientPID: 42, windows: [
             nativeWindow(layer: layer, frame: frame),
         ]) == nil)

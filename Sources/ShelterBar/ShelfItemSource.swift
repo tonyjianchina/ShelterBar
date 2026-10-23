@@ -93,6 +93,8 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
                         "com.apple.menuextra.controlcenter",
                         "com.apple.menuextra.audiovideo"
                     ].contains(axIdentifier ?? "")
+                        && (ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
+                            || MenuBarAgentVisibilityController.supportsCollection(bundleID: application.bundleIdentifier))
                 ))
             }
         }

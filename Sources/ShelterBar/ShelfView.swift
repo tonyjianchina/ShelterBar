@@ -14,6 +14,7 @@ struct ShelfView: View {
     let onActivate: (ShelfItem) -> Void
     let onReturn: (String, CGPoint) -> Void
     let onDragging: (Bool) -> Void
+    let onDragPosition: (String, CGPoint) -> Void
     let onPinChange: (Bool) -> Void
     let onRevealAll: () -> Void
     let onQuit: () -> Void
@@ -33,6 +34,13 @@ struct ShelfView: View {
                     .lineLimit(2).help(model.inputPermissionGuidance)
                 Button("授予输入权限", action: model.requestAccessibilityPermission).controlSize(.small)
                 Button("打开设置", action: model.openAccessibilitySettings).controlSize(.small)
+            } else if !model.hasScreenCapturePermission {
+                Text(model.screenCapturePermissionHint
+                    ?? "允许录屏与系统录音后可显示原始菜单栏图标；ShelterBar 不会录音或保存整屏。")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .lineLimit(2).frame(maxWidth: .infinity)
+                Button("允许录屏", action: model.requestScreenCapturePermission).controlSize(.small)
+                Button("打开设置", action: model.openScreenCaptureSettings).controlSize(.small)
             } else if let message = model.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -47,21 +55,13 @@ struct ShelfView: View {
                     HStack(spacing: 5) {
                         ForEach(model.items) { item in
                             ShelfIcon(item: item, onActivate: { onActivate(item) },
-                                      onReturn: onReturn, onReorder: model.move, onDragging: onDragging)
+                                      onReturn: onReturn, onReorder: model.move, onDragging: onDragging,
+                                      onDragPosition: onDragPosition)
                                 .frame(width: MenuBarIconPresentation.shelfWidth(for: item.icon),
                                        height: ShelfLayoutMetrics.iconRowHeight)
                         }
                     }
                 }
-            }
-            if model.hasAccessibilityPermission && !model.hasScreenCapturePermission {
-                Button(action: model.requestScreenCapturePermission) {
-                    Image(systemName: "photo.badge.plus").frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(model.screenCapturePermissionHint
-                    ?? "收纳功能已可用。允许屏幕录制后可显示原始菜单栏图标，内容仅在本机读取。")
             }
             if model.isBusy {
                 ProgressView().controlSize(.small).help("正在移动图标…")

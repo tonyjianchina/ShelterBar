@@ -24,6 +24,7 @@ final class ShelfViewModel: ObservableObject {
     private let defaults: UserDefaults
     private let isTrusted: @MainActor () -> Bool
     private let isVisible: @MainActor (CGRect) -> Bool
+    private let isLogicallyHidden: @MainActor (ShelfItem) -> Bool
     private var sessionCollected = Set<String>()
     /// Glyphs persisted from earlier captures; used while an item is stowed
     /// off-screen and cannot be captured again (e.g. right after launch).
@@ -38,6 +39,7 @@ final class ShelfViewModel: ObservableObject {
         source: any ShelfItemSource, defaults: UserDefaults = .standard,
         isTrusted: @escaping @MainActor () -> Bool = { AccessibilityPermission.isGranted },
         isVisible: @escaping @MainActor (CGRect) -> Bool = MenuBarGeometry.isOnMenuBar,
+        isLogicallyHidden: @escaping @MainActor (ShelfItem) -> Bool = { _ in false },
         iconStore: MenuBarIconDiskCache? = nil
     ) {
         self.source = source
@@ -45,6 +47,7 @@ final class ShelfViewModel: ObservableObject {
         self.defaults = defaults
         self.isTrusted = isTrusted
         self.isVisible = isVisible
+        self.isLogicallyHidden = isLogicallyHidden
         isPinned = defaults.bool(forKey: "shelf.isPinned")
     }
 
@@ -97,8 +100,13 @@ final class ShelfViewModel: ObservableObject {
         }
         // Only confirmed off-row items appear in the shelf. Expanded recovery
         // mode never duplicates a real icon that is still on the top bar.
-        items = ordered.filter { collectedIDs.contains($0.id) && !isVisible($0.menuBarReference.frame) }
-        residentItems = ordered.filter { isVisible($0.menuBarReference.frame) }
+        items = ordered.filter {
+            collectedIDs.contains($0.id)
+                && (isLogicallyHidden($0) || !isVisible($0.menuBarReference.frame))
+        }
+        residentItems = ordered.filter {
+            !isLogicallyHidden($0) && isVisible($0.menuBarReference.frame)
+        }
     }
 
     func remember(_ item: ShelfItem) { knownItems[item.id] = item }

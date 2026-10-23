@@ -69,6 +69,34 @@ func visibleCollectedItemIsNotDuplicated() {
     #expect(model.residentItems.isEmpty)
 }
 
+@Test("a MenuBarAgent-hidden item appears in the shelf even while AX reports its stale top-bar frame")
+@MainActor
+func logicallyHiddenItemOverridesStaleAXFrame() {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["sync"], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [fixture("sync")]
+    var hidden = true
+    let model = ShelfViewModel(
+        source: source,
+        defaults: defaults,
+        isTrusted: { true },
+        isVisible: { $0.minY < 30 },
+        isLogicallyHidden: { _ in hidden }
+    )
+
+    model.refresh()
+    #expect(model.items.map(\.id) == ["sync"])
+    #expect(model.residentItems.isEmpty)
+
+    hidden = false
+    model.refresh()
+    #expect(model.items.isEmpty)
+    #expect(model.residentItems.map(\.id) == ["sync"])
+}
+
 @Test("anonymous multi-item identities are collected only for the current session")
 @MainActor
 func ambiguousIdentityIsNotPersisted() {

@@ -5,13 +5,13 @@ enum ScreenCapturePermission {
     static var isGranted: Bool { CGPreflightScreenCaptureAccess() }
 
     enum RequestResult {
-        case granted, settingsOpened, settingsUnavailable
+        case granted, manualApprovalRequired
 
         var guidance: String? {
             switch self {
             case .granted: nil
-            case .settingsOpened: "请在系统设置中开启 ShelterBar；已开启但仍提示时，请退出并重新打开软件。"
-            case .settingsUnavailable: "请手动打开系统设置 → 隐私与安全性 → 屏幕与系统音频录制，开启 ShelterBar。"
+            case .manualApprovalRequired:
+                "若系统没有弹出授权，请打开设置；列表中没有 ShelterBar 时，点“+”选择 /Applications/ShelterBar.app。"
             }
         }
     }
@@ -21,12 +21,14 @@ enum ScreenCapturePermission {
     @discardableResult
     static func request(
         systemRequest: () -> Bool = { CGRequestScreenCaptureAccess() },
-        openSettings: () -> Bool = { ScreenCapturePermission.openSettings() }
+        openSettings _: () -> Bool = { ScreenCapturePermission.openSettings() }
     ) -> RequestResult {
         if systemRequest() { return .granted }
-        // macOS may return false without showing another prompt after an
-        // earlier request. An explicit click must still have a visible result.
-        return openSettings() ? .settingsOpened : .settingsUnavailable
+        // Do not open System Settings in the same call. On macOS 27 the TCC
+        // request can return false while the prompt is still being scheduled;
+        // deep-linking immediately races and may suppress that prompt. The
+        // shelf keeps an explicit Settings button as the reliable fallback.
+        return .manualApprovalRequired
     }
 
     @discardableResult

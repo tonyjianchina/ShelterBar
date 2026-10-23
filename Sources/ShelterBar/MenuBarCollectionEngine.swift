@@ -32,12 +32,16 @@ protocol MenuBarLayoutDriving: AnyObject {
     func returnFromVisibleSlot(_ item: ShelfItem, before neighbor: ShelfItem?) async -> Bool
     /// Waits (bounded) while the user is moving the mouse or holding keys.
     func waitUntilUserIdle(maximum: Duration) async
+    /// Rebuilds a host-level allow list when running applications change.
+    /// Legacy per-item movement has no host state to refresh.
+    func refreshHostVisibility() async -> Bool
 }
 
 extension MenuBarLayoutDriving {
     var lastMoveFailure: String? { nil }
     var isMenuBarAutoHidden: Bool { false }
     func waitUntilUserIdle(maximum: Duration) async {}
+    func refreshHostVisibility() async -> Bool { true }
 }
 
 extension MenuBarLayoutDriving {
@@ -174,6 +178,11 @@ final class MenuBarCollectionEngine {
         }
 
         model.refresh()
+        guard await driver.refreshHostVisibility() else {
+            return await degrade(CollectionEngineError.message(
+                "系统未能刷新菜单栏显示状态，已恢复显示全部图标。"
+            ))
+        }
         if reason == .launch, let pending = model.pendingRestore {
             // A click reveal was interrupted (quit or crash): put the item
             // back before its former right neighbour first.
@@ -464,6 +473,15 @@ final class MenuBarCollectionEngine {
                 != (desiredCollectedIDs.contains(item.id) ? .collected : .resident)
         }
         if driver.isCollapsed || needsMoves { await driver.revealHiddenSection() }
+        try Task.checkCancellation()
+
+        // MenuBarAgent removes an item's pixels during move(.collected),
+        // unlike the legacy divider which hides them only during collapse.
+        // Keep its last visible glyph before any movement can hide it. The
+        // existing post-move pass still supports legacy off-screen windows.
+        await recaptureVisible(model.scan().filter {
+            desiredCollectedIDs.contains($0.id) && driver.isClickable($0)
+        })
         try Task.checkCancellation()
 
         // Protect every real participant, including residents displaced by

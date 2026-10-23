@@ -28,9 +28,8 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     var revealPermissionDuringMoves: [Bool] = []
     var notchHiddenIDs: Set<String> = []
     var events: [String] = []
-
     func isClickable(_ item: ShelfItem) -> Bool {
-        placements[item.id] == .resident || (!isCollapsed && !notchHiddenIDs.contains(item.id))
+        return placements[item.id] == .resident || (!isCollapsed && !notchHiddenIDs.contains(item.id))
     }
 
     func prepareForClick(_ item: ShelfItem) async -> Bool {
@@ -607,6 +606,52 @@ func engineSetsPlacementInBothDirections() async {
     ])
     #expect(model.collectedIDs.isEmpty)
     #expect(driver.isCollapsed == false)
+}
+
+@Test("collection keeps the original glyph when the host hides the item as soon as it moves")
+@MainActor
+func engineKeepsGlyphWhenCollectionImmediatelyHidesItem() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("vpn", hidden: false)]
+    let model = ShelfViewModel(
+        source: source,
+        defaults: defaults,
+        isTrusted: { true },
+        isVisible: { $0.minX >= 0 }
+    )
+    let driver = EngineFixtureDriver()
+    driver.placements = ["vpn": .resident]
+    let glyph = NSImage(size: NSSize(width: 20, height: 22))
+    let engine = MenuBarCollectionEngine(
+        model: model,
+        driver: driver,
+        capture: { items in
+            // MenuBarAgent hides the pixels during move(.collected), not
+            // later during collapse. No capture is possible after that.
+            items.compactMap { item in
+                guard driver.placements[item.id] == .resident else { return nil }
+                return MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: glyph)
+            }
+        },
+        accessibilityGranted: { true },
+        screenCaptureGranted: { true }
+    )
+
+    let outcome = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
+
+    #expect(outcome.message == nil)
+    #expect(driver.placements["vpn"] == .collected)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+    #expect(model.items.first?.icon === glyph)
+
+    // The next presentation pass sees no pixels, but must retain the glyph
+    // captured while the item was still resident.
+    _ = await engine.perform(.refreshPresentation)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+    #expect(model.items.first?.icon === glyph)
 }
 
 @Test("show all pauses polling until an explicit refresh restores collection")

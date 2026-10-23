@@ -82,15 +82,24 @@ struct MenuBarNativeWindow: Equatable {
     ) -> MenuBarNativeWindow? {
         guard hasStatusSize(axFrame, maximumWidth: maximumWidth), clientPID > 0 else { return nil }
         let statusLayer = Int(CGWindowLevelForKey(.statusWindow))
-        let matches = windows.filter { window in
-            window.layer == statusLayer
+        // macOS 27 can publish status-item windows on external displays one
+        // layer below the nominal status-window level. Ownership, geometry,
+        // and uniqueness remain mandatory, so accepting that adjacent layer
+        // does not turn an arbitrary window into a drag target.
+        func matches(on layer: Int) -> [MenuBarNativeWindow] {
+            windows.filter { window in
+                window.layer == layer
                 && (window.pid == clientPID || window.ownerBundleID == "com.apple.controlcenter")
                 && hasStatusSize(window.frame, maximumWidth: maximumWidth)
                 && abs(window.frame.midX - axFrame.midX) <= 3
                 && abs(window.frame.midY - axFrame.midY) <= 5
                 && abs(window.frame.width - axFrame.width) <= 16
+            }
         }
-        return matches.count == 1 ? matches.first : nil
+        let nominal = matches(on: statusLayer)
+        if !nominal.isEmpty { return nominal.count == 1 ? nominal.first : nil }
+        let fallback = matches(on: statusLayer - 1)
+        return fallback.count == 1 ? fallback.first : nil
     }
 
     private static func hasStatusSize(_ frame: CGRect, maximumWidth: CGFloat = 1024) -> Bool {

@@ -131,6 +131,9 @@ item visible. This preview is signed with the fixed self-signed certificate
 upgrading from an ad-hoc build (v0.5.6 or earlier) needs one re-grant of
 Accessibility, Input Monitoring and Screen Recording, later updates keep them.
 Opening a collected item's menu can flicker the cursor briefly, the item returns
-about 1.5 s after the menu closes, and macOS 27 will likely need a new approach. Complete native
-third-party compatibility remains unverified until the authorized capture and
-real drag acceptance checks above have succeeded.
+about 1.5 s after the menu closes. On macOS 27, ShelterBar resolves the private
+MenuBarAgent visibility interface at runtime; this is bundle-scoped, so multiple
+menu-bar items from the same app cannot be managed independently, and a future
+system update may change the interface. Complete native third-party compatibility
+remains unverified until the authorized capture and real drag acceptance checks
+above have succeeded.

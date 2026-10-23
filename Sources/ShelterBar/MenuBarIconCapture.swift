@@ -25,9 +25,9 @@ struct MenuBarCaptureWindow {
 }
 
 enum MenuBarIconMatcher {
-    /// Never capture a whole application or display as a fallback. The AX item
-    /// must identify exactly one small status window belonging to its process
-    /// or hosted by the system's verified Control Center process.
+    /// Prefer one native status window. macOS 27 instead composites items in
+    /// MenuBarAgent; that host is only eligible for a bounded item-region
+    /// capture, never a whole-menu-bar or whole-display capture.
     static func match(frame: CGRect, pid: pid_t, windows: [MenuBarCaptureWindow]) -> CGWindowID? {
         guard frame.width > 1, frame.width <= 1024, frame.height > 1, frame.height <= 100,
               frame.origin.x.isFinite, frame.origin.y.isFinite else { return nil }
@@ -36,7 +36,18 @@ enum MenuBarIconMatcher {
             return MenuBarNativeWindow(id: window.id, pid: window.pid, layer: window.layer,
                                        frame: window.frame, ownerBundleID: window.ownerBundleID)
         }
-        return MenuBarNativeWindow.match(axFrame: frame, clientPID: pid, windows: candidates)?.id
+        if let native = MenuBarNativeWindow.match(axFrame: frame, clientPID: pid, windows: candidates) {
+            return native.id
+        }
+        guard pid > 0 else { return nil }
+        let hosts = windows.filter {
+            $0.ownerBundleID == "com.apple.MenuBarAgent"
+                && [Int(CGWindowLevelForKey(.statusWindow)), Int(CGWindowLevelForKey(.statusWindow)) - 1].contains($0.layer)
+                && $0.frame.width >= 512 && $0.frame.width <= 16384
+                && $0.frame.height > 1 && $0.frame.height <= 60
+                && $0.frame.contains(frame)
+        }
+        return hosts.count == 1 ? hosts.first?.id : nil
     }
 
     static func pixelCrop(itemFrame: CGRect, windowFrame: CGRect, pixelSize: CGSize) -> CGRect? {
@@ -52,10 +63,17 @@ enum MenuBarIconMatcher {
 
 @MainActor
 final class MenuBarIconCapture {
+    private let isLogicallyHidden: @MainActor (ShelfItem) -> Bool
+
+    init(isLogicallyHidden: @escaping @MainActor (ShelfItem) -> Bool = { _ in false }) {
+        self.isLogicallyHidden = isLogicallyHidden
+    }
+
     func capture(_ items: [ShelfItem]) async -> [MenuBarIconSnapshot] {
         guard !items.isEmpty, ScreenCapturePermission.isGranted, !Task.isCancelled else { return [] }
         let initialFrames = Dictionary(items.compactMap { item -> (String, CGRect)? in
-            item.menuBarReference.currentFrame().map { (item.id, $0) }
+            guard !isLogicallyHidden(item) else { return nil }
+            return item.menuBarReference.currentFrame().map { (item.id, $0) }
         }, uniquingKeysWith: { first, _ in first })
         guard let content = try? await SCShareableContent.excludingDesktopWindows(
             false, onScreenWindowsOnly: false
@@ -69,9 +87,24 @@ final class MenuBarIconCapture {
         var snapshots: [MenuBarIconSnapshot] = []
         for item in items {
             guard !Task.isCancelled, ScreenCapturePermission.isGranted else { return [] }
-            guard let frame = initialFrames[item.id], item.menuBarReference.currentFrame() == frame,
+            guard !isLogicallyHidden(item),
+                  let frame = initialFrames[item.id], item.menuBarReference.currentFrame() == frame,
                   let id = MenuBarIconMatcher.match(frame: frame, pid: item.menuBarReference.pid, windows: candidates),
                   let window = content.windows.first(where: { $0.windowID == id }) else { continue }
+            if window.owningApplication?.bundleIdentifier == "com.apple.MenuBarAgent" {
+                // A hidden item's AX rectangle can now belong to its neighbour.
+                // Read only a currently exposed, full item rectangle, and recheck
+                // both logical visibility and geometry across the suspension.
+                guard #available(macOS 15.2, *),
+                      ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27,
+                      MenuBarGeometry.visibleFrame(frame) == frame,
+                      let pixels = try? await SCScreenshotManager.captureImage(in: frame),
+                      !Task.isCancelled, ScreenCapturePermission.isGranted,
+                      !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
+                      let image = MenuBarGlyphImage.make(from: pixels, logicalSize: frame.size) else { continue }
+                snapshots.append(MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: image))
+                continue
+            }
             let filter = SCContentFilter(desktopIndependentWindow: window)
             let size = filter.contentRect.size
             let scale = CGFloat(filter.pointPixelScale)
@@ -97,7 +130,7 @@ final class MenuBarIconCapture {
             guard let pixels = try? await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: configuration
             ), !Task.isCancelled, ScreenCapturePermission.isGranted,
-                  item.menuBarReference.currentFrame() == frame,
+                  !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                   let crop = MenuBarIconMatcher.pixelCrop(itemFrame: frame, windowFrame: window.frame,
                       pixelSize: CGSize(width: pixels.width, height: pixels.height)),
                   let cropped = pixels.cropping(to: crop),

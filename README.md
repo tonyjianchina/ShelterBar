@@ -129,9 +129,13 @@ short grace period). The cursor is restored after each synthetic drag, and a
 pending restore is recorded first, so a crash or quit mid-way is repaired on the
 next launch. If there is no room (for example next to the notch), ShelterBar
 explains instead of expanding the bar. Known issues: the cursor may flicker
-briefly, the item returns about 1.5 s after the menu closes, and macOS 27 will
-likely need a different approach. Quitting removes ShelterBar's handle and
-boundary and reveals the real items; it does not remove another app's item.
+briefly and the item returns about 1.5 s after the menu closes. On macOS 27,
+ShelterBar resolves the system MenuBarAgent visibility interface at runtime
+because native Command-drag movement is no longer reliable. That interface is
+bundle-scoped: multiple menu-bar items from the same app cannot be collected
+independently, and a future macOS update may change the private interface.
+Quitting removes ShelterBar's handle and boundary and reveals the real items;
+it does not remove another app's item.
 
 This is an early preview release, not a notarized release. Since v0.5.7 it is
 signed with the fixed self-signed certificate "ShelterBar Self-Signed", so macOS

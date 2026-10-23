@@ -10,6 +10,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let panel: ShelfPanel
     private let model: ShelfViewModel
     private let engine: MenuBarCollectionEngine
+    private let visibility: MenuBarAgentVisibilityController
     private let permissionOnboarding: PermissionOnboardingCoordinator
     private let monitor = MenuBarDragMonitor()
     private var presentation = ShelfPresentation()
@@ -36,9 +37,23 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         boundaryItem.button?.toolTip = MenuBarItemMover.boundaryHelp
         boundaryItem.button?.setAccessibilityIdentifier("shelterbar.boundary")
         boundaryItem.button?.setAccessibilityLabel("收纳边界")
-        let createdModel = ShelfViewModel(source: source, iconStore: MenuBarIconDiskCache())
-        let createdMover = MenuBarItemMover(boundary: boundaryItem, handle: statusItem)
-        let createdCapture = MenuBarIconCapture()
+        let createdVisibility = MenuBarAgentVisibilityController()
+        visibility = createdVisibility
+        let createdModel = ShelfViewModel(
+            source: source,
+            isLogicallyHidden: { item in
+                createdVisibility.isActivelyHidden(bundleID: item.application?.bundleIdentifier)
+            },
+            iconStore: MenuBarIconDiskCache()
+        )
+        let createdMover = MenuBarItemMover(
+            boundary: boundaryItem,
+            handle: statusItem,
+            visibility: createdVisibility
+        )
+        let createdCapture = MenuBarIconCapture(isLogicallyHidden: { item in
+            createdVisibility.isActivelyHidden(bundleID: item.application?.bundleIdentifier)
+        })
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
             accessibilityGranted: {
@@ -123,6 +138,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         pollTask?.cancel()
         monitor.stop()
         engine.cancelAndReveal()
+        visibility.clear()
     }
 
     private func configurePanel() {
@@ -142,8 +158,13 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             onDragging: { [weak self] in
                 self?.shelfDragInProgress = $0
                 self?.model.isDraggingToMenuBar = $0
+                if !$0 {
+                    self?.dragGhost.orderOut(nil)
+                    self?.model.isDropTargeted = false
+                }
                 self?.updateMonitor()
             },
+            onDragPosition: { [weak self] id, point in self?.showDragGhost(id: id, at: point) },
             onPinChange: { [weak self] value in
                 self?.model.setPinned(value)
                 self?.presentation.handle(.setPinned(value))
@@ -182,7 +203,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     func beginPermissionOnboarding() {
         let action = permissionOnboarding.advance()
         updatePermissionState()
-        if action == .requestAccessibility && !model.hasAccessibilityPermission {
+        if action != nil
+            && (!model.hasAccessibilityPermission || !model.hasScreenCapturePermission) {
             showShelf()
         } else {
             refresh(.launch)
@@ -231,7 +253,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
         let ready = model.hasAccessibilityPermission
         let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
-        let desired: CGFloat = ready ? max(440, iconsWidth + 230) : 680
+        let desired: CGFloat
+        if ready && !model.hasScreenCapturePermission {
+            desired = 760
+        } else {
+            desired = ready ? max(440, iconsWidth + 230) : 680
+        }
         let width = min(760, min(desired, screen.frame.width - 24))
         let x = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
         panel.setFrame(

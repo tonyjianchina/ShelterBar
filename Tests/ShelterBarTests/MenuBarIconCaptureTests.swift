@@ -77,6 +77,29 @@ func captureRejectsUnverifiedOrAmbiguousHosts() {
                                      windows: [host, duplicate]) == nil)
 }
 
+@Test("macOS 27 glyph capture accepts only a uniquely verified composite menu bar host")
+func captureMatchesCompositeMenuBarHost() {
+    let item = CGRect(x: 1048, y: 4.5, width: 34, height: 24)
+    let layer = Int(CGWindowLevelForKey(.statusWindow)) - 1
+    let host = MenuBarCaptureWindow(id: 27, pid: 9, layer: layer,
+        frame: CGRect(x: 0, y: 0, width: 1512, height: 33),
+        ownerBundleID: "com.apple.MenuBarAgent")
+    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [host]) == 27)
+
+    let foreign = MenuBarCaptureWindow(id: 28, pid: 9, layer: layer,
+        frame: host.frame, ownerBundleID: "com.example.MenuBarAgent")
+    let duplicate = MenuBarCaptureWindow(id: 29, pid: 10, layer: layer,
+        frame: host.frame, ownerBundleID: "com.apple.MenuBarAgent")
+    let ordinary = MenuBarCaptureWindow(id: 30, pid: 9, layer: 0,
+        frame: host.frame, ownerBundleID: "com.apple.MenuBarAgent")
+    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [foreign, ordinary]) == nil)
+    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [host, duplicate]) == nil)
+    #expect(MenuBarIconMatcher.match(frame: item.offsetBy(dx: 1600, dy: 0), pid: 42,
+                                     windows: [host]) == nil)
+    #expect(MenuBarIconMatcher.match(frame: item.offsetBy(dx: 0, dy: 24), pid: 42,
+                                     windows: [host]) == nil)
+}
+
 private func pixels(color: CGColor?) -> CGImage {
     let context = CGContext(data: nil, width: 48, height: 48, bitsPerComponent: 8,
         bytesPerRow: 48 * 4, space: CGColorSpaceCreateDeviceRGB(),
