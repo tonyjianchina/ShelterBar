@@ -582,7 +582,10 @@ final class MenuBarCollectionEngine {
 
         let liveItems = Dictionary(model.scan().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let verified = participantIDs.allSatisfy { id in
-            guard let item = liveItems[id] else { return false }
+            // MenuBarAgent may remove a successfully hidden app from the next
+            // AX inventory immediately. Its remembered element and bundle ID
+            // still let the driver verify the authoritative visibility state.
+            guard let item = liveItems[id] ?? model.item(withID: id) else { return false }
             let desired: MenuBarPlacement = desiredCollectedIDs.contains(id) ? .collected : .resident
             return driver.observedPlacement(of: item) == desired
         }

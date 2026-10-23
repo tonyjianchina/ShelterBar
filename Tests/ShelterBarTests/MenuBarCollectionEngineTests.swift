@@ -28,6 +28,7 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     var revealPermissionDuringMoves: [Bool] = []
     var notchHiddenIDs: Set<String> = []
     var events: [String] = []
+    var onMove: ((ShelfItem, MenuBarPlacement) -> Void)?
     func isClickable(_ item: ShelfItem) -> Bool {
         return placements[item.id] == .resident || (!isCollapsed && !notchHiddenIDs.contains(item.id))
     }
@@ -95,6 +96,7 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
         if placement == .resident { notchHiddenIDs.remove(item.id) }
         events.append("move \(item.id) \(placement)")
         item.menuBarReference.frame.origin.x = placement == .collected ? -100 : 900
+        onMove?(item, placement)
         return true
     }
 }
@@ -177,6 +179,33 @@ func engineRejectsLostParticipatingResident() async {
     #expect(outcome.message == "系统没有完成布局调整，已恢复显示全部图标。")
     #expect(!driver.isCollapsed)
     #expect(model.collectedIDs.isEmpty)
+}
+
+@Test("a MenuBarAgent-hidden target may leave AX inventory after its move is confirmed")
+@MainActor
+func engineAcceptsConfirmedHiddenTargetMissingFromFreshScan() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    let target = engineFixture("muse", hidden: false)
+    source.entries = [target]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                               isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["muse": .resident]
+    driver.onMove = { _, placement in
+        if placement == .collected { source.entries = [] }
+    }
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+
+    let outcome = await engine.perform(.setPlacement(id: "muse", placement: .collected))
+
+    #expect(outcome.message == nil)
+    #expect(driver.placements["muse"] == .collected)
+    #expect(driver.isCollapsed)
+    #expect(model.collectedIDs == ["muse"])
 }
 
 @Test("saved collection for an app not running does not fail another icon's transaction")
