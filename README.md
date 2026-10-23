@@ -1,177 +1,118 @@
 # ShelterBar
 
-**给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
+**重点适配 macOS 27 的菜单栏图标收纳工具。**
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.11 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.11) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+菜单栏太挤时，把暂时不用的图标拖进 ShelterBar。需要时点开原来的菜单，或者再拖回顶部。没有账号、广告或遥测，布局和图标缓存只保存在本机。
 
-## 下载与安装
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.11](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.11) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
-当前提供 **macOS 14 Sonoma 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
+## macOS 27 重点适配
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/SHA256SUMS)
+macOS 27 改变了菜单栏图标的管理方式，传统的 Command 拖动在部分场景下已经不可靠。ShelterBar 针对新版系统增加了专用收纳路径，让图标仍可被收起、恢复和点击使用。
 
-这是 **早期预览版**。自 v0.5.7 起使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名（不再是 ad-hoc），但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。
+- 运行时适配 macOS 27 的系统 `MenuBarAgent` 可见性机制。
+- 收纳后仍可点击图标，打开它原来的菜单；菜单关闭后自动收回。
+- 应用启动、退出或操作失败时，会校验并恢复真实菜单栏状态。
+- 同时兼容 macOS 14 Sonoma 及以上版本。
 
-### 安装与第一次打开
+> macOS 27 下的系统接口以应用为单位。同一应用提供多个菜单栏图标时，目前不能逐个独立收纳。系统后续更新也可能改变这一行为。
 
-1. **安装**：打开 DMG，把 ShelterBar 拖进「应用程序」（Applications）文件夹，然后推出磁盘。
-2. **第一次打开**：在访达的「应用程序」文件夹里双击 ShelterBar（刚安装时，聚焦搜索可能要过几分钟才能搜到）。ShelterBar 没有经过 Apple 公证，系统会拦下并提示无法验证，先点「完成」关闭提示；然后打开「系统设置 → 隐私与安全性」，往下滚到「安全性」部分，点 ShelterBar 旁边的「仍要打开」，再确认一次「打开」（可能需要输入登录密码）。macOS 15 起，右键「打开」已不能绕过这一步。
-   - 高级用户也可以在核对 SHA256 后，在终端运行 `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`，再双击打开。
-   - 每次下载只需放行一次。以后下载新版本覆盖安装时，如果系统再次拦下，按同样步骤放行即可；辅助功能等授权会保留，不用重新授权（从 v0.5.6 及更早版本升级除外，需重新授权一次）。
-3. **打开之后**：ShelterBar 只在菜单栏运行，没有 Dock 图标，也没有普通窗口——请留意屏幕右上角菜单栏里新出现的收纳箱图标，点它即可展开收纳栏。首次启动时，收纳栏会自动在图标下方展开，并按引导请求授权：先是「辅助功能」和「输入监控」（必需），辅助功能生效后再请求「屏幕录制」（可选，只用于显示原始图标）。v0.5.11 起，申请输入权限时只显示 macOS 权限弹窗；请在弹窗内点「打开系统设置」，若弹窗未出现，再使用收纳栏里的「打开设置」。
+## 能做什么
 
-请先确认下载来源与 SHA256；不要关闭 Gatekeeper。受管理的 Mac 可能不提供「仍要打开」。参考 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+- **拖入收纳**：打开收纳栏，把可移动的顶部图标直接拖进去，不需要按住 Command。
+- **拖回恢复**：把收纳栏里的图标拖回顶部菜单栏，也可以横向拖动调整顺序。
+- **直接使用**：点击已收纳图标，会临时显示该图标并打开原菜单，使用完自动收回。
+- **自动记住**：保存收纳布局，应用重启后继续生效；运行期间新出现的图标也会被发现。
+- **随时找回**：可固定收纳栏，也可从“更多”菜单显示全部图标或刷新并恢复布局。
+- **适配复杂布局**：处理刘海区域、自动隐藏菜单栏、全屏空间和多显示器切换等情况。
 
-**从 v0.5.6 及更早版本（ad-hoc 签名）升级：** 签名身份变化后，macOS 会把它视为新应用，需要重新授予一次“辅助功能”“输入监控”和“屏幕录制”（如列表里已有旧的 ShelterBar，先将其关闭再打开，或移除后重新添加）。此后的版本使用同一证书签名，授权会自动保留。
+## 下载
 
-启动后会先请求“辅助功能”和“输入监控”权限；辅助功能一旦生效，就会立即询问“屏幕录制”，不再等待输入监控全部生效。前两项用于发现、拦截拖动并移动图标，缺少任何一项都不会开始拦截鼠标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
+当前版本：**v0.5.11 · build 34 · 预览版**
 
-v0.5.11（build 34）恢复并整合最新收纳能力，增强 macOS 27 菜单栏宿主兼容性、图标捕获与复合图形识别，并在菜单中显示当前版本和构建号；同时修复权限申请时系统设置与原生弹窗同时打开、失效点击区域可能误拦截桌面点击，以及系统主动禁用事件监听后被立即重启的问题。v0.5.9 起支持 macOS 14 Sonoma 及以上（Apple Silicon）。详见 [v0.5.11 版本说明](docs/releases/v0.5.11.md)。
+系统要求：**macOS 14 Sonoma 及以上，Apple Silicon（M1 及更新芯片）**。暂不提供 Intel 版本。
 
-图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。已收纳图标的小尺寸 PNG 会缓存到本机 `~/Library/Application Support/ShelterBar/IconCache/`，重启后直接显示；图标被移回菜单栏后即删除对应缓存，缓存从不上传。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.dmg)
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.zip)
+- [查看 SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/SHA256SUMS)
 
-应用只显示在菜单栏，不显示 Dock 图标。第三方图标、刘海屏与多显示器的兼容性仍需实际验证；建议避免同时运行其他菜单栏管理工具。完整说明见 [发布与安装指南](docs/RELEASE.md)。
+这是使用固定自签名证书构建的早期预览版，尚未使用 Developer ID 签名，也未经过 Apple 公证。
 
-## About
+## 安装与第一次打开
 
-A mouse-first macOS 14 menu-bar shelf. Click the archive icon in the original
-top-right menu-bar area to open a row underneath it.
+1. 打开 DMG，把 ShelterBar 拖进“应用程序”，然后推出安装盘。
+2. 在访达的“应用程序”中双击 ShelterBar。
+3. 如果 macOS 提示无法验证，先点“完成”，再前往“系统设置 → 隐私与安全性 → 安全性”，点击 ShelterBar 旁的“仍要打开”。
+4. 打开成功后，留意右上角菜单栏里的收纳箱图标。ShelterBar 没有 Dock 图标，也没有普通窗口。
 
-## Install and first launch
+高级用户核对 SHA256 后，也可以运行：
 
-1. **Install:** open the DMG, drag ShelterBar into Applications, then eject the disk image.
-2. **First launch:** double-click ShelterBar in Finder → Applications (Spotlight may need a
-   few minutes to index a fresh install). ShelterBar is not notarized by Apple, so macOS
-   blocks it: click **Done**, open **System Settings → Privacy & Security**, scroll down to
-   **Security**, click **Open Anyway** next to ShelterBar and confirm **Open** (you may be
-   asked for your password). Since macOS 15, Control-click → Open no longer bypasses this.
-   - Advanced: after checking the SHA256, run
-     `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`, then open the app.
-   - Approve once per download. If macOS blocks a newly downloaded update, repeat the same
-     step; permission grants are kept (except when upgrading from v0.5.6 or earlier).
-3. **After launch:** ShelterBar runs only in the menu bar — no Dock icon and no regular
-   window. Look for the new archive-box icon at the top right of the menu bar. On first
-   launch the shelf opens under it and onboarding asks for **Accessibility** and **Input
-   Monitoring** (required), then **Screen Recording** (optional, only for original icons)
-   once Accessibility is granted. Since v0.5.11, the input request leaves System Settings
-   closed so the native permission alert can appear by itself; choose **Open System Settings**
-   in that alert, or use the shelf's separate **打开设置** button if the alert is suppressed.
+```sh
+xattr -dr com.apple.quarantine /Applications/ShelterBar.app
+```
 
-Verify the download source and SHA256 first, and do not disable Gatekeeper. Managed
-Macs may not offer Open Anyway. See [Apple's guidance](https://support.apple.com/102445).
+从 v0.5.6 或更早的 ad-hoc 签名版本升级时，需要重新授权一次。v0.5.7 及之后使用同一签名身份，正常覆盖安装会保留权限。
 
-## Use
+## 权限说明
 
-1. Grant **Accessibility** and **Input Monitoring** when ShelterBar requests them. Both are
-   required before ShelterBar intercepts any drag. If an older (ad-hoc signed, v0.5.6 or
-   earlier) build is already listed, switch ShelterBar off and on — or remove and re-add it —
-   in System Settings → Privacy & Security → Accessibility, Input Monitoring and Screen
-   Recording. This is needed once; later releases keep the grants.
-2. The **Screen Recording** request follows as soon as Accessibility is granted (it does
-   not wait for Input Monitoring) and remains optional.
-   It shows the original status icons; collection
-   and restoration continue to work with placeholders when it is denied. Use the in-app
-   **允许读取图标** (Allow icon access) or **打开设置** (Open Settings) control.
-   You may need to quit and reopen ShelterBar after granting access.
-3. Open the shelf, then drag a movable icon from the top menu bar into the row.
-4. Drag an icon from the shelf back to the right-hand menu-bar area to restore it.
-   You do not need to hold Command.
-5. Drag shelf icons sideways to reorder them. Escape or dropping elsewhere
-   cancels the gesture.
-6. Use the pin to keep the row open. The More menu provides **Show all top icons**
-   for recovery and **Refresh and restore collection** to retry the saved layout.
+| 权限 | 是否必需 | 用途 |
+| --- | --- | --- |
+| 辅助功能 | 必需 | 发现菜单栏图标，并请求系统移动它们 |
+| 输入监控 | 必需 | 识别从菜单栏到收纳栏的鼠标拖动 |
+| 屏幕录制 | 可选 | 读取原始菜单栏图标；拒绝后仍能收纳，但会显示占位图标 |
 
-The handle uses a native template image: macOS chooses white or dark tint to
-match its menu bar. There are no app-created top-bar icon proxies.
+申请输入权限时，ShelterBar 只触发 macOS 原生权限弹窗，不会同时打开系统设置。请在弹窗里点击“打开系统设置”；如果系统没有再次显示弹窗，再使用收纳栏里的“打开设置”。
 
-## Permissions and boundaries
+屏幕录制权限不会用于录音、录像或保存整屏截图。ShelterBar 只读取严格匹配的单个状态图标。
 
-Accessibility and Input Monitoring are required to discover other apps' menu-bar
-items, intercept a drag while the shelf is open, and request native rearrangement. Screen Recording
-is optional and allows ScreenCaptureKit to capture an individual original status icon
-only when its process PID, status window, and accessibility (AX) bounds match
-strictly. Only collected (stowed) items' small icon PNGs are written to
-`~/Library/Application Support/ShelterBar/IconCache/` so the shelf can show them
-after a restart; an item's entry is deleted when it is restored to the menu bar.
-ShelterBar does not capture audio, record video, save full screenshots, or upload
-anything.
+## 使用方法
 
-Monochrome and neutral shaded glyphs adapt their contrast to the shelf's
-appearance while preserving tonal detail and small colored badges. Color-led
-status images retain their original colors. All images preserve their aspect
-ratio. Icons are captured while visible; hidden icons receive refresh attempts
-while the shelf is open. The periodic task does not capture while the shelf is
-closed. A failed refresh keeps the last successful image; without one, the shelf
-uses a placeholder without interrupting collection. This is a cached
-snapshot, not a guarantee that every changing status will update immediately.
+1. 点击右上角的收纳箱图标，打开收纳栏。
+2. 把可移动的菜单栏图标拖进收纳栏。
+3. 点击收纳后的图标，可打开它原来的菜单。
+4. 把图标拖回顶部菜单栏，即可取消收纳。
+5. 使用图钉保持收纳栏展开；使用“更多”菜单显示全部图标或重新应用布局。
 
-macOS owns the real menu-bar views. ShelterBar keeps a fixed-width visible archive
-entry separate from the expanding collection boundary. Collected items sit to
-the boundary's left; the entry stays on its resident side. Before collapsing,
-ShelterBar checks that the entry is in the display's safe area and outside the
-camera housing. Each destination frame is checked before a move is posted, and
-fresh accessibility geometry must confirm the result before saved placement
-changes. A single item that refuses to move is reported and left visible; it
-no longer expands every collected item. A failed entry check still leaves the
-bar expanded with an explanation. Full-screen and auto-hidden menu bars are
-handled, and releases that would land under the notch are refused.
+按 `Esc` 或把图标放到无效区域会取消本次拖动，不会改变现有布局。
 
-Some system items (clock, Control Center, camera/microphone indicator) are not
-draggable through ShelterBar. Items without an accessible menu-bar element
-cannot be managed. Anonymous multi-item entries without a stable AX identifier
-are kept only for the current app session, to avoid restoring the wrong item.
-Only one display's native menu-bar layout is changed per operation; a display
-change cancels the operation and reveals the section before recovery.
+## 隐私与本地数据
 
-Clicking a collected item temporarily reveals only that item right under the
-shelf panel, opens its menu, and moves it back after the menu closes (with a
-short grace period). The cursor is restored after each synthetic drag, and a
-pending restore is recorded first, so a crash or quit mid-way is repaired on the
-next launch. If there is no room (for example next to the notch), ShelterBar
-explains instead of expanding the bar. Known issues: the cursor may flicker
-briefly and the item returns about 1.5 s after the menu closes. On macOS 27,
-ShelterBar resolves the system MenuBarAgent visibility interface at runtime
-because native Command-drag movement is no longer reliable. That interface is
-bundle-scoped: multiple menu-bar items from the same app cannot be collected
-independently, and a future macOS update may change the private interface.
-Quitting removes ShelterBar's handle and boundary and reveals the real items;
-it does not remove another app's item.
+ShelterBar 不需要账号，不包含广告和遥测，也不会上传图像或使用记录。
 
-This is an early preview release, not a notarized release. Since v0.5.7 it is
-signed with the fixed self-signed certificate "ShelterBar Self-Signed", so macOS
-keeps Accessibility, Input Monitoring and Screen Recording grants across
-updates. Upgrading from an ad-hoc build (v0.5.6 or earlier) requires granting
-them once more. The first launch needs System Settings → Privacy & Security →
-Open Anyway (see Install and first launch). Avoid running another menu-bar manager at the same time.
+已收纳图标的小尺寸 PNG 会缓存在：
 
-## Build and run
+```text
+~/Library/Application Support/ShelterBar/IconCache/
+```
 
-```bash
+图标恢复到顶部菜单栏后，对应缓存会被删除。捕获失败时会保留上次成功的图标；没有缓存时使用占位图标，不影响收纳和恢复。
+
+## 已知限制
+
+- 时钟、控制中心、摄像头或麦克风指示器等系统固定项目不能收纳。
+- 没有提供辅助功能接口的第三方菜单栏图标无法管理。
+- macOS 27 下，同一应用的多个菜单栏图标不能逐个独立收纳。
+- 刘海旁没有安全空间时，ShelterBar 会拒绝移动并显示提示。
+- 原始图标可能短暂显示旧状态；点击菜单后，图标通常约 1.5 秒后自动收回。
+- 请避免与其他菜单栏管理工具同时运行。
+
+这是预览版。第三方应用、刘海屏、多显示器和未来 macOS 更新仍可能带来兼容性变化。
+
+## 从源码运行
+
+```sh
 ./scripts/build-app.sh
 open dist/ShelterBar.app --args --preview
 ```
 
-The build targets Apple Silicon and macOS 14+. The first test build downloads the
-official Swift Testing package (the Command Line Tools installation here does
-not expose a standalone Testing module).
+运行测试：
 
-## Verify
-
-```bash
+```sh
 swift test --force-resolved-versions
 git diff --check -- .
 ```
 
-Automated coverage includes gesture cancellation, synthetic-event bypass,
-physical move confirmation, cross-display rejection, permission revocation,
-stable identity handling, and exclusion of top-visible icons from the shelf.
-Original-icon capture and native third-party movement still need an authorized
-macOS session for full compatibility validation; unit tests do not establish OS
-compatibility. See [docs/MVP.md](docs/MVP.md) for acceptance.
-
-## Package a release
+打包发布版本：
 
 ```sh
 python3.11 -m venv .build/dmg-tools
@@ -179,44 +120,11 @@ python3.11 -m venv .build/dmg-tools
 ./scripts/package-release.sh
 ```
 
-This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.11/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
-and release limitations.
+脚本会生成并验证 DMG、ZIP 和 SHA256SUMS。发布签名、designated requirement、验收范围与已知限制见 [发布指南](docs/RELEASE.md)。
 
-## Maintainer: signing identity
+## 更多信息
 
-Release and local builds are signed with the self-signed identity
-**ShelterBar Self-Signed** (SHA-1 `ABCD7A5B7B4FF47F6E6448FAB665FAF8F0C5F910`, valid
-until 2036-10-14). The private key lives only in the maintainer's login keychain;
-never commit it.
-
-- Backup/restore: `~/Documents/ShelterBar-Signing-Backup/` holds the `.p12`
-  (certificate + key), the public `.cer.pem`, and a `README.txt` with the restore
-  commands (`security import … -T /usr/bin/codesign`, optional
-  `security add-trusted-cert`, then `security find-identity -p codesigning`). The
-  `.p12` password is stored in the login keychain; keep an offline copy of the folder.
-  Losing the key changes the designated requirement and every user must re-grant
-  permissions.
-- Expected designated requirement (DR):
-
-  ```text
-  identifier "com.jensen.shelterbar" and certificate leaf = H"abcd7a5b7b4ff47f6e6448fab665faf8f0c5f910"
-  ```
-
-- Switches:
-  - `SHELTERBAR_RELEASE_CODESIGN_IDENTITY` — identity used by `package-release.sh`
-    (default `ShelterBar Self-Signed`; packaging refuses to run if it is missing;
-    `-` forces ad-hoc and must not be used for public releases).
-  - `SHELTERBAR_EXPECTED_DR` — when set, `package-release.sh` aborts if the built
-    app's DR differs from this string. Always set it to the value above when releasing.
-  - `SHELTERBAR_HARDENED_RUNTIME` — `1` (default) signs with the hardened runtime;
-    `0` disables it.
-  - `SHELTERBAR_CODESIGN_IDENTITY` — identity for `build-app.sh`; for local builds use
-    `SHELTERBAR_CODESIGN_IDENTITY="ShelterBar Self-Signed" ./scripts/build-app.sh release`.
-
-Verify with `codesign -d -r- dist/ShelterBar.app`.
-
-## Website
-
-The official website source is in `website/dist/` (plain HTML, CSS, and JavaScript).
-Preview it with `python3 -m http.server 4178 --directory website/dist`.
+- [v0.5.11 发布说明](docs/releases/v0.5.11.md)
+- [完整发布与安装指南](docs/RELEASE.md)
+- [MVP 验收清单](docs/MVP.md)
+- [问题反馈](https://github.com/tonyjianchina/ShelterBar/issues)
