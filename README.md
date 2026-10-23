@@ -2,15 +2,15 @@
 
 **给菜单栏，留一点空白。** 为 macOS 设计的轻量菜单栏图标收纳工具。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.9 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.9) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.11 预览版](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.11) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## 下载与安装
 
 当前提供 **macOS 14 Sonoma 及以上、Apple Silicon（M1 及更新芯片）** 安装包，暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.9/ShelterBar-0.5.9-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.9/ShelterBar-0.5.9-macos-arm64.zip)：解压后将应用移入“应用程序”。
-- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.9/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.dmg)：打开后把 ShelterBar 拖进「应用程序」（Applications），然后推出磁盘。
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.zip)：解压后将应用移入“应用程序”。
+- [SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/SHA256SUMS)
 
 这是 **早期预览版**。自 v0.5.7 起使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名（不再是 ad-hoc），但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。
 
@@ -20,7 +20,7 @@
 2. **第一次打开**：在访达的「应用程序」文件夹里双击 ShelterBar（刚安装时，聚焦搜索可能要过几分钟才能搜到）。ShelterBar 没有经过 Apple 公证，系统会拦下并提示无法验证，先点「完成」关闭提示；然后打开「系统设置 → 隐私与安全性」，往下滚到「安全性」部分，点 ShelterBar 旁边的「仍要打开」，再确认一次「打开」（可能需要输入登录密码）。macOS 15 起，右键「打开」已不能绕过这一步。
    - 高级用户也可以在核对 SHA256 后，在终端运行 `xattr -dr com.apple.quarantine /Applications/ShelterBar.app`，再双击打开。
    - 每次下载只需放行一次。以后下载新版本覆盖安装时，如果系统再次拦下，按同样步骤放行即可；辅助功能等授权会保留，不用重新授权（从 v0.5.6 及更早版本升级除外，需重新授权一次）。
-3. **打开之后**：ShelterBar 只在菜单栏运行，没有 Dock 图标，也没有普通窗口——请留意屏幕右上角菜单栏里新出现的收纳箱图标，点它即可展开收纳栏。首次启动时，收纳栏会自动在图标下方展开，并按引导请求授权：先是「辅助功能」和「输入监控」（必需），辅助功能生效后再请求「屏幕录制」（可选，只用于显示原始图标）。
+3. **打开之后**：ShelterBar 只在菜单栏运行，没有 Dock 图标，也没有普通窗口——请留意屏幕右上角菜单栏里新出现的收纳箱图标，点它即可展开收纳栏。首次启动时，收纳栏会自动在图标下方展开，并按引导请求授权：先是「辅助功能」和「输入监控」（必需），辅助功能生效后再请求「屏幕录制」（可选，只用于显示原始图标）。v0.5.11 起，申请输入权限时只显示 macOS 权限弹窗；请在弹窗内点「打开系统设置」，若弹窗未出现，再使用收纳栏里的「打开设置」。
 
 请先确认下载来源与 SHA256；不要关闭 Gatekeeper。受管理的 Mac 可能不提供「仍要打开」。参考 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
 
@@ -28,7 +28,7 @@
 
 启动后会先请求“辅助功能”和“输入监控”权限；辅助功能一旦生效，就会立即询问“屏幕录制”，不再等待输入监控全部生效。前两项用于发现、拦截拖动并移动图标，缺少任何一项都不会开始拦截鼠标；屏幕录制只用于读取原始菜单栏状态图标，拒绝或稍后授权都不影响收纳，收纳栏会使用占位图标。
 
-v0.5.9（build 24）起支持 macOS 14 Sonoma 及以上（Apple Silicon），macOS 26 上功能无变化，安装方式与 v0.5.8 相同。v0.5.8（build 23）取代未正式发布的 v0.5.7（build 22），功能相同，补充了安装与第一次打开的引导（含安装盘背景提示）。v0.5.7 起改用固定自签名证书，后续升级保留权限；修复浅色/白色图标对比度、全屏与自动隐藏菜单栏下的收纳、单个图标失败导致全部展开、刘海屏处理；点击收纳栏图标时只把这一个图标临时放回收纳栏正下方并打开其菜单，随后自动收回；图标缓存到磁盘，重启后不再显示“?”。详见 [版本说明](docs/releases/v0.5.9.md)。
+v0.5.11（build 34）恢复并整合最新收纳能力，增强 macOS 27 菜单栏宿主兼容性、图标捕获与复合图形识别，并在菜单中显示当前版本和构建号；同时修复权限申请时系统设置与原生弹窗同时打开、失效点击区域可能误拦截桌面点击，以及系统主动禁用事件监听后被立即重启的问题。v0.5.9 起支持 macOS 14 Sonoma 及以上（Apple Silicon）。详见 [v0.5.11 版本说明](docs/releases/v0.5.11.md)。
 
 图标可见时捕获，收纳栏打开时尝试更新隐藏图标；收纳栏关闭时，定时任务不会截图。更新失败保留上次成功的图像，没有可用图像时使用占位图标，不会中断收纳。已收纳图标的小尺寸 PNG 会缓存到本机 `~/Library/Application Support/ShelterBar/IconCache/`，重启后直接显示；图标被移回菜单栏后即删除对应缓存，缓存从不上传。新出现的可移动菜单栏项由实时扫描自动纳入，无需预先枚举应用或图标。
 
@@ -55,7 +55,9 @@ top-right menu-bar area to open a row underneath it.
    window. Look for the new archive-box icon at the top right of the menu bar. On first
    launch the shelf opens under it and onboarding asks for **Accessibility** and **Input
    Monitoring** (required), then **Screen Recording** (optional, only for original icons)
-   once Accessibility is granted.
+   once Accessibility is granted. Since v0.5.11, the input request leaves System Settings
+   closed so the native permission alert can appear by itself; choose **Open System Settings**
+   in that alert, or use the shelf's separate **打开设置** button if the alert is suppressed.
 
 Verify the download source and SHA256 first, and do not disable Gatekeeper. Managed
 Macs may not offer Open Anyway. See [Apple's guidance](https://support.apple.com/102445).
@@ -178,7 +180,7 @@ python3.11 -m venv .build/dmg-tools
 ```
 
 This creates and verifies the DMG, ZIP, and SHA256 sums under
-`dist/releases/v0.5.9/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
+`dist/releases/v0.5.11/`. See [docs/RELEASE.md](docs/RELEASE.md) for requirements
 and release limitations.
 
 ## Maintainer: signing identity

@@ -63,11 +63,13 @@ enum AccessibilityPermission {
     }
 
     enum RequestResult: Equatable {
-        case granted, settingsOpened, settingsUnavailable
+        case granted, manualApprovalRequired, settingsOpened, settingsUnavailable
 
         var guidance: String? {
             switch self {
             case .granted: nil
+            case .manualApprovalRequired:
+                "请在权限弹窗中点“打开系统设置”；若弹窗未出现，请点下方“打开设置”。"
             case .settingsOpened:
                 "请在系统设置中允许 ShelterBar；列表没有时，点“＋”添加应用。"
             case .settingsUnavailable:
@@ -87,9 +89,10 @@ enum AccessibilityPermission {
             _ = operations.requestPosting()
         }
         if operations.isGranted() { return .granted }
-        // macOS may suppress a repeated/denied native prompt. A user action must
-        // still lead somewhere visible, without treating the request as a grant.
-        return operations.openSettings() ? .settingsOpened : .settingsUnavailable
+        // The native permission alert owns its "Open System Settings" action.
+        // Opening Settings here races that alert and leaves both windows open.
+        // The shelf retains a separate Settings button for suppressed prompts.
+        return .manualApprovalRequired
     }
 
     @discardableResult

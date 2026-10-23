@@ -10,7 +10,7 @@ private final class FixtureSource: ShelfItemSource {
     func items() -> [ShelfItem] { entries }
 }
 
-@Test("the shelf permission button exposes a silent request failure without marking access granted")
+@Test("the shelf permission button keeps Settings closed and shows manual guidance")
 @MainActor
 func shelfInputPermissionButtonShowsFallbackGuidance() {
     let model = ShelfViewModel(source: FixtureSource(), isTrusted: { false })
@@ -30,11 +30,12 @@ func shelfInputPermissionButtonShowsFallbackGuidance() {
     )
     model.onPermissionRequest = { coordinator.requestAccessibility() }
     #expect(coordinator.advance() == .requestAccessibility)
-    let beforeClick = settingsAttempts
+    #expect(settingsAttempts == 0)
     model.requestAccessibilityPermission()
     model.refresh()
-    #expect(settingsAttempts == beforeClick + 1)
-    #expect(model.inputPermissionGuidance.contains("无法打开系统设置"))
+    #expect(settingsAttempts == 0)
+    #expect(model.inputPermissionGuidance.contains("权限弹窗"))
+    #expect(model.inputPermissionGuidance.contains("打开设置"))
     #expect(!model.hasAccessibilityPermission)
 }
 

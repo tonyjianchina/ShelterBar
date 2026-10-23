@@ -86,3 +86,39 @@ func revokedInputAccessCancelsTrackedGesture() {
     #expect(!monitor.consume(.leftMouseDragged, event: drag))
     #expect(!monitor.gesture.isTracking)
 }
+
+@Test("a stale off-menu-bar hit frame never consumes an ordinary desktop click")
+@MainActor
+func staleOffMenuBarHitFrameDoesNotConsumeDesktopClick() {
+    let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+    let item = ShelfItem(
+        id: "stale", title: "Stale", icon: NSImage(), application: nil,
+        menuBarReference: MenuBarItemReference(
+            pid: getpid(), element: AXUIElementCreateApplication(getpid()),
+            frame: CGRect(x: 800, y: 488, width: 30, height: 24)
+        )
+    )
+    monitor.update(
+        isEnabled: true,
+        items: [item],
+        shelfFrame: CGRect(x: 500, y: 35, width: 400, height: 74)
+    )
+    let desktopClick = CGEvent(
+        mouseEventSource: CGEventSource(stateID: .privateState),
+        mouseType: .leftMouseDown,
+        mouseCursorPosition: CGPoint(x: 815, y: 500),
+        mouseButton: .left
+    )!
+
+    #expect(!monitor.consume(.leftMouseDown, event: desktopClick))
+    #expect(!monitor.gesture.isTracking)
+}
+
+@Test("a user-disabled event tap is never immediately re-enabled from stale permission state")
+@MainActor
+func userDisabledTapFailsOpen() {
+    let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+
+    #expect(!monitor.handleTapDisabled(.tapDisabledByUserInput))
+    #expect(monitor.handleTapDisabled(.tapDisabledByTimeout))
+}

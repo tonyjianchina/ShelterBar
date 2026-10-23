@@ -27,9 +27,9 @@ func inputControlRequiresEveryPermission() {
     ))
 }
 
-@Test("an explicit input-permission click still opens settings after a silent startup request")
+@Test("input permission requests leave System Settings closed for the native prompt")
 @MainActor
-func inputPermissionClickFallsBackAfterSilentSystemRequest() {
+func inputPermissionRequestKeepsSettingsClosed() {
     var requests: [String] = []
     var settingsOpens = 0
     let operations = AccessibilityPermission.RequestOperations(
@@ -48,17 +48,18 @@ func inputPermissionClickFallsBackAfterSilentSystemRequest() {
         requestScreenCapture: { Issue.record("Input access is still missing") }
     )
 
-    // The OS declines/suppresses the automatic prompt. The shelf's button calls
-    // this same coordinator method, even after onboarding recorded its attempt.
+    // macOS owns the permission alert and its "Open System Settings" action.
+    // ShelterBar must not open Settings behind that alert, at launch or when
+    // the user presses the shelf's permission button.
     #expect(coordinator.advance() == .requestAccessibility)
-    let beforeClick = settingsOpens
+    #expect(settingsOpens == 0)
     coordinator.requestAccessibility()
     #expect(requests == ["accessibility", "listening", "posting",
                          "accessibility", "listening", "posting"])
-    #expect(settingsOpens == beforeClick + 1)
+    #expect(settingsOpens == 0)
     // Background polling must never reopen settings repeatedly.
     #expect(coordinator.advance() == nil)
-    #expect(settingsOpens == beforeClick + 1)
+    #expect(settingsOpens == 0)
 }
 
 @MainActor
@@ -71,21 +72,26 @@ private func deniedInputOperations(openSettings: @escaping () -> Bool = { true }
     )
 }
 
-@Test("a silent denied input request returns visible settings guidance")
+@Test("a denied input request keeps Settings closed and returns manual guidance")
 @MainActor
 func inputPermissionDeniedRequestReportsSettings() {
-    let result = AccessibilityPermission.request(using: deniedInputOperations())
-    #expect(result == .settingsOpened)
-    #expect(result.guidance?.contains("系统设置") == true)
-    #expect(result.guidance?.contains("添加") == true)
+    var settingsOpens = 0
+    let result = AccessibilityPermission.request(using: deniedInputOperations(openSettings: {
+        settingsOpens += 1
+        return true
+    }))
+    #expect(settingsOpens == 0)
+    #expect(result == .manualApprovalRequired)
+    #expect(result.guidance?.contains("权限弹窗") == true)
+    #expect(result.guidance?.contains("打开设置") == true)
 }
 
-@Test("failure to open input settings is reported instead of mistaken for a grant")
+@Test("an unavailable settings fallback is not attempted during the native request")
 @MainActor
 func inputPermissionSettingsFailureHasGuidance() {
     let result = AccessibilityPermission.request(using: deniedInputOperations(openSettings: { false }))
-    #expect(result == .settingsUnavailable)
-    #expect(result.guidance?.contains("手动") == true)
+    #expect(result == .manualApprovalRequired)
+    #expect(result.guidance?.contains("打开设置") == true)
 }
 
 @Test("already granted input access neither requests again nor opens settings")
@@ -115,13 +121,18 @@ func inputPermissionGrantDuringRequestAvoidsSettings() {
     #expect(AccessibilityPermission.request(using: operations) == .granted)
 }
 
-@Test("successful individual input requests cannot bypass the complete input gate")
+@Test("partial input grants still require manual approval without opening Settings")
 @MainActor
 func inputPermissionPartialGrantStillNeedsSettings() {
-    var operations = deniedInputOperations()
+    var settingsOpens = 0
+    var operations = deniedInputOperations(openSettings: {
+        settingsOpens += 1
+        return true
+    })
     operations.requestListening = { true }
     operations.requestPosting = { true }
-    #expect(AccessibilityPermission.request(using: operations) == .settingsOpened)
+    #expect(AccessibilityPermission.request(using: operations) == .manualApprovalRequired)
+    #expect(settingsOpens == 0)
 }
 
 @Test("input settings target AX before input monitoring and preserve launch failure")

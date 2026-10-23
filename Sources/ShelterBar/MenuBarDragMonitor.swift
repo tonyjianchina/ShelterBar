@@ -36,10 +36,7 @@ final class MenuBarDragMonitor {
                 let consumed = MainActor.assumeIsolated {
                     let monitor = Unmanaged<MenuBarDragMonitor>.fromOpaque(context).takeUnretainedValue()
                     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                        monitor.gesture.cancel()
-                        monitor.activeID = nil
-                        monitor.onOutcome?(.cancel)
-                        if monitor.hasEventAccess(), let tap = monitor.eventTap {
+                        if monitor.handleTapDisabled(type), let tap = monitor.eventTap {
                             CGEvent.tapEnable(tap: tap, enable: true)
                         }
                         return false
@@ -56,6 +53,27 @@ final class MenuBarDragMonitor {
         return true
     }
 
+    /// Returns whether Core Graphics should re-enable a disabled tap.
+    @discardableResult
+    func handleTapDisabled(_ type: CGEventType) -> Bool {
+        gesture.cancel()
+        activeID = nil
+        onOutcome?(.cancel)
+        switch type {
+        case .tapDisabledByTimeout:
+            // A slow callback may be retried when the input permission gate
+            // still agrees. Core Graphics disables the tap before calling us.
+            return hasEventAccess()
+        case .tapDisabledByUserInput:
+            // This is an explicit system/user request to disable taps (for
+            // example while privacy permissions are changing). Never override
+            // it from a preflight result that can remain stale in this process.
+            return false
+        default:
+            return false
+        }
+    }
+
     func stop() {
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
         if let eventTap { CFMachPortInvalidate(eventTap) }
@@ -67,9 +85,26 @@ final class MenuBarDragMonitor {
 
     func update(isEnabled: Bool, items: [ShelfItem], shelfFrame: CGRect) {
         enabled = isEnabled
-        itemFrames = items.map { ($0.id, $0.menuBarReference.frame) }
+        itemFrames = items.compactMap { item in
+            Self.safeHitFrame(item.menuBarReference.frame).map { (item.id, $0) }
+        }
         self.shelfFrame = shelfFrame
         // Preserve a swallowed down/up pair even when the panel loses focus.
+    }
+
+    /// AX coordinates are cached outside the event callback and can become
+    /// stale while permissions or displays change. A filtering event tap must
+    /// never trust a rectangle that extends beyond a real menu-bar row.
+    private static func safeHitFrame(_ frame: CGRect) -> CGRect? {
+        guard frame.minX.isFinite, frame.minY.isFinite,
+              frame.width.isFinite, frame.height.isFinite,
+              frame.width > 1, frame.height > 1,
+              frame.height <= 64,
+              let row = MenuBarGeometry.menuBarRow(containing: frame),
+              frame.width <= min(row.width, 512) else { return nil }
+        let clipped = frame.intersection(row)
+        guard !clipped.isNull, clipped.width > 1, clipped.height > 1 else { return nil }
+        return clipped
     }
 
     @discardableResult
