@@ -47,7 +47,9 @@ enum MenuBarIconMatcher {
                 && $0.frame.height > 1 && $0.frame.height <= 60
                 && $0.frame.contains(frame)
         }
-        return hosts.count == 1 ? hosts.first?.id : nil
+        guard let host = hosts.first,
+              hosts.dropFirst().allSatisfy({ $0.frame == host.frame }) else { return nil }
+        return host.id
     }
 
     static func pixelCrop(itemFrame: CGRect, windowFrame: CGRect, pixelSize: CGSize) -> CGRect? {

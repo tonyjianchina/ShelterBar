@@ -77,7 +77,7 @@ func captureRejectsUnverifiedOrAmbiguousHosts() {
                                      windows: [host, duplicate]) == nil)
 }
 
-@Test("macOS 27 glyph capture accepts only a uniquely verified composite menu bar host")
+@Test("macOS 27 glyph capture accepts duplicate copies of one verified composite host")
 func captureMatchesCompositeMenuBarHost() {
     let item = CGRect(x: 1048, y: 4.5, width: 34, height: 24)
     let layer = Int(CGWindowLevelForKey(.statusWindow)) - 1
@@ -90,10 +90,13 @@ func captureMatchesCompositeMenuBarHost() {
         frame: host.frame, ownerBundleID: "com.example.MenuBarAgent")
     let duplicate = MenuBarCaptureWindow(id: 29, pid: 10, layer: layer,
         frame: host.frame, ownerBundleID: "com.apple.MenuBarAgent")
+    let conflicting = MenuBarCaptureWindow(id: 31, pid: 10, layer: layer,
+        frame: host.frame.insetBy(dx: -12, dy: 0), ownerBundleID: "com.apple.MenuBarAgent")
     let ordinary = MenuBarCaptureWindow(id: 30, pid: 9, layer: 0,
         frame: host.frame, ownerBundleID: "com.apple.MenuBarAgent")
     #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [foreign, ordinary]) == nil)
-    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [host, duplicate]) == nil)
+    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [host, duplicate]) == 27)
+    #expect(MenuBarIconMatcher.match(frame: item, pid: 42, windows: [host, conflicting]) == nil)
     #expect(MenuBarIconMatcher.match(frame: item.offsetBy(dx: 1600, dy: 0), pid: 42,
                                      windows: [host]) == nil)
     #expect(MenuBarIconMatcher.match(frame: item.offsetBy(dx: 0, dy: 24), pid: 42,
