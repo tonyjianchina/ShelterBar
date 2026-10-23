@@ -81,7 +81,7 @@ final class ShelfViewModel: ObservableObject {
             if let snapshot = iconCache[id] {
                 item.icon = snapshot.image
                 item.hasMenuBarIcon = true
-            } else if hasScreenCapturePermission, let cached = iconStore?.image(for: id) {
+            } else if hasScreenCapturePermission, let cached = iconStore?.image(for: id, hasCount: item.hasNumericTitle) {
                 item.icon = cached
                 item.hasMenuBarIcon = true
             } else {

@@ -19,6 +19,8 @@ struct MenuBarIconCacheRecord: Codable, Equatable {
     /// re-derived on load so it keeps adapting to light/dark. Optional so
     /// indexes written before this field still decode.
     var adaptive: Bool? = nil
+    /// v1 removes composite wallpaper/overflow artefacts and numeric labels.
+    var visualVersion: Int? = nil
 }
 
 /// Persists captured glyphs of stowed items so the shelf can show real icons
@@ -61,12 +63,24 @@ final class MenuBarIconDiskCache {
 
     var keys: Set<String> { Set(records.keys) }
 
-    func image(for key: String) -> NSImage? {
+    func image(for key: String, hasCount: Bool = false) -> NSImage? {
         if let image = images[key] { return image }
         guard let record = records[key],
               let data = try? Data(contentsOf: directory.appendingPathComponent(record.file)),
               let rep = NSBitmapImageRep(data: data) else { return nil }
         let size = NSSize(width: record.width, height: record.height)
+        if record.visualVersion == nil, hasCount || (!record.isTemplate && record.adaptive != true),
+           let pixels = rep.cgImage {
+            guard let repaired = MenuBarCompositeGlyph.make(from: pixels, logicalSize: size, hasCount: hasCount) else {
+                // A saved system chevron is not a usable app icon. Leave it
+                // missing so the normal explicit refresh can recapture it.
+                remove(key)
+                saveIndex()
+                return nil
+            }
+            store(repaired, for: key)
+            return repaired
+        }
         let image = NSImage(size: size)
         image.addRepresentation(rep)
         image.isTemplate = record.isTemplate
@@ -98,12 +112,13 @@ final class MenuBarIconDiskCache {
             width: Double(image.size.width), height: Double(image.size.height),
             isTemplate: image.isTemplate, tone: MenuBarGlyphImage.tone(of: image).rawValue,
             byteCount: png.count, digest: digest, updatedAt: now,
-            adaptive: MenuBarGlyphImage.isAdaptiveNeutral(image) ? true : nil
+            adaptive: MenuBarGlyphImage.isAdaptiveNeutral(image) ? true : nil,
+            visualVersion: 1
         )
         images[key] = image
         if let old = records[key], old.digest == digest, old.isTemplate == record.isTemplate,
            old.tone == record.tone, old.width == record.width, old.height == record.height,
-           old.adaptive == record.adaptive {
+           old.adaptive == record.adaptive, old.visualVersion == record.visualVersion {
             return true
         }
         do {

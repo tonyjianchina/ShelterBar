@@ -31,6 +31,13 @@ struct ShelfItem: Identifiable {
     var isMovable = true
     var hasMenuBarIcon = false
 
+    /// Read the status item's own title, not the app-name fallback (which can
+    /// legitimately contain a digit, such as 1Password).
+    @MainActor var hasNumericTitle: Bool {
+        let title: String? = MenuBarAX.value(kAXTitleAttribute, of: menuBarReference.element)
+        return title?.contains(where: \.isNumber) == true
+    }
+
     /// ScreenCaptureKit can temporarily add this macOS 27 system item while
     /// reading a glyph. Its natural disappearance is not a lost resident app.
     /// Match the owning bundle as well as the AX identifier: an unrelated

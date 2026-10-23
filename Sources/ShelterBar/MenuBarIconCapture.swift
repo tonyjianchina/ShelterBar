@@ -138,7 +138,8 @@ final class MenuBarIconCapture {
                       let pixels = await stableCompositeCapture(item: item, frame: frame),
                       !Task.isCancelled, ScreenCapturePermission.isGranted,
                       !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
-                      let image = MenuBarGlyphImage.make(from: pixels, logicalSize: frame.size) else { continue }
+                      let image = MenuBarCompositeGlyph.make(from: pixels, logicalSize: frame.size,
+                          hasCount: item.hasNumericTitle) else { continue }
                 snapshots.append(MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: image))
                 continue
             }
@@ -170,9 +171,12 @@ final class MenuBarIconCapture {
                   !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                   let crop = MenuBarIconMatcher.pixelCrop(itemFrame: frame, windowFrame: window.frame,
                       pixelSize: CGSize(width: pixels.width, height: pixels.height)),
-                  let cropped = pixels.cropping(to: crop),
-                  let image = MenuBarGlyphImage.make(from: cropped,
-                      logicalSize: frame.intersection(window.frame).size) else { continue }
+                  let cropped = pixels.cropping(to: crop) else { continue }
+            let logicalSize = frame.intersection(window.frame).size
+            let image = item.hasNumericTitle
+                ? MenuBarCompositeGlyph.make(from: cropped, logicalSize: logicalSize, hasCount: true)
+                : MenuBarGlyphImage.make(from: cropped, logicalSize: logicalSize)
+            guard let image else { continue }
             snapshots.append(MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: image))
         }
         return snapshots

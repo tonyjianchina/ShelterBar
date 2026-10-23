@@ -29,7 +29,8 @@ let package = Package(
             dependencies: [
                 "ShelterBar",
                 .product(name: "Testing", package: "swift-testing"),
-            ]
+            ],
+            resources: [.copy("Fixtures")]
         ),
     ]
 )
