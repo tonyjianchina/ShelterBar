@@ -28,6 +28,8 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     var revealPermissionDuringMoves: [Bool] = []
     var notchHiddenIDs: Set<String> = []
     var events: [String] = []
+    var recoveryHistory: [[String]] = []
+    var canConfirmMissingCollectedItems = false
     var onMove: ((ShelfItem, MenuBarPlacement) -> Void)?
     func isClickable(_ item: ShelfItem) -> Bool {
         return placements[item.id] == .resident || (!isCollapsed && !notchHiddenIDs.contains(item.id))
@@ -83,6 +85,15 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     func revealImmediately() {
         revealCount += 1
         isCollapsed = false
+    }
+
+    func recoverVisibleLayout(collectedItems: [ShelfItem]) async {
+        recoveryHistory.append(collectedItems.map(\.id).sorted())
+        await revealHiddenSection()
+    }
+
+    func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool {
+        canConfirmMissingCollectedItems && placements[item.id] == .collected
     }
 
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint?) async -> Bool {
@@ -194,11 +205,15 @@ func engineAcceptsConfirmedHiddenTargetMissingFromFreshScan() async {
                                isTrusted: { true }, isVisible: { $0.minX >= 0 })
     let driver = EngineFixtureDriver()
     driver.placements = ["muse": .resident]
-    driver.onMove = { _, placement in
-        if placement == .collected { source.entries = [] }
-    }
-    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
-        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    driver.canConfirmMissingCollectedItems = true
+    var captureCount = 0
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in
+        captureCount += 1
+        // The target remains in the post-move scan, then MenuBarAgent removes
+        // its AX entry while the second, post-move icon capture is in flight.
+        if captureCount == 2 { source.entries = [] }
+        return []
+    }, accessibilityGranted: { true }, screenCaptureGranted: { true })
 
     let outcome = await engine.perform(.setPlacement(id: "muse", placement: .collected))
 
@@ -206,6 +221,34 @@ func engineAcceptsConfirmedHiddenTargetMissingFromFreshScan() async {
     #expect(driver.placements["muse"] == .collected)
     #expect(driver.isCollapsed)
     #expect(model.collectedIDs == ["muse"])
+}
+
+@Test("a failed transaction restores host intent to the persisted collection")
+@MainActor
+func engineRollsBackVisibilityIntentAfterFailure() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["old"], forKey: "shelf.collectedItems")
+    let source = EngineFixtureSource()
+    source.entries = [
+        engineFixture("old", hidden: true),
+        engineFixture("target", hidden: false),
+        engineFixture("resident", hidden: false),
+    ]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                               isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["old": .collected, "target": .resident, "resident": .resident]
+    driver.onCollapse = { [weak driver] in driver?.placements.removeValue(forKey: "resident") }
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+
+    let outcome = await engine.perform(.setPlacement(id: "target", placement: .collected))
+
+    #expect(outcome.message == "系统没有完成布局调整，已恢复显示全部图标。")
+    #expect(model.collectedIDs == ["old"])
+    #expect(driver.recoveryHistory == [["old"]])
 }
 
 @Test("saved collection for an app not running does not fail another icon's transaction")

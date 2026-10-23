@@ -8,7 +8,13 @@ protocol MenuBarLayoutDriving: AnyObject {
     var transitionRegion: CGRect? { get }
     var movementFailureMessage: String? { get }
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement?
+    /// True only when the host has an authoritative hidden-state record for
+    /// a collected item that no longer appears in the live AX inventory.
+    func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool
     func revealHiddenSection() async
+    /// Reveals every item after a failed transaction and restores the host's
+    /// intended hidden set to the collection already persisted by the model.
+    func recoverVisibleLayout(collectedItems: [ShelfItem]) async
     func collapseHiddenSection() async
     func revealImmediately()
     func move(_ item: ShelfItem, to placement: MenuBarPlacement, dropPoint: CGPoint?) async -> Bool
@@ -40,6 +46,8 @@ protocol MenuBarLayoutDriving: AnyObject {
 extension MenuBarLayoutDriving {
     var lastMoveFailure: String? { nil }
     var isMenuBarAutoHidden: Bool { false }
+    func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool { false }
+    func recoverVisibleLayout(collectedItems: [ShelfItem]) async { await revealHiddenSection() }
     func waitUntilUserIdle(maximum: Duration) async {}
     func refreshHostVisibility() async -> Bool { true }
 }
@@ -487,10 +495,13 @@ final class MenuBarCollectionEngine {
         // Protect every real participant, including residents displaced by
         // this transaction. Unmanaged AX remnants with no observable placement
         // cannot be required to reappear in a menu bar they never occupied.
-        let participantIDs = Set(model.scan().filter {
+        var participantItems = Dictionary(model.scan().filter {
             driver.observedPlacement(of: $0) != nil || desiredCollectedIDs.contains($0.id)
-        }.map(\.id))
-            .union(preferredMove.map { [$0.id] } ?? [])
+        }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        if let preferredMove, participantItems[preferredMove.id] == nil,
+           let remembered = model.item(withID: preferredMove.id) {
+            participantItems[preferredMove.id] = remembered
+        }
 
         if let preferredMove {
             let item = model.scan().first(where: { $0.id == preferredMove.id })
@@ -581,13 +592,18 @@ final class MenuBarCollectionEngine {
         try Task.checkCancellation()
 
         let liveItems = Dictionary(model.scan().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let verified = participantIDs.allSatisfy { id in
-            // MenuBarAgent may remove a successfully hidden app from the next
-            // AX inventory immediately. Its remembered element and bundle ID
-            // still let the driver verify the authoritative visibility state.
-            guard let item = liveItems[id] ?? model.item(withID: id) else { return false }
+        let verified = participantItems.allSatisfy { entry in
+            let (id, transactionItem) = entry
             let desired: MenuBarPlacement = desiredCollectedIDs.contains(id) ? .collected : .resident
-            return driver.observedPlacement(of: item) == desired
+            if let liveItem = liveItems[id] {
+                return driver.observedPlacement(of: liveItem) == desired
+            }
+            // MenuBarAgent legitimately removes a hidden app from AX. Only an
+            // authoritative host record may verify that missing collected
+            // target; a missing resident or a legacy stale frame still fails.
+            guard desired == .collected else { return false }
+            let remembered = model.item(withID: id) ?? transactionItem
+            return driver.confirmsMissingCollectedItem(remembered)
         }
         guard verified else {
             throw CollectionEngineError.message("系统没有完成布局调整，已恢复显示全部图标。")
@@ -638,13 +654,13 @@ final class MenuBarCollectionEngine {
     }
 
     private func degrade(_ error: Error) async -> MenuBarCollectionOutcome {
+        let persisted = model.allItems.filter { model.collectedIDs.contains($0.id) }
+        await driver.recoverVisibleLayout(collectedItems: persisted)
         if error is CancellationError || Task.isCancelled {
-            driver.revealImmediately()
             phase = .idle
             model.refresh()
             return .ignored
         }
-        await driver.revealHiddenSection()
         let message = (error as? CollectionEngineError)?.text ?? "操作未完成，图标已恢复显示。"
         phase = .degraded(message)
         model.message = message

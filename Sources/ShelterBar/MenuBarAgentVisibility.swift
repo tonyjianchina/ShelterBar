@@ -208,8 +208,17 @@ final class MenuBarAgentVisibilityController {
 
     /// Show every collected app while retaining the saved collection intent.
     func revealKeepingIntent() {
+        reveal(restoringIntent: desiredHiddenBundleIDs)
+    }
+
+    /// Failed transactions must not leave an uncommitted app in the next
+    /// collapse. Replace intent from persisted model state, then reveal all.
+    func reveal(restoringIntent hiddenBundleIDs: Set<String>) {
         restriction.release()
         appliedAllowList = nil
+        desiredHiddenBundleIDs = Set(hiddenBundleIDs.filter {
+            Self.supportsCollection(bundleID: $0, ownBundleID: ownBundleID)
+        })
         activeHiddenBundleIDs.removeAll()
     }
 

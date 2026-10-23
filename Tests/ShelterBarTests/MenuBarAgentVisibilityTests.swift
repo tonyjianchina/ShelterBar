@@ -120,6 +120,27 @@ func visibilityRevealAndCollapse() async {
     #expect(restriction.requests.count == 2)
 }
 
+@Test("failed transaction recovery replaces hidden intent before the next collapse")
+@MainActor
+func visibilityRecoveryRestoresPersistedIntent() async {
+    let restriction = FakeMenuBarRestriction()
+    let controller = MenuBarAgentVisibilityController(
+        restriction: restriction,
+        runningBundleIDs: { ["com.example.old", "com.example.failed"] }
+    )
+    #expect(await controller.setCollected(true, bundleID: "com.example.old"))
+    #expect(await controller.setCollected(true, bundleID: "com.example.failed"))
+
+    controller.reveal(restoringIntent: ["com.example.old"])
+    #expect(controller.desiredHiddenBundleIDs == ["com.example.old"])
+    #expect(controller.activeHiddenBundleIDs.isEmpty)
+
+    #expect(await controller.collapseToIntent())
+    #expect(controller.activeHiddenBundleIDs == ["com.example.old"])
+    #expect(restriction.requests.last?.contains("com.example.old") == false)
+    #expect(restriction.requests.last?.contains("com.example.failed") == true)
+}
+
 @Test("borrowing one collected app reveals only that app and restores it")
 @MainActor
 func visibilitySingleItemBorrow() async {

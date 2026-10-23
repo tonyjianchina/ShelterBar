@@ -86,6 +86,17 @@ final class MenuBarItemMover {
         menuBarMoveLog.notice("reveal did not settle; divider \(String(describing: self.boundaryFrame), privacy: .public) raw \(String(describing: MenuBarAX.ownItemFrame(help: Self.boundaryHelp)), privacy: .public) native \(self.nativeBoundary() != nil, privacy: .public)")
     }
 
+    func recoverVisibleLayout(collectedItems: [ShelfItem]) async {
+        guard let visibility else {
+            await revealHiddenSection()
+            return
+        }
+        let persistedBundles = Set(collectedItems.compactMap { bundleID(of: $0) })
+        visibility.reveal(restoringIntent: persistedBundles)
+        isCollapsed = false
+        try? await Task.sleep(for: .milliseconds(180))
+    }
+
     func collapseHiddenSection() async {
         if let visibility {
             let collapsed = await visibility.collapseToIntent()
@@ -675,5 +686,10 @@ extension MenuBarItemMover: MenuBarLayoutDriving {
         // (visible or auto-hidden) menu-bar row. A helper's stale
         // bottom-of-screen AX rectangle is not proof that ShelterBar collected it.
         return isCollapsed && MenuBarGeometry.isInMenuBarRowIncludingHidden(frame) ? .collected : nil
+    }
+
+    func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool {
+        guard let visibility else { return false }
+        return visibility.isActivelyHidden(bundleID: bundleID(of: item))
     }
 }
