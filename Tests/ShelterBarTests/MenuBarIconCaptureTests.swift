@@ -114,6 +114,17 @@ private func pixels(color: CGColor?) -> CGImage {
     return context.makeImage()!
 }
 
+@Test("a composite menu bar capture waits for two matching rendered frames")
+func compositeCaptureWaitsForStablePixels() {
+    let moving = pixels(color: CGColor(gray: 0.25, alpha: 1))
+    let settled = pixels(color: CGColor(gray: 0.75, alpha: 1))
+    var stability = MenuBarCaptureStability()
+
+    #expect(stability.observe(moving) == false)
+    #expect(stability.observe(settled) == false)
+    #expect(stability.observe(settled) == true)
+}
+
 @Test("original monochrome glyphs adapt to appearance while colored status remains colored")
 @MainActor
 func capturePreservesGlyphStyle() {

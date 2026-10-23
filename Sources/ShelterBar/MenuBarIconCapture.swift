@@ -63,6 +63,40 @@ enum MenuBarIconMatcher {
     }
 }
 
+/// MenuBarAgent renders every third-party status item into one composite
+/// window.  Immediately after a drag, an item's AX rectangle can already be
+/// stable while that rectangle still contains the animated old and new menu
+/// bar layouts.  Accept only two consecutive captures with identical pixels.
+struct MenuBarCaptureStability {
+    private struct Fingerprint: Equatable {
+        let width: Int
+        let height: Int
+        let bitsPerPixel: Int
+        let bytesPerRow: Int
+        let pixels: Data
+
+        init?(_ image: CGImage) {
+            guard let data = image.dataProvider?.data else { return nil }
+            width = image.width
+            height = image.height
+            bitsPerPixel = image.bitsPerPixel
+            bytesPerRow = image.bytesPerRow
+            pixels = data as Data
+        }
+    }
+
+    private var previous: Fingerprint?
+
+    mutating func observe(_ image: CGImage) -> Bool {
+        guard let current = Fingerprint(image) else {
+            previous = nil
+            return false
+        }
+        defer { previous = current }
+        return previous == current
+    }
+}
+
 @MainActor
 final class MenuBarIconCapture {
     private let isLogicallyHidden: @MainActor (ShelfItem) -> Bool
@@ -95,12 +129,13 @@ final class MenuBarIconCapture {
                   let window = content.windows.first(where: { $0.windowID == id }) else { continue }
             if window.owningApplication?.bundleIdentifier == "com.apple.MenuBarAgent" {
                 // A hidden item's AX rectangle can now belong to its neighbour.
-                // Read only a currently exposed, full item rectangle, and recheck
-                // both logical visibility and geometry across the suspension.
+                // Read only a currently exposed, full item rectangle. AX geometry
+                // settles before MenuBarAgent's drag animation, so also require
+                // two matching rendered frames before persisting the glyph.
                 guard #available(macOS 15.2, *),
                       ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27,
                       MenuBarGeometry.visibleFrame(frame) == frame,
-                      let pixels = try? await SCScreenshotManager.captureImage(in: frame),
+                      let pixels = await stableCompositeCapture(item: item, frame: frame),
                       !Task.isCancelled, ScreenCapturePermission.isGranted,
                       !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                       let image = MenuBarGlyphImage.make(from: pixels, logicalSize: frame.size) else { continue }
@@ -141,6 +176,22 @@ final class MenuBarIconCapture {
             snapshots.append(MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: image))
         }
         return snapshots
+    }
+
+    @available(macOS 15.2, *)
+    private func stableCompositeCapture(item: ShelfItem, frame: CGRect) async -> CGImage? {
+        var stability = MenuBarCaptureStability()
+        let attempts = 6
+        for attempt in 0..<attempts {
+            guard !Task.isCancelled, ScreenCapturePermission.isGranted,
+                  !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
+                  let pixels = try? await SCScreenshotManager.captureImage(in: frame) else { return nil }
+            if stability.observe(pixels) { return pixels }
+            if attempt + 1 < attempts {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+        }
+        return nil
     }
 }
 
