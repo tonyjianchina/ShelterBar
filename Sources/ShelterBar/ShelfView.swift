@@ -80,6 +80,9 @@ struct ShelfView: View {
                 Button("输入控制权限", action: model.openAccessibilitySettings)
                 Button("屏幕录制设置", action: model.openScreenCaptureSettings)
                 Button("退出 ShelterBar", action: onQuit)
+                Divider()
+                Text(verbatim: AppVersion.menuTitle())
+                    .foregroundStyle(.secondary)
             } label: {
                 Image(systemName: "ellipsis.circle").frame(width: 24, height: 24)
             }.menuStyle(.borderlessButton).fixedSize().help("更多")
