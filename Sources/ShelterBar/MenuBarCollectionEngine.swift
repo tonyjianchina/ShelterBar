@@ -592,20 +592,35 @@ final class MenuBarCollectionEngine {
         try Task.checkCancellation()
 
         let liveItems = Dictionary(model.scan().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let verified = participantItems.allSatisfy { entry in
+        let failures = participantItems.filter { entry in
             let (id, transactionItem) = entry
             let desired: MenuBarPlacement = desiredCollectedIDs.contains(id) ? .collected : .resident
             if let liveItem = liveItems[id] {
-                return driver.observedPlacement(of: liveItem) == desired
+                let observed = driver.observedPlacement(of: liveItem)
+                if observed != desired {
+                    menuBarMoveLog.error("layout verification failed: \(id, privacy: .public) wanted=\(String(describing: desired), privacy: .public) observed=\(String(describing: observed), privacy: .public)")
+                }
+                return observed != desired
+            }
+            if desired == .resident, transactionItem.isTransientCaptureIndicator {
+                menuBarMoveLog.info("layout verification: capture indicator ended normally")
+                return false
             }
             // MenuBarAgent legitimately removes a hidden app from AX. Only an
             // authoritative host record may verify that missing collected
             // target; a missing resident or a legacy stale frame still fails.
-            guard desired == .collected else { return false }
+            guard desired == .collected else {
+                menuBarMoveLog.error("layout verification failed: missing resident \(id, privacy: .public)")
+                return true
+            }
             let remembered = model.item(withID: id) ?? transactionItem
-            return driver.confirmsMissingCollectedItem(remembered)
+            let confirmed = driver.confirmsMissingCollectedItem(remembered)
+            if !confirmed {
+                menuBarMoveLog.error("layout verification failed: unconfirmed missing collected item \(id, privacy: .public)")
+            }
+            return !confirmed
         }
-        guard verified else {
+        guard failures.isEmpty else {
             throw CollectionEngineError.message("系统没有完成布局调整，已恢复显示全部图标。")
         }
     }

@@ -30,6 +30,14 @@ struct ShelfItem: Identifiable {
     var hasPersistentIdentity = true
     var isMovable = true
     var hasMenuBarIcon = false
+
+    /// ScreenCaptureKit can temporarily add this macOS 27 system item while
+    /// reading a glyph. Its natural disappearance is not a lost resident app.
+    /// Match the owning bundle as well as the AX identifier: an unrelated
+    /// app or another system item must still participate in layout checks.
+    var isTransientCaptureIndicator: Bool {
+        !isMovable && id == "ax:com.apple.MenuBarAgent:com.apple.menuextra.audiovideo"
+    }
 }
 
 @MainActor

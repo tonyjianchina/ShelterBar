@@ -19,6 +19,36 @@ The reconciliation check caught the exact v0.5.3 error before the fix.
 It also fails when the installed app has no Accessibility permission; a
 permission-blocked run must not count as successful native reconciliation.
 
+## Repeated collection with existing items
+
+`CheckNativeCollection.swift` drags one real menu-bar item into the installed
+app and asserts the expected shelf count with no layout error, including after
+a background poll. It temporarily pins the shelf and restores the prior pin
+state even on failure. It uses the app's UI, not direct preference writes.
+Test targets are restricted to Ollama, Codex, UU Remote and Muse. System
+recording indicators and the menu-bar overflow arrow are excluded; a pickup
+that overlaps a system control aborts without sending a drag.
+
+```sh
+swiftc -parse-as-library Tools/Diagnostics/CheckNativeCollection.swift -o /tmp/shelter-native-collection
+# With the first three apps already collected and Muse still resident:
+/tmp/shelter-native-collection com.meta.endo 4
+# With those four apps collected, reveal and collect again five times:
+/tmp/shelter-native-collection com.meta.endo 4 5
+```
+
+The repeat command caught Build 30 returning all icons to the menu bar during
+the fourth-app transaction. The missing participant was MenuBarAgent's
+`com.apple.menuextra.audiovideo` indicator: ScreenCaptureKit created it while
+capturing icons, then it disappeared normally when capture finished. Build 31
+permits only that nonmovable, specifically owned transient item to disappear.
+Missing ordinary residents still fail verification. Regression coverage is
+`engineAcceptsCaptureIndicatorDisappearing` and
+`engineRejectsMissingNontransientResident` in the collection-engine tests.
+
+The count assertion checks the real shelf UI, not pixel-level visibility of
+every menu-bar item; MenuBarAgent can keep stale AX frames for hidden items.
+
 Inspect production native-window matching without changing layout:
 
 ```sh

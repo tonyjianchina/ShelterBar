@@ -223,6 +223,83 @@ func engineAcceptsConfirmedHiddenTargetMissingFromFreshScan() async {
     #expect(model.collectedIDs == ["muse"])
 }
 
+@Test("the fourth collection survives the recording indicator ending after icon capture")
+@MainActor
+func engineAcceptsCaptureIndicatorDisappearing() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let previous = ["ollama", "codex", "uuremote"]
+    defaults.set(previous, forKey: "shelf.collectedItems")
+    let source = EngineFixtureSource()
+    let indicatorID = "ax:com.apple.MenuBarAgent:com.apple.menuextra.audiovideo"
+    var indicator = engineFixture(indicatorID, hidden: false)
+    indicator.isMovable = false
+    source.entries = previous.map { engineFixture($0, hidden: true) }
+        + [engineFixture("muse", hidden: false), engineFixture("resident", hidden: false)]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                               isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = Dictionary(uniqueKeysWithValues: previous.map { ($0, MenuBarPlacement.collected) })
+    driver.placements["muse"] = .resident
+    driver.placements["resident"] = .resident
+    driver.placements[indicatorID] = .resident
+    var captures = 0
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in
+        captures += 1
+        if captures == 1 {
+            // ScreenCaptureKit starts the system indicator before the
+            // transaction takes its participant snapshot.
+            source.entries.append(indicator)
+        } else {
+            // The indicator disappears normally when screenshot capture ends.
+            source.entries.removeAll { $0.id == indicatorID }
+        }
+        return []
+    }, accessibilityGranted: { true }, screenCaptureGranted: { true })
+
+    let outcome = await engine.perform(.setPlacement(id: "muse", placement: .collected))
+
+    #expect(captures == 2)
+    #expect(outcome.message == nil)
+    #expect(outcome.didChangeLayout)
+    #expect(model.collectedIDs == Set(previous + ["muse"]))
+    #expect(driver.isCollapsed)
+    #expect(driver.placements["resident"] == .resident)
+    #expect(driver.recoveryHistory.isEmpty)
+}
+
+@Test("ordinary missing residents are still rejected, including protected system items")
+@MainActor
+func engineRejectsMissingNontransientResident() async {
+    for residentID in ["resident", "ax:com.apple.MenuBarAgent:com.apple.menuextra.wifi",
+                       "ax:com.example.other:com.apple.menuextra.audiovideo"] {
+        let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let source = EngineFixtureSource()
+        var resident = engineFixture(residentID, hidden: false)
+        resident.isMovable = false
+        source.entries = [engineFixture("muse", hidden: false), resident]
+        let model = ShelfViewModel(source: source, defaults: defaults,
+                                   isTrusted: { true }, isVisible: { $0.minX >= 0 })
+        let driver = EngineFixtureDriver()
+        driver.placements = ["muse": .resident, residentID: .resident]
+        var captures = 0
+        let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in
+            captures += 1
+            if captures == 2 { source.entries.removeAll { $0.id == residentID } }
+            return []
+        }, accessibilityGranted: { true }, screenCaptureGranted: { true })
+
+        let outcome = await engine.perform(.setPlacement(id: "muse", placement: .collected))
+
+        #expect(outcome.message == "系统没有完成布局调整，已恢复显示全部图标。")
+        #expect(!driver.isCollapsed)
+        #expect(model.collectedIDs.isEmpty)
+    }
+}
+
 @Test("a failed transaction restores host intent to the persisted collection")
 @MainActor
 func engineRollsBackVisibilityIntentAfterFailure() async {
