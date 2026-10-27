@@ -81,10 +81,20 @@ private enum UpdateHTTPClient {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 90)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("ShelterBar-Updater", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
         guard let http = response as? HTTPURLResponse else { throw UpdateNetworkError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else { throw UpdateNetworkError.status(http.statusCode, url) }
-        guard data.count <= maximumBytes else { throw UpdateNetworkError.responseTooLarge(url) }
+        guard http.expectedContentLength <= Int64(maximumBytes) else {
+            throw UpdateNetworkError.responseTooLarge(url)
+        }
+        var data = Data()
+        if http.expectedContentLength > 0 {
+            data.reserveCapacity(Int(http.expectedContentLength))
+        }
+        for try await byte in bytes {
+            guard data.count < maximumBytes else { throw UpdateNetworkError.responseTooLarge(url) }
+            data.append(byte)
+        }
         return data
     }
 
@@ -107,6 +117,7 @@ final class ShelterBarUpdater {
     private let defaults: UserDefaults
     private let configuration: UpdateConfiguration
     private let currentVersion: ShelterBarVersion?
+    private let currentBuild: ShelterBarBuildNumber?
     private let currentAppURL: URL
     private var automaticTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
@@ -120,6 +131,8 @@ final class ShelterBarUpdater {
         configuration = UpdateConfiguration(defaults: defaults, environment: environment)
         currentVersion = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
             .flatMap(ShelterBarVersion.init)
+        currentBuild = (bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+            .flatMap(ShelterBarBuildNumber.init)
         currentAppURL = bundle.bundleURL
     }
 
@@ -156,16 +169,16 @@ final class ShelterBarUpdater {
     }
 
     private func performUpdate(allowsReinstall: Bool) async {
-        guard let currentVersion else {
-            fail("无法读取当前版本")
+        guard let currentVersion, let currentBuild else {
+            fail("无法读取当前版本或构建号")
             return
         }
         do {
             state = .checking
-            updateLog.notice("checking \(self.configuration.feedURL.absoluteString, privacy: .public) from \(currentVersion.description, privacy: .public); reinstall=\(allowsReinstall)")
+            updateLog.notice("checking \(self.configuration.feedURL.absoluteString, privacy: .public) from \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public)); reinstall=\(allowsReinstall)")
             let feedData = try await UpdateHTTPClient.get(configuration.feedURL, maximumBytes: 5 * 1_024 * 1_024)
             let catalog = try ReleaseCatalog(data: feedData)
-            guard let candidate = catalog.latest(for: currentVersion, allowsReinstall: allowsReinstall) else {
+            guard let candidate = catalog.latest(for: currentVersion) else {
                 state = .upToDate(currentVersion.description)
                 updateLog.notice("up to date at \(currentVersion.description, privacy: .public)")
                 return
@@ -182,9 +195,17 @@ final class ShelterBarUpdater {
                     candidate: candidate,
                     archiveData: archiveData,
                     checksumData: checksumData,
-                    currentAppURL: appURL
+                    currentAppURL: appURL,
+                    currentVersion: currentVersion,
+                    currentBuild: currentBuild,
+                    allowsReinstall: allowsReinstall
                 )
             }.value
+            guard let plan else {
+                state = .upToDate("\(currentVersion) (\(currentBuild))")
+                updateLog.notice("up to date at \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public))")
+                return
+            }
             state = .installing(candidate.version.description)
             try plan.launchHelper()
             updateLog.notice("verified update \(candidate.version.description, privacy: .public); terminating for replacement")

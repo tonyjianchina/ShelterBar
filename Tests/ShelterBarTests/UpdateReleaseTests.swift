@@ -12,6 +12,77 @@ func semanticVersionOrderingIncludesPrereleases() throws {
     #expect(beta2 < beta10)
     #expect(beta10 < release)
     #expect(release < nextPrerelease)
+    #expect(ShelterBarVersion("0.5.12-01") == nil)
+    #expect(ShelterBarVersion("0.5.12-BETA") != ShelterBarVersion("0.5.12-beta"))
+    #expect(ShelterBarVersion("0.5.12+build.01") == release)
+    #expect(ShelterBarVersion("0.5.12+") == nil)
+    #expect(ShelterBarVersion("0.5.12+build+other") == nil)
+}
+
+@Test("build numbers compare numerically and govern update eligibility")
+func buildNumberComparisonAndEligibility() throws {
+    let version = try #require(ShelterBarVersion("0.5.11"))
+    let nextVersion = try #require(ShelterBarVersion("0.5.12"))
+    let build34 = try #require(ShelterBarBuildNumber("34"))
+    let build35 = try #require(ShelterBarBuildNumber("35"))
+    let build35Patch1 = try #require(ShelterBarBuildNumber("35.0.1"))
+
+    #expect(build34 < build35)
+    #expect(build35 < build35Patch1)
+    #expect(build35 == ShelterBarBuildNumber("35.0"))
+    #expect(ShelterBarBuildNumber("035") == nil)
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build34,
+        candidateVersion: version,
+        candidateBuild: build35,
+        allowsReinstall: false
+    ) == .newer)
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build34,
+        candidateVersion: version,
+        candidateBuild: build34,
+        allowsReinstall: false
+    ) == .notNewer)
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build34,
+        candidateVersion: version,
+        candidateBuild: build34,
+        allowsReinstall: true
+    ) == .reinstall)
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build35,
+        candidateVersion: nextVersion,
+        candidateBuild: build34,
+        allowsReinstall: false
+    ) == .invalidBuildRegression)
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build35,
+        candidateVersion: nextVersion,
+        candidateBuild: build35,
+        allowsReinstall: false
+    ) == .notNewer)
+}
+
+@Test("update readiness marker is restricted to updater temporary directories")
+func updateReadinessMarkerIsRestricted() throws {
+    let fileManager = FileManager.default
+    let root = fileManager.temporaryDirectory
+        .appendingPathComponent("ShelterBarUpdate-\(UUID().uuidString)", isDirectory: true)
+    try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? fileManager.removeItem(at: root) }
+
+    let marker = root.appendingPathComponent("ready")
+    UpdateReadiness.signalIfRequested(environment: ["SHELTERBAR_UPDATE_READY_FILE": marker.path])
+    #expect(fileManager.fileExists(atPath: marker.path))
+
+    let rejected = root.appendingPathComponent("not-ready")
+    UpdateReadiness.signalIfRequested(environment: ["SHELTERBAR_UPDATE_READY_FILE": rejected.path])
+    #expect(!fileManager.fileExists(atPath: rejected.path))
 }
 
 @Test("SHA256SUMS parsing verifies the selected release asset")
@@ -50,12 +121,14 @@ func releaseSelectionIncludesPrereleases() throws {
     let catalog = try ReleaseCatalog(data: data)
     let current = try #require(ShelterBarVersion("0.5.11"))
 
-    let automatic = try #require(catalog.latest(for: current, allowsReinstall: false))
+    let automatic = try #require(catalog.latest(for: current))
     #expect(automatic.version.description == "0.6.0-beta.1")
     #expect(automatic.archive.name == "ShelterBar-0.6.0-beta.1-macos-arm64.zip")
     #expect(automatic.checksums.name == "SHA256SUMS")
 
     let atLatest = try #require(ShelterBarVersion("0.6.0-beta.1"))
-    #expect(catalog.latest(for: atLatest, allowsReinstall: false) == nil)
-    #expect(catalog.latest(for: atLatest, allowsReinstall: true)?.version == atLatest)
+    #expect(catalog.latest(for: atLatest)?.version == atLatest)
+
+    let beyondLatest = try #require(ShelterBarVersion("0.6.0-beta.2"))
+    #expect(catalog.latest(for: beyondLatest) == nil)
 }

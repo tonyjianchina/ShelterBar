@@ -32,7 +32,7 @@
 
 ### 应用内更新
 
-ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。发现更高的语义版本后，自动下载同一 release 中的 Apple Silicon ZIP 和 `SHA256SUMS`。收纳栏的“更多”菜单也有“检查更新”；手动触发会重新下载并安装当前最新版。
+ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。候选发布版本不得低于已安装版本，且包内 `CFBundleVersion` 构建号更高时，会自动下载并安装同一 release 中的 Apple Silicon ZIP 和 `SHA256SUMS`；这也支持同一营销版本的更高构建。收纳栏的“更多”菜单也有“检查更新”；手动触发允许重新下载并安装完全相同的当前最新构建，但不允许降级版本或构建号。
 
 替换前必须同时通过：
 
@@ -40,9 +40,9 @@ ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。发�
 - 包内版本与 release tag 一致，且只包含 `arm64` 可执行文件。
 - bundle identifier 为 `com.jensen.shelterbar`，候选 app 通过 `codesign --strict`，并满足固定证书 leaf 的 designated requirement。
 
-验证后，新 app 先复制到现有 app 的同一目录并移除 quarantine；独立 helper 在旧进程退出后交换 bundle 并重启。旧 bundle 作为回滚副本保留到新进程稳定运行；新进程启动失败时自动恢复。
+验证后，新 app 先复制到现有 app 的同一目录并移除 quarantine；独立 helper 在旧进程退出后交换 bundle 并重启。旧 bundle 作为回滚副本保留到新应用完成启动回报且继续存活；替换前后任一步失败都会重新启动完整的旧 bundle，已交换时则先自动回滚。
 
-默认 feed 为 `https://api.github.com/repos/tonyjianchina/ShelterBar/releases?per_page=30`。本地测试可使用环境变量 `SHELTERBAR_UPDATE_FEED_URL`，或 defaults key `updates.feedURL`覆盖；仅允许 HTTPS，以及供本机测试的 loopback HTTP。可用 `SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1` 或 `updates.disableAutomatic=true` 关闭自动路径。对外发布前必须提升 `CFBundleShortVersionString`，否则已安装的同版本不会自动更新。
+默认 feed 为 `https://api.github.com/repos/tonyjianchina/ShelterBar/releases?per_page=30`。本地测试可使用环境变量 `SHELTERBAR_UPDATE_FEED_URL`，或 defaults key `updates.feedURL`覆盖；仅允许 HTTPS，以及供本机测试的 loopback HTTP。可用 `SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1` 或 `updates.disableAutomatic=true` 关闭自动路径。对外发布前必须提升 `CFBundleVersion`；功能版本还应同时提升 `CFBundleShortVersionString`。
 
 ## v0.5.11（build 34）更新内容
 

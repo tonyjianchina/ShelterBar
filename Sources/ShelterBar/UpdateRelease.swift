@@ -70,10 +70,20 @@ struct ShelterBarVersion: Comparable, CustomStringConvertible, Sendable {
     init?(_ rawValue: String) {
         var value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         if value.first == "v" || value.first == "V" { value.removeFirst() }
-        value = String(value.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)[0])
+        let metadataPieces = value.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+        if metadataPieces.count == 2 {
+            let identifiers = metadataPieces[1].split(separator: ".", omittingEmptySubsequences: false)
+            guard !identifiers.isEmpty,
+                  identifiers.allSatisfy({ identifier in
+                      !identifier.isEmpty
+                          && identifier.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+                  }) else { return nil }
+        }
+        value = String(metadataPieces[0])
         let pieces = value.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
         let core = pieces[0].split(separator: ".", omittingEmptySubsequences: false)
         guard core.count == 3,
+              core.allSatisfy({ Self.isValidNumericIdentifier($0) }),
               let major = Int(core[0]), let minor = Int(core[1]), let patch = Int(core[2]),
               major >= 0, minor >= 0, patch >= 0 else { return nil }
         let prerelease: [PrereleaseIdentifier]
@@ -81,18 +91,28 @@ struct ShelterBarVersion: Comparable, CustomStringConvertible, Sendable {
             prerelease = []
         } else {
             let identifiers = pieces[1].split(separator: ".", omittingEmptySubsequences: false)
-            guard !identifiers.isEmpty, identifiers.allSatisfy({ !$0.isEmpty }) else { return nil }
+            guard !identifiers.isEmpty,
+                  identifiers.allSatisfy({ identifier in
+                      !identifier.isEmpty
+                          && identifier.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
+                          && (!identifier.allSatisfy(\.isNumber) || Self.isValidNumericIdentifier(identifier))
+                  }) else { return nil }
             prerelease = identifiers.map { identifier in
                 if let value = Int(identifier), identifier.allSatisfy(\.isNumber) {
                     return .number(value)
                 }
-                return .text(String(identifier).lowercased())
+                return .text(String(identifier))
             }
         }
         self.major = major
         self.minor = minor
         self.patch = patch
         self.prerelease = prerelease
+    }
+
+    private static func isValidNumericIdentifier(_ value: Substring) -> Bool {
+        !value.isEmpty && value.allSatisfy { $0.isASCII && $0.isNumber }
+            && (value.count == 1 || value.first != "0")
     }
 
     var description: String {
@@ -122,6 +142,56 @@ struct ShelterBarVersion: Comparable, CustomStringConvertible, Sendable {
             }
         }
         return lhs.prerelease.count < rhs.prerelease.count
+    }
+}
+
+struct ShelterBarBuildNumber: Comparable, CustomStringConvertible, Sendable {
+    private let components: [UInt64]
+
+    init?(_ rawValue: String) {
+        let pieces = rawValue.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...3).contains(pieces.count),
+              pieces.allSatisfy({ piece in
+                  !piece.isEmpty && piece.allSatisfy { $0.isASCII && $0.isNumber }
+                      && (piece.count == 1 || piece.first != "0")
+              }) else { return nil }
+        var parsed = pieces.compactMap { UInt64(String($0)) }
+        guard parsed.count == pieces.count else { return nil }
+        while parsed.count > 1, parsed.last == 0 { parsed.removeLast() }
+        components = parsed
+    }
+
+    var description: String { components.map(String.init).joined(separator: ".") }
+
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        let count = max(lhs.components.count, rhs.components.count)
+        for index in 0..<count {
+            let left = index < lhs.components.count ? lhs.components[index] : 0
+            let right = index < rhs.components.count ? rhs.components[index] : 0
+            if left != right { return left < right }
+        }
+        return false
+    }
+}
+
+enum UpdateEligibility: Equatable, Sendable {
+    case newer
+    case reinstall
+    case notNewer
+    case invalidBuildRegression
+
+    static func evaluate(
+        currentVersion: ShelterBarVersion,
+        currentBuild: ShelterBarBuildNumber,
+        candidateVersion: ShelterBarVersion,
+        candidateBuild: ShelterBarBuildNumber,
+        allowsReinstall: Bool
+    ) -> Self {
+        guard candidateVersion >= currentVersion else { return .notNewer }
+        if candidateBuild > currentBuild { return .newer }
+        if candidateBuild < currentBuild { return .invalidBuildRegression }
+        if candidateVersion == currentVersion, allowsReinstall { return .reinstall }
+        return .notNewer
     }
 }
 
@@ -163,10 +233,10 @@ struct ReleaseCatalog: Sendable {
     /// GitHub's releases endpoint includes prereleases; only drafts are private
     /// publishing state and therefore ineligible. Each candidate must have the
     /// exact Apple Silicon ZIP plus the checksum manifest from the same release.
-    func latest(for current: ShelterBarVersion, allowsReinstall: Bool) -> ReleaseCandidate? {
+    func latest(for current: ShelterBarVersion) -> ReleaseCandidate? {
         releases.compactMap { release -> ReleaseCandidate? in
             guard !release.draft, let version = ShelterBarVersion(release.tagName),
-                  version > current || (allowsReinstall && version == current) else { return nil }
+                  version >= current else { return nil }
             let archiveName = "ShelterBar-\(version)-macos-arm64.zip"
             guard let archive = release.assets.first(where: { $0.name == archiveName }),
                   let checksums = release.assets.first(where: { $0.name == "SHA256SUMS" }) else { return nil }

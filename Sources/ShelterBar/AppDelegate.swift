@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusBarController = StatusBarController(source: AccessibilityMenuBarItemSource())
         statusBarController?.startAutomaticUpdates()
+        UpdateReadiness.signalIfRequested()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.statusBarController?.beginPermissionOnboarding()
         }

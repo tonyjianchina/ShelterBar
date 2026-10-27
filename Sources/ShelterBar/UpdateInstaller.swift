@@ -38,8 +38,11 @@ enum UpdateInstaller {
         archiveData: Data,
         checksumData: Data,
         currentAppURL: URL,
+        currentVersion: ShelterBarVersion,
+        currentBuild: ShelterBarBuildNumber,
+        allowsReinstall: Bool,
         currentPID: Int32 = ProcessInfo.processInfo.processIdentifier
-    ) throws -> UpdateInstallPlan {
+    ) throws -> UpdateInstallPlan? {
         guard currentAppURL.lastPathComponent == "ShelterBar.app" else {
             throw UpdateInstallError.invalidBundle("当前应用不是 ShelterBar.app")
         }
@@ -65,7 +68,24 @@ enum UpdateInstaller {
         do {
             try run("/usr/bin/ditto", ["-x", "-k", archiveURL.path, extracted.path])
             let app = extracted.appendingPathComponent("ShelterBar.app", isDirectory: true)
-            try validate(app: app, version: candidate.version)
+            let candidateBuild = try validate(app: app, version: candidate.version)
+            switch UpdateEligibility.evaluate(
+                currentVersion: currentVersion,
+                currentBuild: currentBuild,
+                candidateVersion: candidate.version,
+                candidateBuild: candidateBuild,
+                allowsReinstall: allowsReinstall
+            ) {
+            case .newer, .reinstall:
+                break
+            case .notNewer:
+                try fileManager.removeItem(at: workRoot)
+                return nil
+            case .invalidBuildRegression:
+                throw UpdateInstallError.invalidBundle(
+                    "构建号从 \(currentBuild) 倒退为 \(candidateBuild)"
+                )
+            }
 
             let token = UUID().uuidString
             let staged = parent.appendingPathComponent(".ShelterBar.update-\(token).app", isDirectory: true)
@@ -91,13 +111,15 @@ enum UpdateInstaller {
         }
     }
 
-    private static func validate(app: URL, version: ShelterBarVersion) throws {
+    private static func validate(app: URL, version: ShelterBarVersion) throws -> ShelterBarBuildNumber {
         let plist = app.appendingPathComponent("Contents/Info.plist")
         guard let info = NSDictionary(contentsOf: plist) as? [String: Any],
               info["CFBundleIdentifier"] as? String == expectedBundleIdentifier,
               let rawVersion = info["CFBundleShortVersionString"] as? String,
-              ShelterBarVersion(rawVersion) == version else {
-            throw UpdateInstallError.invalidBundle("标识符或版本与 release 不一致")
+              ShelterBarVersion(rawVersion) == version,
+              let rawBuild = info["CFBundleVersion"] as? String,
+              let build = ShelterBarBuildNumber(rawBuild) else {
+            throw UpdateInstallError.invalidBundle("标识符、版本或构建号与 release 不一致")
         }
         let executable = app.appendingPathComponent("Contents/MacOS/ShelterBar")
         let architectures = try run("/usr/bin/lipo", ["-archs", executable.path])
@@ -113,6 +135,7 @@ enum UpdateInstaller {
         guard requirementOutput.lowercased().contains("designated => \(expectedDesignatedRequirement)".lowercased()) else {
             throw UpdateInstallError.invalidBundle("designated requirement 不匹配")
         }
+        return build
     }
 
     @discardableResult
@@ -145,6 +168,15 @@ work_root=$6
 exec >> "$log_file" 2>&1
 date '+%Y-%m-%d %H:%M:%S update helper started'
 
+relaunch_target() {
+    if [ -x "$target/Contents/MacOS/ShelterBar" ]; then
+        /usr/bin/nohup "$target/Contents/MacOS/ShelterBar" >/dev/null 2>&1 &
+        echo "relaunched intact app; pid $!"
+    else
+        echo 'could not relaunch: target executable is missing'
+    fi
+}
+
 attempt=0
 while /bin/kill -0 "$old_pid" 2>/dev/null && [ "$attempt" -lt 300 ]; do
     /bin/sleep 0.1
@@ -158,33 +190,65 @@ fi
 if [ ! -d "$target" ] || [ ! -d "$staged" ] || [ -e "$backup" ]; then
     echo 'install paths changed; update cancelled'
     /bin/rm -rf "$staged" "$work_root"
+    relaunch_target
     exit 1
 fi
 if ! /bin/mv "$target" "$backup"; then
     echo 'could not create rollback copy'
     /bin/rm -rf "$staged" "$work_root"
+    if [ ! -d "$target" ] && [ -d "$backup" ]; then
+        /bin/mv "$backup" "$target" || true
+    fi
+    relaunch_target
     exit 1
 fi
 if ! /bin/mv "$staged" "$target"; then
     echo 'could not install staged app; rolling back'
     /bin/mv "$backup" "$target"
     /bin/rm -rf "$work_root"
+    relaunch_target
     exit 1
 fi
-/usr/bin/xattr -dr com.apple.quarantine "$target" || true
-/usr/bin/nohup "$target/Contents/MacOS/ShelterBar" >/dev/null 2>&1 &
+if ! /usr/bin/xattr -dr com.apple.quarantine "$target"; then
+    echo 'could not remove quarantine; rolling back'
+    /bin/rm -rf "$target"
+    /bin/mv "$backup" "$target"
+    /bin/rm -rf "$work_root"
+    relaunch_target
+    exit 1
+fi
+ready_file="$work_root/ready"
+SHELTERBAR_UPDATE_READY_FILE="$ready_file" /usr/bin/nohup "$target/Contents/MacOS/ShelterBar" >/dev/null 2>&1 &
 new_pid=$!
-/bin/sleep 3
-if /bin/kill -0 "$new_pid" 2>/dev/null; then
+attempt=0
+while /bin/kill -0 "$new_pid" 2>/dev/null && [ ! -f "$ready_file" ] && [ "$attempt" -lt 100 ]; do
+    /bin/sleep 0.1
+    attempt=$((attempt + 1))
+done
+if [ -f "$ready_file" ]; then
+    /bin/sleep 1
+fi
+if [ -f "$ready_file" ] && /bin/kill -0 "$new_pid" 2>/dev/null; then
     echo "update installed; new pid $new_pid"
     /bin/rm -rf "$backup" "$work_root"
     exit 0
 fi
-echo 'updated app did not stay running; rolling back'
+echo 'updated app did not report ready and stay running; rolling back'
+/bin/kill "$new_pid" 2>/dev/null || true
 /bin/rm -rf "$target"
 /bin/mv "$backup" "$target"
-/usr/bin/nohup "$target/Contents/MacOS/ShelterBar" >/dev/null 2>&1 &
 /bin/rm -rf "$work_root"
+relaunch_target
 exit 1
 """#
+}
+
+enum UpdateReadiness {
+    static func signalIfRequested(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        guard let path = environment["SHELTERBAR_UPDATE_READY_FILE"] else { return }
+        let file = URL(fileURLWithPath: path).standardizedFileURL
+        let temporaryRoot = FileManager.default.temporaryDirectory.standardizedFileURL.path + "/ShelterBarUpdate-"
+        guard file.lastPathComponent == "ready", file.path.hasPrefix(temporaryRoot) else { return }
+        try? Data().write(to: file, options: .atomic)
+    }
 }
