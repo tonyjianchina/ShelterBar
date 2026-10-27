@@ -120,15 +120,15 @@ final class StatusBarController: NSObject, NSWindowDelegate {
                     self?.scheduleScreenChange()
                 }
             }.store(in: &subscriptions)
-        pollTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                guard !Task.isCancelled, let self else { return }
-                if operation == nil && !model.isBusy && !monitor.gesture.isTracking && !shelfDragInProgress {
-                    refresh(.poll)
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        workspaceNotifications.publisher(for: NSWorkspace.didLaunchApplicationNotification)
+            .merge(with: workspaceNotifications.publisher(for: NSWorkspace.didTerminateApplicationNotification))
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.panel.isVisible else { return }
+                    self.refresh(.poll)
                 }
-            }
-        }
+            }.store(in: &subscriptions)
     }
 
     func shutdown() {
@@ -191,13 +191,29 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         positionPanel()
         shownAt = Date()
         panel.makeKeyAndOrderFront(nil)
+        startPollingWhileVisible()
         refresh(.shelfOpened)
     }
 
     private func hideShelf() {
+        pollTask?.cancel()
+        pollTask = nil
         iconRefreshTask?.cancel()
         panel.orderOut(nil)
         updateMonitor()
+    }
+
+    private func startPollingWhileVisible() {
+        guard pollTask == nil else { return }
+        pollTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled, let self, panel.isVisible else { return }
+                if operation == nil && !model.isBusy && !monitor.gesture.isTracking && !shelfDragInProgress {
+                    refresh(.poll)
+                }
+            }
+        }
     }
 
     func beginPermissionOnboarding() {
@@ -240,6 +256,10 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         iconRefreshTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { iconRefreshTask = nil }
+            // Let AppKit commit the panel before ScreenCaptureKit and pixel
+            // processing begin. Capturing is presentation work, not click work.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, panel.isVisible else { return }
             _ = await engine.perform(.refreshPresentation)
             guard !Task.isCancelled, !model.isBusy else { return }
             if panel.isVisible { positionPanel() }
@@ -280,13 +300,17 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         let own = Bundle.main.bundleIdentifier ?? "com.jensen.shelterbar"
         // The collapsed divider is mostly off-screen, so pair against all
         // windows; the handle itself must be on screen.
-        let windows = MenuBarNativeWindow.allWindows().filter { $0.layer == status }
         let info = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        let windows = MenuBarNativeWindow.currentWindows(readWindowInfo: { _ in info })
+            .filter { $0.layer == status }
         let names = Dictionary(info.compactMap { entry -> (CGWindowID, String)? in
             guard let id = entry[kCGWindowNumber as String] as? CGWindowID else { return nil }
             return (id, entry[kCGWindowName as String] as? String ?? "")
         }, uniquingKeysWith: { first, _ in first })
-        let onScreen = Set(MenuBarNativeWindow.onScreenWindows().map(\.id))
+        let onScreen = Set(info.compactMap { entry -> CGWindowID? in
+            let visible = (entry[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+            return visible ? entry[kCGWindowNumber as String] as? CGWindowID : nil
+        })
         // The handle is the right half of the divider/handle pair.
         let handles = windows.filter { window in
             guard onScreen.contains(window.id) else { return false }

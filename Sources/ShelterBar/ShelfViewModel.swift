@@ -1,6 +1,41 @@
 import AppKit
 import Combine
 
+private final class ShelfScanCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ShelfItemScanResult, Never>?
+
+    init(_ continuation: CheckedContinuation<ShelfItemScanResult, Never>) {
+        self.continuation = continuation
+    }
+
+    func finish(_ result: ShelfItemScanResult) {
+        let pending = lock.withLock { () -> CheckedContinuation<ShelfItemScanResult, Never>? in
+            defer { continuation = nil }
+            return continuation
+        }
+        pending?.resume(returning: result)
+    }
+}
+
+private final class ShelfInventoryScanner: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "com.jensen.shelterbar.ax-inventory", qos: .userInitiated)
+
+    func scan(source: any ShelfItemSource, budget: Duration) async -> ShelfItemScanResult {
+        let deadline = ContinuousClock.now + budget
+        return await withCheckedContinuation { continuation in
+            let completion = ShelfScanCompletion(continuation)
+            queue.async {
+                completion.finish(source.items(deadline: deadline))
+            }
+            Task.detached(priority: .userInitiated) {
+                try? await Task.sleep(for: budget)
+                completion.finish(ShelfItemScanResult(items: [], isComplete: false))
+            }
+        }
+    }
+}
+
 @MainActor
 final class ShelfViewModel: ObservableObject {
     @Published private(set) var items: [ShelfItem] = []
@@ -25,6 +60,9 @@ final class ShelfViewModel: ObservableObject {
     private let isTrusted: @MainActor () -> Bool
     private let isVisible: @MainActor (CGRect) -> Bool
     private let isLogicallyHidden: @MainActor (ShelfItem) -> Bool
+    private let scanner = ShelfInventoryScanner()
+    private var scanTask: Task<ShelfItemScanResult, Never>?
+    private var scanGeneration = 0
     private var sessionCollected = Set<String>()
     /// Glyphs persisted from earlier captures; used while an item is stowed
     /// off-screen and cannot be captured again (e.g. right after launch).
@@ -55,11 +93,18 @@ final class ShelfViewModel: ObservableObject {
         Set(defaults.stringArray(forKey: "shelf.collectedItems") ?? []).union(sessionCollected)
     }
 
-    func scan() -> [ShelfItem] { source.items() }
+    /// The most recent operation-level snapshot. Callers may re-read live AX
+    /// frames from its references without walking every running application.
+    func scan() -> [ShelfItem] { allItems.sorted { $0.id < $1.id } }
 
+    /// Rebuild presentation from the last completed inventory. This is the
+    /// click path: it never waits for Accessibility or ScreenCaptureKit.
     func refresh() {
         hasAccessibilityPermission = isTrusted()
         guard hasAccessibilityPermission else {
+            scanTask?.cancel()
+            scanTask = nil
+            scanGeneration += 1
             iconCache.removeAll()
             knownItems.removeAll()
             items = []
@@ -67,11 +112,47 @@ final class ShelfViewModel: ObservableObject {
             return
         }
         if !hasScreenCapturePermission { iconCache.removeAll() }
-        let fresh = scan()
+        apply(fresh: Array(knownItems.values), didScan: false)
+    }
+
+    /// At most one serial AX walk is in flight. It runs off the main actor and
+    /// is bounded so a slow or wedged application cannot monopolize a click.
+    func reload(budget: Duration = .milliseconds(750)) async {
+        hasAccessibilityPermission = isTrusted()
+        guard hasAccessibilityPermission else {
+            refresh()
+            return
+        }
+        let generation: Int
+        let task: Task<ShelfItemScanResult, Never>
+        if let current = scanTask {
+            generation = scanGeneration
+            task = current
+        } else {
+            scanGeneration += 1
+            generation = scanGeneration
+            let scanner = scanner
+            let source = source
+            task = Task { await scanner.scan(source: source, budget: budget) }
+            scanTask = task
+        }
+        let result = await task.value
+        guard !Task.isCancelled, generation == scanGeneration, hasAccessibilityPermission else { return }
+        scanTask = nil
+        apply(fresh: result.items, didScan: true, scanWasComplete: result.isComplete)
+    }
+
+    private func apply(fresh: [ShelfItem], didScan: Bool, scanWasComplete: Bool = true) {
         var byID = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        for id in collectedIDs where byID[id] == nil {
-            if let old = knownItems[id], old.application?.isTerminated == false,
-               let frame = old.menuBarReference.currentFrame(), frame.width > 1 {
+        // A bounded scan may stop before reaching every application. Preserve
+        // any non-terminated reference it omitted. A later complete scan is
+        // authoritative and removes stale resident AX elements.
+        for (id, old) in knownItems where byID[id] == nil
+            && (!scanWasComplete || collectedIDs.contains(id)) {
+            guard old.application?.isTerminated != true else { continue }
+            if !scanWasComplete {
+                byID[id] = old
+            } else if let frame = old.menuBarReference.currentFrame(), frame.width > 1 {
                 old.menuBarReference.frame = frame
                 byID[id] = old
             }
@@ -91,7 +172,7 @@ final class ShelfViewModel: ObservableObject {
             byID[id] = item
         }
         knownItems = byID
-        if !fresh.isEmpty { iconStore?.prune(keeping: collectedIDs) }
+        if didScan, !fresh.isEmpty { iconStore?.prune(keeping: collectedIDs) }
         let order = defaults.stringArray(forKey: "shelf.itemOrder") ?? []
         let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: min)
         let ordered = byID.values.sorted {
@@ -143,6 +224,7 @@ final class ShelfViewModel: ObservableObject {
             sessionCollected.remove(id)
         }
         defaults.set(ids.sorted(), forKey: "shelf.collectedItems")
+        iconStore?.prune(keeping: collectedIDs)
     }
 
     func move(_ id: String, before target: String) {

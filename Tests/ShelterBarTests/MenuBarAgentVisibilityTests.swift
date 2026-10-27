@@ -8,13 +8,36 @@ private final class FakeMenuBarRestriction: MenuBarRestrictionApplying {
     var requests: [[String]] = []
     var releases = 0
     var nextError: Error?
+    var completesRequests = true
 
-    func restrict(allowedBundleIDs: [String], completion: @escaping (Error?) -> Void) {
+    func restrict(allowedBundleIDs: [String], completion: @MainActor @escaping (Error?) -> Void) {
         requests.append(allowedBundleIDs)
-        completion(nextError)
+        if completesRequests { completion(nextError) }
     }
 
     func release() { releases += 1 }
+}
+
+@Test("a missing MenuBarAgent callback times out and disables the private path")
+@MainActor
+func visibilityRestrictionTimesOut() async {
+    let restriction = FakeMenuBarRestriction()
+    restriction.completesRequests = false
+    let controller = MenuBarAgentVisibilityController(
+        restriction: restriction,
+        runningBundleIDs: { ["com.example.hidden"] },
+        activationTimeout: .milliseconds(20)
+    )
+
+    let started = ContinuousClock.now
+    #expect(await controller.setCollected(true, bundleID: "com.example.hidden") == false)
+    // The whole target runs many @MainActor tests in parallel, so allow
+    // scheduler contention while still proving the callback cannot hang.
+    #expect(started.duration(to: .now) < .seconds(1))
+    #expect(!controller.isAvailable)
+    #expect(controller.desiredHiddenBundleIDs.isEmpty)
+    #expect(controller.activeHiddenBundleIDs.isEmpty)
+    #expect(restriction.releases == 1)
 }
 
 @Test("macOS 27 visibility collection excludes only the collected bundle")
@@ -160,7 +183,7 @@ func visibilitySingleItemBorrow() async {
     #expect(controller.activeHiddenBundleIDs == ["com.example.one", "com.example.two"])
 }
 
-@Test("a rejected restriction keeps the prior active visibility state")
+@Test("a rejected restriction reveals active items and disables the private path")
 @MainActor
 func visibilityFailureDoesNotLieAboutPlacement() async {
     struct Failure: Error {}
@@ -173,8 +196,10 @@ func visibilityFailureDoesNotLieAboutPlacement() async {
     restriction.nextError = Failure()
 
     #expect(await controller.setCollected(true, bundleID: "com.example.two") == false)
-    #expect(controller.activeHiddenBundleIDs == ["com.example.one"])
+    #expect(controller.activeHiddenBundleIDs.isEmpty)
     #expect(controller.desiredHiddenBundleIDs == ["com.example.one"])
+    #expect(!controller.isAvailable)
+    #expect(restriction.releases == 1)
 }
 
 @Test("an active restriction admits newly running resident applications without flashing hidden apps")

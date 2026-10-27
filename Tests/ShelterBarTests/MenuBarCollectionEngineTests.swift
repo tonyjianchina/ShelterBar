@@ -4,10 +4,13 @@ import ShelterBarCore
 import Testing
 @testable import ShelterBar
 
-@MainActor
-private final class EngineFixtureSource: ShelfItemSource {
+private final class EngineFixtureSource: ShelfItemSource, @unchecked Sendable {
     var entries: [ShelfItem] = []
-    func items() -> [ShelfItem] { entries }
+    private(set) var calls = 0
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        calls += 1
+        return ShelfItemScanResult(items: entries, isComplete: true)
+    }
 }
 
 @MainActor
@@ -131,8 +134,10 @@ func engineIgnoresUnmanagedAXRemnant() async {
 
     let refreshed = await engine.perform(.reconcile(.userRefresh))
     #expect(refreshed.message == nil)
+    #expect(source.calls == 1)
     #expect(driver.revealCount == 0)
     let collected = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
+    #expect(source.calls == 2)
     #expect(collected.didChangeLayout)
     #expect(engine.phase == .idle)
     #expect(model.collectedIDs == ["vpn"])
@@ -143,6 +148,7 @@ func engineIgnoresUnmanagedAXRemnant() async {
     driver.placements["lark-remnant"] = .resident
     remnant.menuBarReference.frame = CGRect(x: 950, y: 5, width: 56, height: 24)
     let appeared = await engine.perform(.reconcile(.poll))
+    #expect(source.calls == 3)
     #expect(appeared.didChangeLayout)
     #expect(model.collectedIDs == ["vpn", "lark-remnant"])
 }
@@ -288,7 +294,12 @@ func engineRejectsMissingNontransientResident() async {
         var captures = 0
         let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in
             captures += 1
-            if captures == 2 { source.entries.removeAll { $0.id == residentID } }
+            if captures == 2 {
+                source.entries.removeAll { $0.id == residentID }
+                // A real vanished AX element makes observedPlacement return
+                // nil without requiring another full application inventory.
+                driver.placements.removeValue(forKey: residentID)
+            }
             return []
         }, accessibilityGranted: { true }, screenCaptureGranted: { true })
 

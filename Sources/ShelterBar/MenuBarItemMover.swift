@@ -13,6 +13,9 @@ final class MenuBarItemMover {
     private let boundary: NSStatusItem
     private let handle: NSStatusItem
     private let visibility: MenuBarAgentVisibilityController?
+    private var agentVisibility: MenuBarAgentVisibilityController? {
+        visibility?.isAvailable == true ? visibility : nil
+    }
     /// The user's normal divider position, restored whenever the boundary is
     /// revealed so the expanded divider and other menu-bar apps stay put.
     private let normalBoundaryPosition: Double
@@ -31,7 +34,7 @@ final class MenuBarItemMover {
     ) {
         self.boundary = boundary
         self.handle = handle
-        self.visibility = visibility?.isAvailable == true ? visibility : nil
+        self.visibility = visibility
         let stored = UserDefaults.standard.double(forKey: Self.boundaryPositionKey)
         let maxWidth = NSScreen.screens.map(\.frame.width).max() ?? 2_000
         if stored > 0, stored < maxWidth {
@@ -60,7 +63,7 @@ final class MenuBarItemMover {
     }
 
     func revealHiddenSection() async {
-        if let visibility {
+        if let visibility = agentVisibility {
             visibility.revealKeepingIntent()
             isCollapsed = false
             try? await Task.sleep(for: .milliseconds(180))
@@ -87,7 +90,7 @@ final class MenuBarItemMover {
     }
 
     func recoverVisibleLayout(collectedItems: [ShelfItem]) async {
-        guard let visibility else {
+        guard let visibility = agentVisibility else {
             await revealHiddenSection()
             return
         }
@@ -98,12 +101,19 @@ final class MenuBarItemMover {
     }
 
     func collapseHiddenSection() async {
-        if let visibility {
+        if let visibility = agentVisibility {
             let collapsed = await visibility.collapseToIntent()
-            isCollapsed = collapsed && !visibility.desiredHiddenBundleIDs.isEmpty
-            if !collapsed { lastMoveFailure = "MenuBarAgent did not accept the visibility restriction" }
-            try? await Task.sleep(for: .milliseconds(180))
-            return
+            if collapsed {
+                isCollapsed = !visibility.desiredHiddenBundleIDs.isEmpty
+                try? await Task.sleep(for: .milliseconds(180))
+                return
+            }
+            if visibility.isAvailable {
+                isCollapsed = false
+                lastMoveFailure = "MenuBarAgent did not accept the visibility restriction"
+                return
+            }
+            menuBarMoveLog.notice("MenuBarAgent restriction failed at runtime; collapsing with legacy movement")
         }
         // Never widen the clickable entry: macOS 26 can omit an oversized
         // status window from the composited menu bar, including its tail.
@@ -129,7 +139,7 @@ final class MenuBarItemMover {
     }
 
     func revealImmediately() {
-        if let visibility {
+        if let visibility = agentVisibility {
             visibility.revealKeepingIntent()
             isCollapsed = false
             return
@@ -207,7 +217,7 @@ final class MenuBarItemMover {
     }
 
     func isOnCollectedSide(_ item: ShelfItem) -> Bool {
-        if let visibility {
+        if let visibility = agentVisibility {
             return visibility.isActivelyHidden(bundleID: bundleID(of: item))
         }
         guard let boundary = boundaryFrame, let frame = item.menuBarReference.currentFrame(),
@@ -228,19 +238,24 @@ final class MenuBarItemMover {
             return false
         }
         guard AccessibilityPermission.isGranted, item.isMovable else { return fail("not permitted or not movable") }
-        if let visibility {
+        if let visibility = agentVisibility {
             guard let bundleID = bundleID(of: item) else { return fail("item bundle identifier unavailable") }
             if placement == .collected, !visibility.canCollect(bundleID: bundleID) {
                 return fail("MenuBarAgent cannot collect protected system or ShelterBar items")
             }
             let changed = await visibility.setCollected(placement == .collected, bundleID: bundleID)
-            guard changed else { return fail("MenuBarAgent did not accept the visibility restriction") }
-            try? await Task.sleep(for: .milliseconds(180))
-            guard observedPlacement(of: item) == placement else {
-                return fail("MenuBarAgent visibility state was not confirmed")
+            if changed {
+                try? await Task.sleep(for: .milliseconds(180))
+                guard observedPlacement(of: item) == placement else {
+                    return fail("MenuBarAgent visibility state was not confirmed")
+                }
+                menuBarMoveLog.info("visibility move \(item.id, privacy: .public) -> \(String(describing: placement), privacy: .public) confirmed")
+                return true
             }
-            menuBarMoveLog.info("visibility move \(item.id, privacy: .public) -> \(String(describing: placement), privacy: .public) confirmed")
-            return true
+            guard !visibility.isAvailable else {
+                return fail("MenuBarAgent did not accept the visibility restriction")
+            }
+            menuBarMoveLog.notice("MenuBarAgent restriction failed at runtime; moving \(item.id, privacy: .public) with legacy Command-drag")
         }
         guard var frame = item.menuBarReference.currentFrame() else { return fail("item frame unavailable") }
         if !MenuBarGeometry.isOnMenuBar(frame), MenuBarGeometry.hiddenMenuBarRegion(containing: frame) != nil {
@@ -415,14 +430,16 @@ final class MenuBarItemMover {
             return noRoom ? .noRoom(reason) : .failed(reason)
         }
         guard AccessibilityPermission.isGranted, item.isMovable, isCollapsed else { return fail("not collapsed or not movable") }
-        if let visibility {
+        if let visibility = agentVisibility {
             guard let bundleID = bundleID(of: item) else { return fail("item bundle identifier unavailable") }
-            guard await visibility.temporarilyReveal(bundleID: bundleID) else {
-                return fail("MenuBarAgent did not reveal the item")
+            if await visibility.temporarilyReveal(bundleID: bundleID) {
+                try? await Task.sleep(for: .milliseconds(220))
+                borrowedTarget = item.menuBarReference.currentFrame()
+                return .borrowed
             }
-            try? await Task.sleep(for: .milliseconds(220))
-            borrowedTarget = item.menuBarReference.currentFrame()
-            return .borrowed
+            guard !visibility.isAvailable else { return fail("MenuBarAgent did not reveal the item") }
+            isCollapsed = false
+            return fail("MenuBarAgent failed; the legacy layout has been revealed")
         }
         guard let frame = item.menuBarReference.currentFrame(), let handle = handleFrame,
               let region = MenuBarGeometry.menuBarRegion(containing: handle) else { return fail("menu bar not visible") }
@@ -495,15 +512,19 @@ final class MenuBarItemMover {
             menuBarMoveLog.error("return \(item.id, privacy: .public) failed: \(reason, privacy: .public)")
             return false
         }
-        if let visibility {
+        if let visibility = agentVisibility {
             guard let bundleID = bundleID(of: item), visibility.isDesiredHidden(bundleID: bundleID) else {
                 return fail("item is no longer in the collected set")
             }
-            guard await visibility.collapseToIntent() else {
+            if await visibility.collapseToIntent() {
+                try? await Task.sleep(for: .milliseconds(180))
+                return visibility.isActivelyHidden(bundleID: bundleID)
+            }
+            guard !visibility.isAvailable else {
                 return fail("MenuBarAgent did not restore the visibility restriction")
             }
-            try? await Task.sleep(for: .milliseconds(180))
-            return visibility.isActivelyHidden(bundleID: bundleID)
+            isCollapsed = false
+            return fail("MenuBarAgent failed; the legacy layout has been revealed")
         }
         guard let frame = item.menuBarReference.currentFrame(),
               MenuBarGeometry.visibleFrame(frame) != nil else { return fail("borrowed item not visible") }
@@ -641,14 +662,17 @@ extension MenuBarItemMover: MenuBarLayoutDriving {
     }
 
     func isClickable(_ item: ShelfItem) -> Bool {
-        if let visibility, visibility.isActivelyHidden(bundleID: bundleID(of: item)) { return false }
+        if let visibility = agentVisibility,
+           visibility.isActivelyHidden(bundleID: bundleID(of: item)) { return false }
         guard let frame = item.menuBarReference.currentFrame() else { return false }
         return MenuBarGeometry.isOnMenuBar(frame)
     }
 
     func refreshHostVisibility() async -> Bool {
-        guard let visibility, isCollapsed else { return true }
-        return await visibility.collapseToIntent()
+        guard let visibility = agentVisibility, isCollapsed else { return true }
+        let refreshed = await visibility.collapseToIntent()
+        if !refreshed, !visibility.isAvailable { isCollapsed = false }
+        return refreshed || !visibility.isAvailable
     }
 
     /// Makes a revealed item clickable, showing an auto-hidden bar if allowed.
@@ -671,7 +695,7 @@ extension MenuBarItemMover: MenuBarLayoutDriving {
     }
 
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement? {
-        if let visibility {
+        if let visibility = agentVisibility {
             guard let bundleID = bundleID(of: item) else { return nil }
             return visibility.isActivelyHidden(bundleID: bundleID) ? .collected : .resident
         }
@@ -689,7 +713,7 @@ extension MenuBarItemMover: MenuBarLayoutDriving {
     }
 
     func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool {
-        guard let visibility else { return false }
+        guard let visibility = agentVisibility else { return false }
         return visibility.isActivelyHidden(bundleID: bundleID(of: item))
     }
 }

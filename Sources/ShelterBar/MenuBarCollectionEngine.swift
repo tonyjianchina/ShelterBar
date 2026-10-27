@@ -185,7 +185,7 @@ final class MenuBarCollectionEngine {
             return MenuBarCollectionOutcome(message: "请允许辅助功能权限以管理菜单栏图标。")
         }
 
-        model.refresh()
+        await model.reload()
         guard await driver.refreshHostVisibility() else {
             return await degrade(CollectionEngineError.message(
                 "系统未能刷新菜单栏显示状态，已恢复显示全部图标。"
@@ -279,7 +279,7 @@ final class MenuBarCollectionEngine {
             return MenuBarCollectionOutcome(message: "请允许辅助功能权限以管理菜单栏图标。")
         }
         phase = .applying
-        model.refresh()
+        await model.reload()
         guard model.item(withID: id) != nil || model.scan().contains(where: { $0.id == id }) else {
             return await degrade(CollectionEngineError.message("这个图标已退出或暂时不可用，已展开菜单栏。"))
         }
@@ -312,7 +312,7 @@ final class MenuBarCollectionEngine {
         guard model.hasAccessibilityPermission else {
             return MenuBarCollectionOutcome(message: "请允许辅助功能权限以打开菜单栏图标。")
         }
-        model.refresh()
+        await model.reload()
         guard let item = model.item(withID: id) ?? model.scan().first(where: { $0.id == id }) else {
             return MenuBarCollectionOutcome(message: "这个图标已退出或暂时不可用。")
         }

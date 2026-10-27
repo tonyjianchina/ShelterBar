@@ -2,6 +2,29 @@ import AppKit
 import Foundation
 import OSLog
 
+enum MenuBarCollectionCapability {
+    static let shelterBarBundleID = "com.jensen.shelterbar"
+    static let alwaysAllowedBundleIDs: Set<String> = [
+        "com.apple.controlcenter", "com.apple.MenuBarAgent", "com.apple.systemuiserver",
+        "com.apple.TextInputMenuAgent", "com.apple.Siri", "com.apple.Spotlight",
+        "com.apple.wifi.WiFiAgent", "com.apple.ScreenTimeAgent", "com.apple.AirPlayUIAgent",
+        "com.apple.UserNotificationCenter", "com.apple.notificationcenterui", "com.apple.loginwindow",
+    ]
+
+    static func protectedBundleIDs(ownBundleID: String?) -> Set<String> {
+        var protected = alwaysAllowedBundleIDs.union([shelterBarBundleID])
+        if let ownBundleID { protected.insert(ownBundleID) }
+        return protected
+    }
+
+    static func supports(bundleID: String?, ownBundleID: String?) -> Bool {
+        guard let bundleID, !bundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return !protectedBundleIDs(ownBundleID: ownBundleID).contains(bundleID)
+    }
+}
+
 @objc private protocol MenuBarAssessmentAssertion: AnyObject {
     @objc(activateWithConfiguration:completionHandler:)
     func activate(with configuration: AnyObject, completionHandler: @escaping (NSError?) -> Void)
@@ -12,6 +35,7 @@ enum MenuBarRestrictionError: LocalizedError {
     case unavailable
     case configurationFailed
     case activation(NSError)
+    case timedOut
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +45,8 @@ enum MenuBarRestrictionError: LocalizedError {
             return "无法创建菜单栏显示配置"
         case let .activation(error):
             return "MenuBarAgent 拒绝了显示配置：\(error.localizedDescription)"
+        case .timedOut:
+            return "MenuBarAgent 显示配置超时"
         }
     }
 }
@@ -31,7 +57,7 @@ enum MenuBarRestrictionError: LocalizedError {
 @MainActor
 protocol MenuBarRestrictionApplying: AnyObject {
     var isAvailable: Bool { get }
-    func restrict(allowedBundleIDs: [String], completion: @escaping (Error?) -> Void)
+    func restrict(allowedBundleIDs: [String], completion: @MainActor @escaping (Error?) -> Void)
     func release()
 }
 
@@ -68,7 +94,7 @@ final class MenuBarClientRestriction: MenuBarRestrictionApplying {
 
     var isAvailable: Bool { classes != nil }
 
-    func restrict(allowedBundleIDs: [String], completion: @escaping (Error?) -> Void) {
+    func restrict(allowedBundleIDs: [String], completion: @MainActor @escaping (Error?) -> Void) {
         guard let classes else {
             completion(MenuBarRestrictionError.unavailable)
             return
@@ -133,42 +159,36 @@ final class MenuBarClientRestriction: MenuBarRestrictionApplying {
 /// this is also the source of truth used by placement verification and UI.
 @MainActor
 final class MenuBarAgentVisibilityController {
-    private static let shelterBarBundleID = "com.jensen.shelterbar"
-    private static let alwaysAllowedBundleIDs: Set<String> = [
-        "com.apple.controlcenter",
-        "com.apple.MenuBarAgent",
-        "com.apple.systemuiserver",
-        "com.apple.TextInputMenuAgent",
-        "com.apple.Siri",
-        "com.apple.Spotlight",
-        "com.apple.wifi.WiFiAgent",
-        "com.apple.ScreenTimeAgent",
-        "com.apple.AirPlayUIAgent",
-        "com.apple.UserNotificationCenter",
-        "com.apple.notificationcenterui",
-        "com.apple.loginwindow",
-    ]
-
     private let restriction: any MenuBarRestrictionApplying
     private let runningBundleIDs: @MainActor () -> [String]
     private let ownBundleID: String?
+    private let activationTimeout: Duration
     private(set) var desiredHiddenBundleIDs = Set<String>()
     private(set) var activeHiddenBundleIDs = Set<String>()
     private var appliedAllowList: [String]?
+    private var runtimeAvailable = true
+    private var nextRequestID = 0
+    private var pendingApply: (
+        id: Int,
+        allowed: [String],
+        continuation: CheckedContinuation<Bool, Never>
+    )?
 
     init(
         restriction: any MenuBarRestrictionApplying = MenuBarClientRestriction(),
         runningBundleIDs: @escaping @MainActor () -> [String] = {
             NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
         },
-        ownBundleID: String? = Bundle.main.bundleIdentifier
+        ownBundleID: String? = Bundle.main.bundleIdentifier,
+        activationTimeout: Duration = .milliseconds(750)
     ) {
         self.restriction = restriction
         self.runningBundleIDs = runningBundleIDs
         self.ownBundleID = ownBundleID
+        self.activationTimeout = activationTimeout
     }
 
-    var isAvailable: Bool { restriction.isAvailable }
+    var isAvailable: Bool { restriction.isAvailable && runtimeAvailable }
 
     /// A bundle allow-list cannot hide an app that must remain allowed.
     /// Keep both the shipped identifier and the current host protected,
@@ -177,10 +197,7 @@ final class MenuBarAgentVisibilityController {
         bundleID: String?,
         ownBundleID: String? = Bundle.main.bundleIdentifier
     ) -> Bool {
-        guard let bundleID, !bundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return false
-        }
-        return !protectedBundleIDs(ownBundleID: ownBundleID).contains(bundleID)
+        MenuBarCollectionCapability.supports(bundleID: bundleID, ownBundleID: ownBundleID)
     }
 
     func canCollect(bundleID: String?) -> Bool {
@@ -239,6 +256,10 @@ final class MenuBarAgentVisibilityController {
     }
 
     func clear() {
+        if let pendingApply {
+            self.pendingApply = nil
+            pendingApply.continuation.resume(returning: false)
+        }
         restriction.release()
         appliedAllowList = nil
         desiredHiddenBundleIDs.removeAll()
@@ -254,20 +275,38 @@ final class MenuBarAgentVisibilityController {
         }
         let allowed = Set(runningBundleIDs())
             .subtracting(hidden)
-            .union(Self.protectedBundleIDs(ownBundleID: ownBundleID))
+            .union(MenuBarCollectionCapability.protectedBundleIDs(ownBundleID: ownBundleID))
             .sorted()
         if allowed == appliedAllowList, activeHiddenBundleIDs == hidden { return true }
+        guard pendingApply == nil else { return false }
+        nextRequestID += 1
+        let requestID = nextRequestID
         return await withCheckedContinuation { continuation in
-            restriction.restrict(allowedBundleIDs: allowed) { error in
-                if error == nil { self.appliedAllowList = allowed }
-                continuation.resume(returning: error == nil)
+            pendingApply = (requestID, allowed, continuation)
+            restriction.restrict(allowedBundleIDs: allowed) { [weak self] error in
+                self?.finishApply(requestID: requestID, error: error)
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: activationTimeout)
+                finishApply(requestID: requestID, error: MenuBarRestrictionError.timedOut)
             }
         }
     }
 
-    private static func protectedBundleIDs(ownBundleID: String?) -> Set<String> {
-        var protected = alwaysAllowedBundleIDs.union([shelterBarBundleID])
-        if let ownBundleID { protected.insert(ownBundleID) }
-        return protected
+    private func finishApply(requestID: Int, error: Error?) {
+        guard let pending = pendingApply, pending.id == requestID else { return }
+        pendingApply = nil
+        if let error {
+            runtimeAvailable = false
+            restriction.release()
+            appliedAllowList = nil
+            activeHiddenBundleIDs.removeAll()
+            menuBarMoveLog.error("MenuBarAgent restriction disabled after runtime failure: \(error.localizedDescription, privacy: .public); using legacy movement")
+        } else {
+            appliedAllowList = pending.allowed
+        }
+        pending.continuation.resume(returning: error == nil)
     }
+
 }

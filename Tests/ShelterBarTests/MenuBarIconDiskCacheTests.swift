@@ -3,10 +3,11 @@ import ApplicationServices
 import Testing
 @testable import ShelterBar
 
-@MainActor
-private final class CacheFixtureSource: ShelfItemSource {
+private final class CacheFixtureSource: ShelfItemSource, @unchecked Sendable {
     var entries: [ShelfItem] = []
-    func items() -> [ShelfItem] { entries }
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        ShelfItemScanResult(items: entries, isComplete: true)
+    }
 }
 
 private func tempDirectory() -> URL {
@@ -111,7 +112,7 @@ func iconCachePruneAndCap() {
 
 @Test("after a restart the shelf shows the persisted glyph of an off-screen stowed item")
 @MainActor
-func shelfShowsPersistedGlyphAfterRestart() throws {
+func shelfShowsPersistedGlyphAfterRestart() async throws {
     let dir = tempDirectory()
     defer { try? FileManager.default.removeItem(at: dir) }
     let suite = "ShelterBarIconCacheTests.\(UUID().uuidString)"
@@ -125,7 +126,7 @@ func shelfShowsPersistedGlyphAfterRestart() throws {
     let first = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
                                isVisible: { $0.minX >= 0 }, iconStore: MenuBarIconDiskCache(directory: dir))
     first.hasScreenCapturePermission = true
-    first.refresh()
+    await first.reload()
     first.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: getpid(), image: glyph(red: 250, tone: .light))])
 
     // Relaunch: the item is off-screen, so nothing can be captured.
@@ -133,7 +134,7 @@ func shelfShowsPersistedGlyphAfterRestart() throws {
     let second = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
                                 isVisible: { $0.minX >= 0 }, iconStore: MenuBarIconDiskCache(directory: dir))
     second.hasScreenCapturePermission = true
-    second.refresh()
+    await second.reload()
     let shown = try #require(second.items.first)
     #expect(shown.hasMenuBarIcon)
     #expect(shown.icon.size == NSSize(width: 18, height: 22))

@@ -1,8 +1,7 @@
 import AppKit
 import ApplicationServices
 
-@MainActor
-final class MenuBarItemReference {
+final class MenuBarItemReference: @unchecked Sendable {
     let pid: pid_t
     let element: AXUIElement
     var frame: CGRect
@@ -21,7 +20,7 @@ final class MenuBarItemReference {
     func currentFrame() -> CGRect? { MenuBarAX.frame(of: element) }
 }
 
-struct ShelfItem: Identifiable {
+struct ShelfItem: Identifiable, @unchecked Sendable {
     let id: String
     let title: String
     var icon: NSImage
@@ -47,20 +46,37 @@ struct ShelfItem: Identifiable {
     }
 }
 
-@MainActor
-protocol ShelfItemSource {
-    func items() -> [ShelfItem]
+struct ShelfItemScanResult: Sendable {
+    let items: [ShelfItem]
+    let isComplete: Bool
 }
 
-@MainActor
-struct AccessibilityMenuBarItemSource: ShelfItemSource {
+protocol ShelfItemSource: Sendable {
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult
+}
+
+extension ShelfItemSource {
     func items() -> [ShelfItem] {
-        guard AXIsProcessTrusted() else { return [] }
+        items(deadline: .now + .seconds(5)).items
+    }
+}
+
+struct AccessibilityMenuBarItemSource: ShelfItemSource, @unchecked Sendable {
+    private let placeholderImage: NSImage
+
+    @MainActor
+    init() {
+        placeholderImage = MenuBarIconPresentation.placeholder()
+    }
+
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        guard AXIsProcessTrusted() else { return ShelfItemScanResult(items: [], isComplete: true) }
 
         var output: [ShelfItem] = []
         var usedIDs = Set<String>()
 
         for application in NSWorkspace.shared.runningApplications where shouldInspect(application) {
+            guard ContinuousClock.now < deadline else { break }
             let appElement = AXUIElementCreateApplication(application.processIdentifier)
             AXUIElementSetMessagingTimeout(appElement, 0.08)
             guard let extrasMenuBar: AXUIElement = attribute(kAXExtrasMenuBarAttribute, of: appElement) else {
@@ -68,21 +84,28 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
             }
 
             var candidates: [AXUIElement] = []
-            collectMenuBarItems(from: extrasMenuBar, depth: 0, into: &candidates)
+            collectMenuBarItems(from: extrasMenuBar, depth: 0, deadline: deadline, into: &candidates)
             let identifierCounts = Dictionary(
-                candidates.compactMap { firstNonemptyAttribute([kAXIdentifierAttribute], of: $0) }
+                candidates.compactMap {
+                    firstNonemptyAttribute([kAXIdentifierAttribute], of: $0, deadline: deadline)
+                }
                     .map { ($0, 1) }, uniquingKeysWith: +
             )
             for element in candidates {
-                guard let frame = frame(of: element), frame.width > 1, frame.height > 1 else { continue }
+                guard ContinuousClock.now < deadline else { break }
+                guard let frame = frame(of: element, deadline: deadline),
+                      frame.width > 1, frame.height > 1 else { continue }
 
                 let rawTitle = firstNonemptyAttribute(
                     [kAXTitleAttribute, kAXHelpAttribute, kAXDescriptionAttribute],
-                    of: element
+                    of: element,
+                    deadline: deadline
                 )
                 let appName = application.localizedName ?? "菜单栏项"
                 let title = rawTitle ?? appName
-                let axIdentifier = firstNonemptyAttribute([kAXIdentifierAttribute], of: element)
+                let axIdentifier = firstNonemptyAttribute(
+                    [kAXIdentifierAttribute], of: element, deadline: deadline
+                )
                 let uniqueIdentifier = axIdentifier.flatMap { identifierCounts[$0] == 1 ? $0 : nil }
                 let persistent = uniqueIdentifier != nil || candidates.count == 1
                 let identifier = uniqueIdentifier ?? (candidates.count == 1
@@ -91,11 +114,8 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
                 let id = "ax:\(owner):\(identifier)"
                 guard usedIDs.insert(id).inserted else { continue }
 
-                let icon = MenuBarIconPresentation.placeholder(accessibilityDescription: title)
                 output.append(ShelfItem(
-                    id: id,
-                    title: title,
-                    icon: icon,
+                    id: id, title: title, icon: placeholderImage,
                     application: application,
                     menuBarReference: MenuBarItemReference(
                         pid: application.processIdentifier,
@@ -109,17 +129,21 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
                         "com.apple.menuextra.audiovideo"
                     ].contains(axIdentifier ?? "")
                         && (ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
-                            || MenuBarAgentVisibilityController.supportsCollection(bundleID: application.bundleIdentifier))
+                            || MenuBarCollectionCapability.supports(
+                                bundleID: application.bundleIdentifier,
+                                ownBundleID: "com.jensen.shelterbar"
+                            ))
                 ))
             }
         }
 
-        return output.sorted { left, right in
+        let sorted = output.sorted { left, right in
             if left.menuBarReference.frame.minX != right.menuBarReference.frame.minX {
                 return left.menuBarReference.frame.minX < right.menuBarReference.frame.minX
             }
             return left.title.localizedStandardCompare(right.title) == .orderedAscending
         }
+        return ShelfItemScanResult(items: sorted, isComplete: ContinuousClock.now < deadline)
     }
 
     private func shouldInspect(_ application: NSRunningApplication) -> Bool {
@@ -131,30 +155,55 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
     private func collectMenuBarItems(
         from element: AXUIElement,
         depth: Int,
+        deadline: ContinuousClock.Instant,
         into output: inout [AXUIElement]
     ) {
-        guard depth <= 4 else { return }
+        guard depth <= 4, ContinuousClock.now < deadline else { return }
         AXUIElementSetMessagingTimeout(element, 0.08)
         let role: String? = attribute(kAXRoleAttribute, of: element)
         if role == (kAXMenuBarItemRole as String) {
             output.append(element)
             return
         }
+        guard ContinuousClock.now < deadline else { return }
         let children: [AXUIElement] = attribute(kAXChildrenAttribute, of: element) ?? []
         for child in children {
-            collectMenuBarItems(from: child, depth: depth + 1, into: &output)
+            guard ContinuousClock.now < deadline else { return }
+            collectMenuBarItems(from: child, depth: depth + 1, deadline: deadline, into: &output)
         }
     }
 
-    private func frame(of element: AXUIElement) -> CGRect? {
-        MenuBarAX.frame(of: element)
+    private func frame(of element: AXUIElement, deadline: ContinuousClock.Instant) -> CGRect? {
+        guard ContinuousClock.now < deadline else { return nil }
+        var position: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXPositionAttribute as CFString, &position
+        ) == .success, ContinuousClock.now < deadline else { return nil }
+        var size: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element, kAXSizeAttribute as CFString, &size
+        ) == .success,
+              let position, let size,
+              CFGetTypeID(position) == AXValueGetTypeID(),
+              CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+        let p = unsafeDowncast(position, to: AXValue.self)
+        let s = unsafeDowncast(size, to: AXValue.self)
+        guard
+              AXValueGetType(p) == .cgPoint, AXValueGetType(s) == .cgSize else { return nil }
+        var point = CGPoint.zero
+        var dimensions = CGSize.zero
+        guard AXValueGetValue(p, .cgPoint, &point),
+              AXValueGetValue(s, .cgSize, &dimensions) else { return nil }
+        return CGRect(origin: point, size: dimensions)
     }
 
     private func firstNonemptyAttribute(
         _ names: [String],
-        of element: AXUIElement
+        of element: AXUIElement,
+        deadline: ContinuousClock.Instant
     ) -> String? {
         for name in names {
+            guard ContinuousClock.now < deadline else { return nil }
             if let value: String = attribute(name, of: element) {
                 let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty { return trimmed }
@@ -172,15 +221,14 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource {
     }
 }
 
-@MainActor
 enum MenuBarAX {
-    static func value<T>(_ name: String, of element: AXUIElement) -> T? {
+    nonisolated static func value<T>(_ name: String, of element: AXUIElement) -> T? {
         var result: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &result) == .success else { return nil }
         return result as? T
     }
 
-    static func frame(of element: AXUIElement) -> CGRect? {
+    nonisolated static func frame(of element: AXUIElement) -> CGRect? {
         guard let p: AXValue = value(kAXPositionAttribute, of: element),
               let s: AXValue = value(kAXSizeAttribute, of: element),
               AXValueGetType(p) == .cgPoint, AXValueGetType(s) == .cgSize else { return nil }
@@ -190,7 +238,7 @@ enum MenuBarAX {
         return CGRect(origin: point, size: size)
     }
 
-    static func ownItemFrame(help: String) -> CGRect? {
+    nonisolated static func ownItemFrame(help: String) -> CGRect? {
         let app = AXUIElementCreateApplication(getpid())
         guard let bar: AXUIElement = value(kAXExtrasMenuBarAttribute, of: app),
               let children: [AXUIElement] = value(kAXChildrenAttribute, of: bar) else { return nil }
