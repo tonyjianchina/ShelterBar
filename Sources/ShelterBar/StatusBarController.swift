@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private let engine: MenuBarCollectionEngine
     private let visibility: MenuBarAgentVisibilityController
     private let permissionOnboarding: PermissionOnboardingCoordinator
+    private let updater: ShelterBarUpdater
     private let monitor = MenuBarDragMonitor()
     private var presentation = ShelfPresentation()
     private var subscriptions = Set<AnyCancellable>()
@@ -24,7 +25,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     private var shelfDragInProgress = false
     private let dragGhost = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
 
-    init(source: any ShelfItemSource) {
+    init(source: any ShelfItemSource, updater: ShelterBarUpdater = ShelterBarUpdater()) {
+        self.updater = updater
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.autosaveName = "ShelterBar.Handle"
         // Seed only the new spacer next to the entry. Do not overwrite saved positions.
@@ -102,6 +104,8 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             refresh(.userRefresh)
         }
         model.onRefresh = { [weak self] in self?.refresh(.userRefresh) }
+        model.onUpdateRequest = { [weak updater] in updater?.checkForUpdatesAndInstall() }
+        updater.onStateChange = { [weak createdModel] state in createdModel?.applyUpdateState(state) }
         monitor.onOutcome = { [weak self] outcome in
             guard let self else { return }
             dragGhost.orderOut(nil)
@@ -132,6 +136,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     func shutdown() {
+        updater.stop()
         operation?.cancel()
         iconRefreshTask?.cancel()
         screenChangeTask?.cancel()
@@ -139,6 +144,10 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         monitor.stop()
         engine.cancelAndReveal()
         visibility.clear()
+    }
+
+    func startAutomaticUpdates() {
+        updater.startAutomaticUpdates()
     }
 
     private func configurePanel() {

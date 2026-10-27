@@ -49,9 +49,12 @@ final class ShelfViewModel: ObservableObject {
     @Published var message: String?
     @Published var isDropTargeted = false
     @Published var isDraggingToMenuBar = false
+    @Published var updateMenuTitle = "检查更新"
+    @Published var isUpdating = false
     var onPermissionRequest: (() -> Void)?
     var onScreenCapturePermissionRequest: (() -> Void)?
     var onRefresh: (() -> Void)?
+    var onUpdateRequest: (() -> Void)?
 
     private let source: any ShelfItemSource
     private var knownItems: [String: ShelfItem] = [:]
@@ -264,4 +267,14 @@ final class ShelfViewModel: ObservableObject {
     }
     func requestScreenCapturePermission() { onScreenCapturePermissionRequest?() }
     func openScreenCaptureSettings() { ScreenCapturePermission.openSettings() }
+    func checkForUpdates() { onUpdateRequest?() }
+    func applyUpdateState(_ state: ShelterBarUpdateState) {
+        updateMenuTitle = state.menuTitle
+        isUpdating = state.isBusy
+        switch state {
+        case let .failed(reason): message = "更新失败：\(reason)"
+        case let .upToDate(version): message = "ShelterBar \(version) 已是最新版本。"
+        default: break
+        }
+    }
 }

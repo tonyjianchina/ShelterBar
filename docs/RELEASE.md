@@ -30,6 +30,20 @@
 
 打开收纳栏后，将可移动的菜单栏图标拖入其中即可收纳；拖回顶部菜单栏可恢复。部分系统图标及无法通过辅助功能访问的图标不可管理。本版已完成下述本机真实拖动检查，但原始图标捕获及移动的完整兼容性仍须针对具体第三方应用、显示器配置和 macOS 版本验证，不能仅由自动化测试确认。
 
+### 应用内更新
+
+ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。发现更高的语义版本后，自动下载同一 release 中的 Apple Silicon ZIP 和 `SHA256SUMS`。收纳栏的“更多”菜单也有“检查更新”；手动触发会重新下载并安装当前最新版。
+
+替换前必须同时通过：
+
+- ZIP 的 SHA256 与同一 release 中的 `SHA256SUMS` 完全一致。
+- 包内版本与 release tag 一致，且只包含 `arm64` 可执行文件。
+- bundle identifier 为 `com.jensen.shelterbar`，候选 app 通过 `codesign --strict`，并满足固定证书 leaf 的 designated requirement。
+
+验证后，新 app 先复制到现有 app 的同一目录并移除 quarantine；独立 helper 在旧进程退出后交换 bundle 并重启。旧 bundle 作为回滚副本保留到新进程稳定运行；新进程启动失败时自动恢复。
+
+默认 feed 为 `https://api.github.com/repos/tonyjianchina/ShelterBar/releases?per_page=30`。本地测试可使用环境变量 `SHELTERBAR_UPDATE_FEED_URL`，或 defaults key `updates.feedURL`覆盖；仅允许 HTTPS，以及供本机测试的 loopback HTTP。可用 `SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1` 或 `updates.disableAutomatic=true` 关闭自动路径。对外发布前必须提升 `CFBundleShortVersionString`，否则已安装的同版本不会自动更新。
+
 ## v0.5.11（build 34）更新内容
 
 - 恢复并整合最新收纳能力，增强 macOS 27 菜单栏宿主、隐藏状态验证、状态图标捕获和复合图形识别。
