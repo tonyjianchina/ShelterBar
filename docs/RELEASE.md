@@ -1,4 +1,4 @@
-# ShelterBar v0.5.11 预览版
+# ShelterBar v0.5.12 预览版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 14 Sonoma 及以上**。当前下载包没有 Intel 版本。
 
@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.11](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.11) 下载 [ShelterBar-0.5.11-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/ShelterBar-0.5.11-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.12](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.12) 下载 [ShelterBar-0.5.12-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/ShelterBar-0.5.12-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/ShelterBar-0.5.12-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 ### 安装与第一次打开
 
@@ -43,6 +43,17 @@ ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。候�
 验证后，新 app 先复制到现有 app 的同一目录并移除 quarantine；独立 helper 在旧进程退出后交换 bundle 并重启。旧 bundle 作为回滚副本保留到新应用完成启动回报且继续存活；替换前后任一步失败都会重新启动完整的旧 bundle，已交换时则先自动回滚。
 
 默认 feed 为 `https://api.github.com/repos/tonyjianchina/ShelterBar/releases?per_page=30`。本地测试可使用环境变量 `SHELTERBAR_UPDATE_FEED_URL`，或 defaults key `updates.feedURL`覆盖；仅允许 HTTPS，以及供本机测试的 loopback HTTP。可用 `SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1` 或 `updates.disableAutomatic=true` 关闭自动路径。对外发布前必须提升 `CFBundleVersion`；功能版本还应同时提升 `CFBundleShortVersionString`。
+
+**从 v0.5.11 及更早版本升级：** 这些版本尚不具备自动更新能力，需要手动下载并覆盖安装 v0.5.12 一次。安装本版本后，后续版本即可使用自动更新或“检查更新”。
+
+## v0.5.12（build 35）更新内容
+
+- 修复 macOS 27 上点击菜单栏图标后持续转圈或卡顿的问题。
+- 新增自动更新，并在收纳栏的“更多”菜单中加入“检查更新”按钮。
+- v0.5.11 及更早版本需要手动安装本版本一次；安装后，后续版本即可自动更新。
+- 191 项自动化测试通过；原始图标捕获和第三方图标移动仍需在实际授权、应用与显示器组合下验证。
+
+完整说明见 [v0.5.12 发布说明](releases/v0.5.12.md)。
 
 ## v0.5.11（build 34）更新内容
 
@@ -110,7 +121,7 @@ v0.5.4–v0.5.6 的权限引导会等待辅助功能和输入监控全部生效�
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.11/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -119,7 +130,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.11-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.12-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -139,9 +150,9 @@ python3.11 -m venv .build/dmg-tools
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.11/ShelterBar-0.5.11-macos-arm64.dmg
-dist/releases/v0.5.11/ShelterBar-0.5.11-macos-arm64.zip
-dist/releases/v0.5.11/SHA256SUMS
+dist/releases/v0.5.12/ShelterBar-0.5.12-macos-arm64.dmg
+dist/releases/v0.5.12/ShelterBar-0.5.12-macos-arm64.zip
+dist/releases/v0.5.12/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、品牌背景、固定 Finder 图标布局和隐藏的中英双语安装说明。布局直接写入磁盘元数据，不需要控制 Finder、安装或启动应用。脚本校验 DMG 内部校验和、只读挂载后的图标位置和背景引用、ZIP 解压后的内容、两份应用的签名以及最终 SHA256 校验值。生成的挂载点和临时文件会在完成后清理。可通过 `SHELTERBAR_DMG_PYTHON` 指定已安装这两个锁定依赖的 Python 解释器。
@@ -187,7 +198,7 @@ SHELTERBAR_EXPECTED_DR='identifier "com.jensen.shelterbar" and certificate leaf 
 
 ## 发布检查
 
-- 将 `v0.5.11` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
+- 将 `v0.5.12` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
 - 打包前确认 `codesign -d -r- dist/ShelterBar.app` 输出的 DR 与上面的期望值一致。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
 - 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
