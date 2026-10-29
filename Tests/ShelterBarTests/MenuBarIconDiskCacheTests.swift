@@ -77,6 +77,51 @@ func iconCacheRoundTrip() throws {
     #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("index.json").path))
 }
 
+@Test("current disk and memory cached glyphs never query a foreign AX title")
+@MainActor
+func cachedGlyphDoesNotReadNumericTitle() throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let key = "ax:com.example.slow:main"
+    #expect(MenuBarIconDiskCache(directory: dir).store(glyph(red: 200), for: key))
+    let cache = MenuBarIconDiskCache(directory: dir)
+    var titleReads = 0
+    func slowTitle() -> Bool {
+        titleReads += 1
+        Thread.sleep(forTimeInterval: 0.01)
+        return false
+    }
+    let start = ContinuousClock.now
+    for _ in 0..<20 {
+        #expect(cache.image(for: key, hasCount: slowTitle()) != nil)
+    }
+    let duration = start.duration(to: .now)
+    #expect(titleReads == 0, "known glyphs must not incur AX IPC during shelf presentation")
+    print("CACHED_GLYPH_BENCH titleReads=\(titleReads) duration=\(duration)")
+}
+
+@Test("legacy glyph migration reads numeric-title metadata only when needed")
+@MainActor
+func legacyGlyphStillReadsNumericTitleForMigration() throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let key = "ax:com.example.legacy:main"
+    let original = MenuBarIconDiskCache(directory: dir)
+    #expect(original.store(glyph(red: 0, template: true), for: key))
+    var record = try #require(original.records[key])
+    record.visualVersion = nil
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode([record]).write(to: dir.appendingPathComponent(MenuBarIconDiskCache.indexName))
+    let cache = MenuBarIconDiskCache(directory: dir)
+    var titleReads = 0
+    func title() -> Bool { titleReads += 1; return false }
+    #expect(cache.image(for: key, hasCount: title()) != nil)
+    #expect(titleReads == 1, "legacy migration must still distinguish numeric labels")
+    #expect(cache.image(for: key, hasCount: title()) != nil)
+    #expect(titleReads == 1, "a restored legacy glyph is memory cached")
+}
+
 @Test("a previously accepted full-width status-host bar is evicted from the cache")
 @MainActor
 func iconCacheEvictsFullWidthStatusChrome() throws {

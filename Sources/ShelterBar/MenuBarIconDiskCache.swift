@@ -95,7 +95,9 @@ final class MenuBarIconDiskCache {
         saveCaptureFailures()
     }
 
-    func image(for key: String, hasCount: Bool = false) -> NSImage? {
+    // Reading an AX title can block on another application. It is needed only
+    // for legacy image migration, never for a current or memory-cached glyph.
+    func image(for key: String, hasCount: @autoclosure () -> Bool = false) -> NSImage? {
         if let image = images[key] { return image }
         guard let record = records[key],
               let data = try? Data(contentsOf: directory.appendingPathComponent(record.file)),
@@ -109,9 +111,10 @@ final class MenuBarIconDiskCache {
             return nil
         }
         let size = NSSize(width: record.width, height: record.height)
-        if record.visualVersion == nil, hasCount || (!record.isTemplate && record.adaptive != true),
+        let legacyHasCount = record.visualVersion == nil ? hasCount() : false
+        if record.visualVersion == nil, legacyHasCount || (!record.isTemplate && record.adaptive != true),
            let pixels = rep.cgImage {
-            guard let repaired = MenuBarCompositeGlyph.make(from: pixels, logicalSize: size, hasCount: hasCount) else {
+            guard let repaired = MenuBarCompositeGlyph.make(from: pixels, logicalSize: size, hasCount: legacyHasCount) else {
                 // A saved system chevron is not a usable app icon. Leave it
                 // missing so the normal explicit refresh can recapture it.
                 remove(key)

@@ -39,6 +39,7 @@ enum MenuBarMenuOpener {
     }
 
     private static var session: Session?
+    private static let pressExecutor = MenuBarAXPressExecutor()
     static var controlCenterPID: pid_t? {
         NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.controlcenter").first?.processIdentifier
     }
@@ -48,7 +49,6 @@ enum MenuBarMenuOpener {
         session = nil
         let pid = item.menuBarReference.pid
         let pids = [pid] + (controlCenterPID.map { [$0] } ?? []).filter { $0 != pid }
-        let element = item.menuBarReference.element
         // Re-read the live position right before clicking.
         let axFrame = item.menuBarReference.currentFrame()
         let axVisible = axFrame.map(MenuBarGeometry.isOnMenuBar) ?? false
@@ -58,14 +58,14 @@ enum MenuBarMenuOpener {
             // AXPress on a status item runs the menu's tracking loop and only
             // returns when the menu closes, so a short timeout is expected to
             // report "cannot complete" even when the menu did open.
-            AXUIElementSetMessagingTimeout(element, 0.25)
-            let result = AXUIElementPerformAction(element, kAXPressAction as CFString)
-            AXUIElementSetMessagingTimeout(element, 0)
+            let result = await pressExecutor.press(item.menuBarReference)
+            guard !Task.isCancelled else { return false }
             if let opened = await newWindows(of: pids, since: before, within: .milliseconds(700)) {
                 return begin(pids: pids, opened: opened, baseline: Set(before.keys))
             }
             menuBarMoveLog.info("AXPress \(item.id, privacy: .public) gave \(result.rawValue) without a menu; clicking instead")
         }
+        guard !Task.isCancelled else { return false }
         guard let clickFrame = window.flatMap(MenuBarGeometry.visibleFrame)
                 ?? axFrame.flatMap(MenuBarGeometry.visibleFrame) else {
             menuBarMoveLog.error("press \(item.id, privacy: .public): item is not visible; not pressing an off-screen item")
@@ -75,6 +75,7 @@ enum MenuBarMenuOpener {
         if let opened = await newWindows(of: pids, since: before, within: .milliseconds(900)) {
             return begin(pids: pids, opened: opened, baseline: Set(before.keys))
         }
+        guard !Task.isCancelled else { return false }
         // Some items toggle state without any window: treat as opened but
         // restore after a short wait (see waitUntilClosed).
         menuBarMoveLog.notice("click on \(item.id, privacy: .public) opened no detectable window")
