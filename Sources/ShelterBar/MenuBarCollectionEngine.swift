@@ -175,7 +175,7 @@ final class MenuBarCollectionEngine {
         }
 
         phase = .observing
-        updatePermissions()
+        updatePermissions(checkScreenCapture: reason != .poll)
         guard model.hasAccessibilityPermission else {
             driver.revealImmediately()
             knownItemIDs.removeAll()
@@ -427,22 +427,29 @@ final class MenuBarCollectionEngine {
 
     /// Opportunistically captures items while they are on screen.
     private func recaptureVisible(_ items: [ShelfItem]) async {
-        guard model.hasScreenCapturePermission, !items.isEmpty, !Task.isCancelled else { return }
-        for item in items { model.remember(item) }
-        let snapshots = await capture(items)
+        let missing = model.captureCandidates(from: items)
+        guard model.hasScreenCapturePermission, !missing.isEmpty, !Task.isCancelled else { return }
+        for item in missing { model.remember(item) }
+        let snapshots = await capture(missing)
         guard !Task.isCancelled, !snapshots.isEmpty else { return }
         model.applyMenuBarIcons(snapshots)
     }
 
     private func refreshPresentation() async -> MenuBarCollectionOutcome {
         phase = .observing
-        updatePermissions()
         model.refresh()
-        guard model.hasAccessibilityPermission, model.hasScreenCapturePermission, !Task.isCancelled else {
+        let missing = model.visibleCaptureCandidates(from: model.allItems)
+        guard model.hasAccessibilityPermission, !missing.isEmpty, !Task.isCancelled else {
             phase = .idle
             return .ignored
         }
-        let snapshots = await capture(model.allItems)
+        model.hasScreenCapturePermission = screenCaptureGranted()
+        guard model.hasScreenCapturePermission else {
+            phase = .idle
+            return .ignored
+        }
+        model.screenCapturePermissionHint = nil
+        let snapshots = await capture(missing)
         guard !Task.isCancelled else {
             phase = .idle
             return .ignored
@@ -571,7 +578,9 @@ final class MenuBarCollectionEngine {
         }
 
         scan = model.scan()
-        let collectedItems = scan.filter { desiredCollectedIDs.contains($0.id) }
+        let collectedItems = model.captureCandidates(from: scan.filter {
+            desiredCollectedIDs.contains($0.id)
+        })
         if model.hasScreenCapturePermission, !collectedItems.isEmpty {
             for item in collectedItems { model.remember(item) }
             let snapshots = await capture(collectedItems)
@@ -662,10 +671,12 @@ final class MenuBarCollectionEngine {
         return try await transitionShield.perform(over: region, operation)
     }
 
-    private func updatePermissions() {
+    private func updatePermissions(checkScreenCapture: Bool = true) {
         model.hasAccessibilityPermission = accessibilityGranted()
-        model.hasScreenCapturePermission = screenCaptureGranted()
-        if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
+        if checkScreenCapture {
+            model.hasScreenCapturePermission = screenCaptureGranted()
+            if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
+        }
     }
 
     private func degrade(_ error: Error) async -> MenuBarCollectionOutcome {

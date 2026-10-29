@@ -709,12 +709,12 @@ func engineRefreshesPresentationIcons() async {
     )
     let driver = EngineFixtureDriver()
     driver.placements = ["resident": .resident]
-    var capturedIDs: [String] = []
+    var capturedBatches: [[String]] = []
     let engine = MenuBarCollectionEngine(
         model: model,
         driver: driver,
         capture: { items in
-            capturedIDs = items.map(\.id)
+            capturedBatches.append(items.map(\.id))
             return items.map {
                 MenuBarIconSnapshot(id: $0.id, pid: $0.menuBarReference.pid, image: NSImage())
             }
@@ -725,10 +725,42 @@ func engineRefreshesPresentationIcons() async {
     _ = await engine.perform(.reconcile(.launch))
 
     _ = await engine.perform(.refreshPresentation)
+    _ = await engine.perform(.refreshPresentation)
 
-    #expect(capturedIDs == ["resident"])
+    #expect(capturedBatches == [["resident"]], "a cached glyph must not be captured again")
     #expect(model.item(withID: "resident")?.hasMenuBarIcon == true)
     #expect(engine.phase == .idle)
+}
+
+@Test("polling cached inventory neither checks nor captures the screen")
+@MainActor
+func enginePollSkipsScreenCaptureForCachedInventory() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("resident", hidden: false)]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                               isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["resident": .resident]
+    var permissionChecks = 0
+    let engine = MenuBarCollectionEngine(
+        model: model,
+        driver: driver,
+        capture: { _ in Issue.record("cached polling must not capture"); return [] },
+        accessibilityGranted: { true },
+        screenCaptureGranted: { permissionChecks += 1; return true }
+    )
+    _ = await engine.perform(.reconcile(.launch))
+    model.applyMenuBarIcons([
+        MenuBarIconSnapshot(id: "resident", pid: getpid(), image: NSImage(size: NSSize(width: 18, height: 22)))
+    ])
+    permissionChecks = 0
+
+    _ = await engine.perform(.reconcile(.poll))
+
+    #expect(permissionChecks == 0)
 }
 
 @Test("manual collection and return share the verified engine transaction")

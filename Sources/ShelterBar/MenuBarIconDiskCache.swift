@@ -23,9 +23,9 @@ struct MenuBarIconCacheRecord: Codable, Equatable {
     var visualVersion: Int? = nil
 }
 
-/// Persists captured glyphs of stowed items so the shelf can show real icons
-/// right after launch, while those items are still off-screen and cannot be
-/// captured again. Only items with a stable identity are stored.
+/// Persists the first usable glyph for every stable status-item identity.
+/// Resident and stowed items share the same cache so later launches never need
+/// another screen capture merely to reconstruct an icon already seen before.
 @MainActor
 final class MenuBarIconDiskCache {
     static var defaultDirectory: URL {
@@ -68,6 +68,14 @@ final class MenuBarIconDiskCache {
         guard let record = records[key],
               let data = try? Data(contentsOf: directory.appendingPathComponent(record.file)),
               let rep = NSBitmapImageRep(data: data) else { return nil }
+        if let pixels = rep.cgImage, MenuBarGlyphImage.isStatusHostChrome(pixels) {
+            // Builds before the shape check could persist a Control Center
+            // material strip as an app glyph. Remove it so an explicit refresh
+            // can reveal the item briefly and capture the real icon.
+            remove(key)
+            saveIndex()
+            return nil
+        }
         let size = NSSize(width: record.width, height: record.height)
         if record.visualVersion == nil, hasCount || (!record.isTemplate && record.adaptive != true),
            let pixels = rep.cgImage {
@@ -104,6 +112,7 @@ final class MenuBarIconDiskCache {
         guard Self.isCacheable(key: key), image.size.width > 0, image.size.height > 0,
               let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               cgImage.width > 0, cgImage.height > 0,
+              !MenuBarGlyphImage.isStatusHostChrome(cgImage),
               let png = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]),
               !png.isEmpty, png.count <= Self.maxImageBytes else { return false }
         let digest = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()

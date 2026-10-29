@@ -122,7 +122,7 @@ final class MenuBarIconCapture {
         }
         var snapshots: [MenuBarIconSnapshot] = []
         for item in items {
-            guard !Task.isCancelled, ScreenCapturePermission.isGranted else { return [] }
+            guard !Task.isCancelled else { return [] }
             guard !isLogicallyHidden(item),
                   let frame = initialFrames[item.id], item.menuBarReference.currentFrame() == frame,
                   let id = MenuBarIconMatcher.match(frame: frame, pid: item.menuBarReference.pid, windows: candidates),
@@ -136,7 +136,7 @@ final class MenuBarIconCapture {
                       ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27,
                       MenuBarGeometry.visibleFrame(frame) == frame,
                       let pixels = await stableCompositeCapture(item: item, frame: frame),
-                      !Task.isCancelled, ScreenCapturePermission.isGranted,
+                      !Task.isCancelled,
                       !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                       let image = MenuBarCompositeGlyph.make(from: pixels, logicalSize: frame.size,
                           hasCount: item.hasNumericTitle) else { continue }
@@ -167,15 +167,31 @@ final class MenuBarIconCapture {
             configuration.captureResolution = .best
             guard let pixels = try? await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: configuration
-            ), !Task.isCancelled, ScreenCapturePermission.isGranted,
+            ), !Task.isCancelled,
                   !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                   let crop = MenuBarIconMatcher.pixelCrop(itemFrame: frame, windowFrame: window.frame,
                       pixelSize: CGSize(width: pixels.width, height: pixels.height)),
                   let cropped = pixels.cropping(to: crop) else { continue }
             let logicalSize = frame.intersection(window.frame).size
-            let image = item.hasNumericTitle
+            let nativeImage = item.hasNumericTitle
                 ? MenuBarCompositeGlyph.make(from: cropped, logicalSize: logicalSize, hasCount: true)
                 : MenuBarGlyphImage.make(from: cropped, logicalSize: logicalSize)
+            let image: NSImage?
+            if let nativeImage {
+                image = nativeImage
+            } else if #available(macOS 15.2, *),
+                      ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27,
+                      MenuBarGeometry.visibleFrame(frame) == frame,
+                      let composite = await stableCompositeCapture(item: item, frame: frame) {
+                // Some Control Center-hosted status windows expose only a
+                // full-width material strip in their private surface. Fall
+                // back to the pixels the user actually sees before giving up.
+                image = MenuBarCompositeGlyph.make(
+                    from: composite, logicalSize: frame.size, hasCount: item.hasNumericTitle
+                )
+            } else {
+                image = nil
+            }
             guard let image else { continue }
             snapshots.append(MenuBarIconSnapshot(id: item.id, pid: item.menuBarReference.pid, image: image))
         }
@@ -187,7 +203,7 @@ final class MenuBarIconCapture {
         var stability = MenuBarCaptureStability()
         let attempts = 6
         for attempt in 0..<attempts {
-            guard !Task.isCancelled, ScreenCapturePermission.isGranted,
+            guard !Task.isCancelled,
                   !isLogicallyHidden(item), item.menuBarReference.currentFrame() == frame,
                   let pixels = try? await SCScreenshotManager.captureImage(in: frame) else { return nil }
             if stability.observe(pixels) { return pixels }
@@ -238,15 +254,8 @@ enum MenuBarGlyphImage {
     static func make(from source: CGImage, logicalSize: CGSize) -> NSImage? {
         let width = source.width, height = source.height
         guard width > 0, height > 0, width <= 4096, height <= 400 else { return nil }
-        var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
-            guard let context = CGContext(data: bytes.baseAddress, width: width, height: height,
-                bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) else { return false }
-            context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
-            return true
-        }
-        guard rendered else { return nil }
+        guard let pixels = renderedPixels(from: source),
+              !isFullWidthStatusChrome(pixels, width: width, height: height) else { return nil }
         var visible = 0, colored = 0, transparent = 0, maxAlpha = 0
         for index in stride(from: 0, to: pixels.count, by: 4) {
             let alpha = Int(pixels[index + 3])
@@ -308,6 +317,60 @@ enum MenuBarGlyphImage {
         let tone: MenuBarGlyphTone = mean >= 200 ? .light : mean <= 60 ? .dark : .mixed
         setTone(tone, on: image)
         return image
+    }
+
+    /// A private hosted status surface can contain only its material strip,
+    /// while the real glyph exists solely in the composited menu bar. Such a
+    /// strip spans both crop edges and is almost a solid neutral rectangle.
+    static func isStatusHostChrome(_ source: CGImage) -> Bool {
+        guard let pixels = renderedPixels(from: source) else { return false }
+        return isFullWidthStatusChrome(pixels, width: source.width, height: source.height)
+    }
+
+    private static func renderedPixels(from source: CGImage) -> [UInt8]? {
+        let width = source.width, height = source.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let rendered = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(data: bytes.baseAddress, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue) else { return false }
+            context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        return rendered ? pixels : nil
+    }
+
+    private static func isFullWidthStatusChrome(_ pixels: [UInt8], width: Int, height: Int) -> Bool {
+        guard width >= 8, height >= 8 else { return false }
+        var visible = 0, colored = 0, maxAlpha = 0
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let alpha = Int(pixels[index + 3])
+            guard alpha >= 12 else { continue }
+            visible += 1
+            maxAlpha = max(maxAlpha, alpha)
+            let r = Int(pixels[index]), g = Int(pixels[index + 1]), b = Int(pixels[index + 2])
+            if (max(r, g, b) - min(r, g, b)) * 255 > 14 * alpha { colored += 1 }
+        }
+        guard visible > 0, maxAlpha > 0,
+              Double(colored) <= Double(visible) * coloredFractionLimit else { return false }
+
+        let solidAlpha = max(64, maxAlpha / 2)
+        var left = width, right = -1, top = height, bottom = -1, solid = 0
+        for y in 0..<height { for x in 0..<width {
+            guard Int(pixels[(y * width + x) * 4 + 3]) >= solidAlpha else { continue }
+            solid += 1
+            left = min(left, x); right = max(right, x)
+            top = min(top, y); bottom = max(bottom, y)
+        } }
+        guard right >= left, bottom >= top else { return false }
+        let inkWidth = right - left + 1, inkHeight = bottom - top + 1
+        let density = Double(solid) / Double(inkWidth * inkHeight)
+        // One pixel of tolerance catches the Retina edge while retaining real
+        // centered dash/progress glyphs that have normal status-item padding.
+        return left <= 1 && right >= width - 2
+            && top >= 2 && bottom <= height - 3
+            && inkHeight * 4 >= height && inkHeight * 4 <= height * 3
+            && density >= 0.98
     }
 
     private static func adaptiveNeutralImage(_ source: [UInt8], width: Int, height: Int, logicalSize: CGSize,

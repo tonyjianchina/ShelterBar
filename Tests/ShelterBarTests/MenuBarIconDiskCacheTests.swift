@@ -33,6 +33,17 @@ private func glyph(red: UInt8, width: Int = 36, height: Int = 44, template: Bool
     return image
 }
 
+private func fullWidthStatusChromeData() -> Data {
+    let context = CGContext(data: nil, width: 36, height: 24, bitsPerComponent: 8,
+        bytesPerRow: 36 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(CGColor(gray: 1, alpha: 1))
+    context.fill(CGRect(x: 0, y: 4, width: 36, height: 12))
+    context.setFillColor(CGColor(gray: 0, alpha: 0.05))
+    context.fill(CGRect(x: 0, y: 3, width: 36, height: 1))
+    return NSBitmapImageRep(cgImage: context.makeImage()!).representation(using: .png, properties: [:])!
+}
+
 @MainActor
 private func cachedItem(_ id: String, hidden: Bool) -> ShelfItem {
     ShelfItem(
@@ -64,6 +75,32 @@ func iconCacheRoundTrip() throws {
     let template = try #require(reloaded.image(for: "ax:com.example.uu:status"))
     #expect(template.isTemplate)
     #expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("index.json").path))
+}
+
+@Test("a previously accepted full-width status-host bar is evicted from the cache")
+@MainActor
+func iconCacheEvictsFullWidthStatusChrome() throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let key = "ax:com.liguangming.Shadowrocket:main"
+    let file = MenuBarIconDiskCache.fileName(for: key)
+    let png = fullWidthStatusChromeData()
+    try png.write(to: dir.appendingPathComponent(file))
+    let record = MenuBarIconCacheRecord(
+        key: key, file: file, width: 36, height: 24, isTemplate: true, tone: 0,
+        byteCount: png.count, digest: "previously-accepted", updatedAt: Date(timeIntervalSince1970: 1_000),
+        visualVersion: 1
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode([record]).write(to: dir.appendingPathComponent(MenuBarIconDiskCache.indexName))
+
+    let cache = MenuBarIconDiskCache(directory: dir)
+    #expect(cache.keys == [key])
+    #expect(cache.image(for: key) == nil)
+    #expect(cache.keys.isEmpty)
+    #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent(file).path))
 }
 
 @Test("cache keys are stable across launches and session-only identities are never persisted")
@@ -145,10 +182,43 @@ func shelfShowsPersistedGlyphAfterRestart() async throws {
     second.refresh()
     #expect(second.items.first?.hasMenuBarIcon == false)
 
-    // Unstowing the item prunes its cache entry.
+    // Returning an item keeps its stable app association. If it is collected
+    // again later, ShelterBar can reuse the glyph without recording again.
     second.setCollected(false, id: id)
     second.refresh()
-    #expect(MenuBarIconDiskCache(directory: dir).keys.isEmpty)
+    #expect(MenuBarIconDiskCache(directory: dir).keys == [id])
+}
+
+@Test("the first capture of a resident app is persisted and reused after restart")
+@MainActor
+func residentGlyphIsCapturedOnlyOnceAcrossLaunches() async throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let suite = "ShelterBarIconCacheTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let id = "ax:com.example.resident:main"
+    let source = CacheFixtureSource()
+    source.entries = [cachedItem(id, hidden: false)]
+
+    let firstStore = MenuBarIconDiskCache(directory: dir)
+    let first = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
+                               isVisible: { $0.minX >= 0 }, iconStore: firstStore)
+    first.hasScreenCapturePermission = true
+    await first.reload()
+    first.applyMenuBarIcons([
+        MenuBarIconSnapshot(id: id, pid: getpid(), image: glyph(red: 180, tone: .mixed))
+    ])
+    #expect(firstStore.keys == [id])
+
+    let second = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
+                                isVisible: { $0.minX >= 0 },
+                                iconStore: MenuBarIconDiskCache(directory: dir))
+    second.hasScreenCapturePermission = true
+    await second.reload()
+    #expect(second.residentItems.first?.hasMenuBarIcon == true)
+    #expect(second.captureCandidates(from: second.allItems).isEmpty,
+            "a persisted app glyph must not need another screen capture")
 }
 
 @Test("a neutral shaded glyph keeps adapting to light/dark after a cache reload")

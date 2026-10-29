@@ -238,9 +238,12 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func refresh(_ reason: MenuBarReconcileReason) {
         guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
-        updatePermissionState()
-        _ = permissionOnboarding.advance()
-        updatePermissionState()
+        let checkScreenCapture = reason != .poll
+        updatePermissionState(checkScreenCapture: checkScreenCapture)
+        if checkScreenCapture {
+            _ = permissionOnboarding.advance()
+            updatePermissionState()
+        }
         if !model.hasAccessibilityPermission {
             iconRefreshTask?.cancel()
             monitor.stop()
@@ -252,9 +255,11 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func updatePermissionState() {
+    private func updatePermissionState(checkScreenCapture: Bool = true) {
         model.hasAccessibilityPermission = AccessibilityPermission.isGranted
-        model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+        if checkScreenCapture {
+            model.hasScreenCapturePermission = ScreenCapturePermission.isGranted
+        }
         if model.hasAccessibilityPermission { model.inputPermissionHint = nil }
         if model.hasScreenCapturePermission { model.screenCapturePermissionHint = nil }
     }

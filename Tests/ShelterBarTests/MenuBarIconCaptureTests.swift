@@ -114,6 +114,38 @@ private func pixels(color: CGColor?) -> CGImage {
     return context.makeImage()!
 }
 
+private func fullWidthStatusChrome() -> CGImage {
+    let context = CGContext(data: nil, width: 36, height: 24, bitsPerComponent: 8,
+        bytesPerRow: 36 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(CGColor(gray: 1, alpha: 1))
+    context.fill(CGRect(x: 0, y: 4, width: 36, height: 12))
+    context.setFillColor(CGColor(gray: 0, alpha: 0.05))
+    context.fill(CGRect(x: 0, y: 3, width: 36, height: 1))
+    return context.makeImage()!
+}
+
+@Test("native captures reject full-width solid status-host chrome")
+@MainActor
+func nativeCaptureRejectsFullWidthStatusChrome() {
+    #expect(MenuBarGlyphImage.make(
+        from: fullWidthStatusChrome(), logicalSize: CGSize(width: 36, height: 24)
+    ) == nil)
+}
+
+@Test("a real centered horizontal glyph is not mistaken for status-host chrome")
+@MainActor
+func nativeCaptureKeepsCenteredHorizontalGlyph() {
+    let context = CGContext(data: nil, width: 36, height: 24, bitsPerComponent: 8,
+        bytesPerRow: 36 * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(CGColor(gray: 1, alpha: 1))
+    context.fill(CGRect(x: 6, y: 9, width: 24, height: 6))
+    #expect(MenuBarGlyphImage.make(
+        from: context.makeImage()!, logicalSize: CGSize(width: 36, height: 24)
+    )?.isTemplate == true)
+}
+
 @Test("a composite menu bar capture waits for two matching rendered frames")
 func compositeCaptureWaitsForStablePixels() {
     let moving = pixels(color: CGColor(gray: 0.25, alpha: 1))

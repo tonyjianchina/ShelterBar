@@ -115,7 +115,7 @@ final class ShelfViewModel: ObservableObject {
             return
         }
         if !hasScreenCapturePermission { iconCache.removeAll() }
-        apply(fresh: Array(knownItems.values), didScan: false)
+        apply(fresh: Array(knownItems.values))
     }
 
     /// At most one serial AX walk is in flight. It runs off the main actor and
@@ -142,10 +142,10 @@ final class ShelfViewModel: ObservableObject {
         let result = await task.value
         guard !Task.isCancelled, generation == scanGeneration, hasAccessibilityPermission else { return }
         scanTask = nil
-        apply(fresh: result.items, didScan: true, scanWasComplete: result.isComplete)
+        apply(fresh: result.items, scanWasComplete: result.isComplete)
     }
 
-    private func apply(fresh: [ShelfItem], didScan: Bool, scanWasComplete: Bool = true) {
+    private func apply(fresh: [ShelfItem], scanWasComplete: Bool = true) {
         var byID = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         // A bounded scan may stop before reaching every application. Preserve
         // any non-terminated reference it omitted. A later complete scan is
@@ -175,7 +175,6 @@ final class ShelfViewModel: ObservableObject {
             byID[id] = item
         }
         knownItems = byID
-        if didScan, !fresh.isEmpty { iconStore?.prune(keeping: collectedIDs) }
         let order = defaults.stringArray(forKey: "shelf.itemOrder") ?? []
         let rank = Dictionary(order.enumerated().map { ($1, $0) }, uniquingKeysWith: min)
         let ordered = byID.values.sorted {
@@ -200,15 +199,30 @@ final class ShelfViewModel: ObservableObject {
             refresh()
             return
         }
-        let collected = collectedIDs
         for snapshot in snapshots where knownItems[snapshot.id]?.menuBarReference.pid == snapshot.pid {
             iconCache[snapshot.id] = snapshot
-            if collected.contains(snapshot.id) { iconStore?.store(snapshot.image, for: snapshot.id) }
+            if knownItems[snapshot.id]?.hasPersistentIdentity == true {
+                iconStore?.store(snapshot.image, for: snapshot.id)
+            }
         }
         refresh()
     }
     func hasMenuBarIcon(for item: ShelfItem) -> Bool {
         iconCache[item.id]?.pid == item.menuBarReference.pid
+    }
+    /// Status items whose stable in-memory or persisted glyph is missing.
+    /// Every capture path goes through this filter so reconciliation can never
+    /// re-record a glyph that is already known.
+    func captureCandidates(from candidates: [ShelfItem]) -> [ShelfItem] {
+        candidates.compactMap { knownItems[$0.id] }.filter { !$0.hasMenuBarIcon }
+    }
+    /// Background presentation refreshes may inspect only currently exposed
+    /// items. A transaction that deliberately revealed a hidden item uses the
+    /// broader `captureCandidates` seam and lets the live capturer verify it.
+    func visibleCaptureCandidates(from candidates: [ShelfItem]) -> [ShelfItem] {
+        captureCandidates(from: candidates).filter {
+            !isLogicallyHidden($0) && isVisible($0.menuBarReference.frame)
+        }
     }
     func item(withID id: String) -> ShelfItem? { knownItems[id] }
     /// Shelf items that show only a placeholder (no live or persisted glyph).
@@ -227,7 +241,6 @@ final class ShelfViewModel: ObservableObject {
             sessionCollected.remove(id)
         }
         defaults.set(ids.sorted(), forKey: "shelf.collectedItems")
-        iconStore?.prune(keeping: collectedIDs)
     }
 
     func move(_ id: String, before target: String) {
