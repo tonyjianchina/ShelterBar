@@ -15,7 +15,8 @@ enum ShelterBarUpdateState: Equatable {
 
     var menuTitle: String {
         switch self {
-        case .idle, .failed: "检查更新"
+        case .idle: "检查更新"
+        case .failed: "更新失败，点击重试"
         case .checking: "正在检查更新…"
         case let .downloading(version): "正在下载 \(version)…"
         case let .verifying(version): "正在验证 \(version)…"
@@ -29,6 +30,34 @@ enum ShelterBarUpdateState: Equatable {
         case .checking, .downloading, .verifying, .installing: true
         case .idle, .upToDate, .failed: false
         }
+    }
+}
+
+struct UpdatePreparation: Sendable {
+    let candidate: ReleaseCandidate
+    let archiveData: Data
+    let checksumData: Data
+    let currentAppURL: URL
+    let currentVersion: ShelterBarVersion
+    let currentBuild: ShelterBarBuildNumber
+    let allowsReinstall: Bool
+}
+
+/// Injectable I/O keeps regression tests on the real updater flow without
+/// contacting GitHub, changing an installed app, or terminating the test host.
+struct UpdateOperations: Sendable {
+    var fetch: @Sendable (URL, Int) async throws -> Data = {
+        try await UpdateHTTPClient.get($0, maximumBytes: $1)
+    }
+    var prepare: @Sendable (UpdatePreparation) async throws -> UpdateInstallPlan? = { request in
+        try await Task.detached(priority: .userInitiated) {
+            try UpdateInstaller.prepare(
+                candidate: request.candidate, archiveData: request.archiveData,
+                checksumData: request.checksumData, currentAppURL: request.currentAppURL,
+                currentVersion: request.currentVersion, currentBuild: request.currentBuild,
+                allowsReinstall: request.allowsReinstall
+            )
+        }.value
     }
 }
 
@@ -107,6 +136,7 @@ private enum UpdateHTTPClient {
 @MainActor
 final class ShelterBarUpdater {
     var onStateChange: ((ShelterBarUpdateState) -> Void)?
+    private(set) var isUserInitiated = false
     private(set) var state: ShelterBarUpdateState = .idle {
         didSet {
             onStateChange?(state)
@@ -119,15 +149,18 @@ final class ShelterBarUpdater {
     private let currentVersion: ShelterBarVersion?
     private let currentBuild: ShelterBarBuildNumber?
     private let currentAppURL: URL
+    private let operations: UpdateOperations
     private var automaticTask: Task<Void, Never>?
     private var updateTask: Task<Void, Never>?
 
     init(
         bundle: Bundle = .main,
         defaults: UserDefaults = .standard,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        operations: UpdateOperations = UpdateOperations()
     ) {
         self.defaults = defaults
+        self.operations = operations
         configuration = UpdateConfiguration(defaults: defaults, environment: environment)
         currentVersion = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
             .flatMap(ShelterBarVersion.init)
@@ -168,7 +201,8 @@ final class ShelterBarUpdater {
         }
     }
 
-    private func performUpdate(allowsReinstall: Bool) async {
+    func performUpdate(allowsReinstall: Bool) async {
+        isUserInitiated = allowsReinstall
         guard let currentVersion, let currentBuild else {
             fail("无法读取当前版本或构建号")
             return
@@ -176,32 +210,40 @@ final class ShelterBarUpdater {
         do {
             state = .checking
             updateLog.notice("checking \(self.configuration.feedURL.absoluteString, privacy: .public) from \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public)); reinstall=\(allowsReinstall)")
-            let feedData = try await UpdateHTTPClient.get(configuration.feedURL, maximumBytes: 5 * 1_024 * 1_024)
+            let feedData = try await operations.fetch(configuration.feedURL, 5 * 1_024 * 1_024)
+            try Task.checkCancellation()
             let catalog = try ReleaseCatalog(data: feedData)
             guard let candidate = catalog.latest(for: currentVersion) else {
                 state = .upToDate(currentVersion.description)
                 updateLog.notice("up to date at \(currentVersion.description, privacy: .public)")
                 return
             }
+            let cache = UpdateCheckCache(defaults: defaults)
+            if !allowsReinstall, cache.contains(candidate: candidate, feed: configuration.feedURL,
+                                                version: currentVersion, build: currentBuild) {
+                state = .upToDate("\(currentVersion) (\(currentBuild))")
+                return
+            }
             state = .downloading(candidate.version.description)
             updateLog.notice("downloading update \(candidate.version.description, privacy: .public)")
-            async let archive = UpdateHTTPClient.get(candidate.archive.downloadURL, maximumBytes: 250 * 1_024 * 1_024)
-            async let checksums = UpdateHTTPClient.get(candidate.checksums.downloadURL, maximumBytes: 1 * 1_024 * 1_024)
+            async let archive = operations.fetch(candidate.archive.downloadURL, 250 * 1_024 * 1_024)
+            async let checksums = operations.fetch(candidate.checksums.downloadURL, 1 * 1_024 * 1_024)
             let (archiveData, checksumData) = try await (archive, checksums)
+            try Task.checkCancellation()
             state = .verifying(candidate.version.description)
-            let appURL = currentAppURL
-            let plan = try await Task.detached(priority: .userInitiated) {
-                try UpdateInstaller.prepare(
+            let plan = try await operations.prepare(UpdatePreparation(
                     candidate: candidate,
                     archiveData: archiveData,
                     checksumData: checksumData,
-                    currentAppURL: appURL,
+                    currentAppURL: currentAppURL,
                     currentVersion: currentVersion,
                     currentBuild: currentBuild,
                     allowsReinstall: allowsReinstall
-                )
-            }.value
+                ))
             guard let plan else {
+                try Task.checkCancellation()
+                cache.record(candidate: candidate, feed: configuration.feedURL, version: currentVersion,
+                             build: currentBuild, archive: archiveData, checksums: checksumData)
                 state = .upToDate("\(currentVersion) (\(currentBuild))")
                 updateLog.notice("up to date at \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public))")
                 return

@@ -105,7 +105,9 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         }
         model.onRefresh = { [weak self] in self?.refresh(.userRefresh) }
         model.onUpdateRequest = { [weak updater] in updater?.checkForUpdatesAndInstall() }
-        updater.onStateChange = { [weak createdModel] state in createdModel?.applyUpdateState(state) }
+        updater.onStateChange = { [weak createdModel, weak updater] state in
+            createdModel?.applyUpdateState(state, isUserInitiated: updater?.isUserInitiated ?? false)
+        }
         monitor.onOutcome = { [weak self] outcome in
             guard let self else { return }
             dragGhost.orderOut(nil)

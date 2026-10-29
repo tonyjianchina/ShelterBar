@@ -198,10 +198,12 @@ enum UpdateEligibility: Equatable, Sendable {
 struct ReleaseAsset: Decodable, Equatable, Sendable {
     let name: String
     let downloadURL: URL
+    let digest: String?
 
     private enum CodingKeys: String, CodingKey {
         case name
         case downloadURL = "browser_download_url"
+        case digest
     }
 }
 

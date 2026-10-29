@@ -322,9 +322,12 @@ final class ShelfViewModel: ObservableObject {
     func requestScreenCapturePermission() { onScreenCapturePermissionRequest?() }
     func openScreenCaptureSettings() { ScreenCapturePermission.openSettings() }
     func checkForUpdates() { onUpdateRequest?() }
-    func applyUpdateState(_ state: ShelterBarUpdateState) {
+    func applyUpdateState(_ state: ShelterBarUpdateState, isUserInitiated: Bool = true) {
         updateMenuTitle = state.menuTitle
         isUpdating = state.isBusy
+        // Routine background checks must not replace the user's icons with a
+        // success/error banner. Manual checks still report their full result.
+        guard isUserInitiated else { return }
         switch state {
         case let .failed(reason): message = "更新失败：\(reason)"
         case let .upToDate(version): message = "ShelterBar \(version) 已是最新版本。"
