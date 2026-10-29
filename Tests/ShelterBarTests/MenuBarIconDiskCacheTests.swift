@@ -123,6 +123,46 @@ func iconCacheKeyStability() {
     #expect(cache.keys.isEmpty)
 }
 
+@Test("a failed stable capture stays quiet across polls and launches until explicit retry")
+@MainActor
+func failedStableCaptureIsNegativelyCached() async throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let suite = "ShelterBarIconCacheTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let id = "ax:com.example.uncapturable:main"
+    let source = CacheFixtureSource()
+    source.entries = [cachedItem(id, hidden: false)]
+
+    let first = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 },
+        iconStore: MenuBarIconDiskCache(directory: dir)
+    )
+    first.hasScreenCapturePermission = true
+    await first.reload()
+    let initial = first.captureCandidates(from: first.allItems)
+    #expect(initial.map(\.id) == [id])
+    first.recordCaptureResults(for: initial, snapshots: [])
+    #expect(first.captureCandidates(from: first.allItems).isEmpty,
+            "a failed item must not be recorded again by the next poll")
+
+    let reloadedStore = MenuBarIconDiskCache(directory: dir)
+    #expect(reloadedStore.hasCaptureFailure(for: id))
+    let second = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 },
+        iconStore: reloadedStore
+    )
+    second.hasScreenCapturePermission = true
+    await second.reload()
+    #expect(second.captureCandidates(from: second.allItems).isEmpty,
+            "the negative cache must survive a ShelterBar restart")
+
+    second.retryMissingIconCaptures()
+    #expect(second.captureCandidates(from: second.allItems).map(\.id) == [id])
+    #expect(!reloadedStore.hasCaptureFailure(for: id))
+}
+
 @Test("pruning drops untracked items and the size cap evicts the oldest entries")
 @MainActor
 func iconCachePruneAndCap() {

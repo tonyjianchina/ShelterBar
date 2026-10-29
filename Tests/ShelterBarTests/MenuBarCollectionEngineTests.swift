@@ -732,6 +732,38 @@ func engineRefreshesPresentationIcons() async {
     #expect(engine.phase == .idle)
 }
 
+@Test("an uncapturable icon is attempted once until the user explicitly refreshes")
+@MainActor
+func engineDoesNotRepeatedlyCaptureMissingIcon() async {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("resident", hidden: false)]
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 }
+    )
+    let driver = EngineFixtureDriver()
+    driver.placements = ["resident": .resident]
+    var captureCount = 0
+    let engine = MenuBarCollectionEngine(
+        model: model,
+        driver: driver,
+        capture: { _ in captureCount += 1; return [] },
+        accessibilityGranted: { true },
+        screenCaptureGranted: { true }
+    )
+    _ = await engine.perform(.reconcile(.launch))
+
+    _ = await engine.perform(.refreshPresentation)
+    _ = await engine.perform(.refreshPresentation)
+    #expect(captureCount == 1, "background presentation refresh must not retry a failed icon")
+
+    _ = await engine.perform(.reconcile(.userRefresh))
+    _ = await engine.perform(.refreshPresentation)
+    #expect(captureCount == 2, "an explicit user refresh gives the unchanged identity one new attempt")
+}
+
 @Test("polling cached inventory neither checks nor captures the screen")
 @MainActor
 func enginePollSkipsScreenCaptureForCachedInventory() async {

@@ -59,6 +59,7 @@ final class ShelfViewModel: ObservableObject {
     private let source: any ShelfItemSource
     private var knownItems: [String: ShelfItem] = [:]
     private var iconCache: [String: MenuBarIconSnapshot] = [:]
+    private var attemptedCaptureTokens = Set<String>()
     private let defaults: UserDefaults
     private let isTrusted: @MainActor () -> Bool
     private let isVisible: @MainActor (CGRect) -> Bool
@@ -207,6 +208,36 @@ final class ShelfViewModel: ObservableObject {
         }
         refresh()
     }
+    /// Records the complete result of one bounded capture pass. A failed item
+    /// is suppressed for the rest of this session; stable identities also keep
+    /// that negative result across launches so background polling stays quiet.
+    func recordCaptureResults(for candidates: [ShelfItem], snapshots: [MenuBarIconSnapshot]) {
+        let captured = Set(snapshots.map { captureToken(id: $0.id, pid: $0.pid) })
+        for item in candidates {
+            let token = captureToken(for: item)
+            if captured.contains(token) {
+                attemptedCaptureTokens.remove(token)
+                iconStore?.clearCaptureFailure(for: item.id)
+            } else {
+                attemptedCaptureTokens.insert(token)
+                if item.hasPersistentIdentity {
+                    iconStore?.recordCaptureFailure(for: item.id)
+                }
+            }
+        }
+    }
+
+    /// Gives missing icons one fresh attempt after the user explicitly chooses
+    /// “刷新并恢复收纳”. Ordinary shelf opens and 15-second polls never clear it.
+    func retryMissingIconCaptures() {
+        for item in knownItems.values where !item.hasMenuBarIcon {
+            attemptedCaptureTokens.remove(captureToken(for: item))
+            if item.hasPersistentIdentity {
+                iconStore?.clearCaptureFailure(for: item.id)
+            }
+        }
+    }
+
     func hasMenuBarIcon(for item: ShelfItem) -> Bool {
         iconCache[item.id]?.pid == item.menuBarReference.pid
     }
@@ -214,7 +245,11 @@ final class ShelfViewModel: ObservableObject {
     /// Every capture path goes through this filter so reconciliation can never
     /// re-record a glyph that is already known.
     func captureCandidates(from candidates: [ShelfItem]) -> [ShelfItem] {
-        candidates.compactMap { knownItems[$0.id] }.filter { !$0.hasMenuBarIcon }
+        candidates.compactMap { knownItems[$0.id] }.filter {
+            !$0.hasMenuBarIcon
+                && !attemptedCaptureTokens.contains(captureToken(for: $0))
+                && !($0.hasPersistentIdentity && iconStore?.hasCaptureFailure(for: $0.id) == true)
+        }
     }
     /// Background presentation refreshes may inspect only currently exposed
     /// items. A transaction that deliberately revealed a hidden item uses the
@@ -227,6 +262,12 @@ final class ShelfViewModel: ObservableObject {
     func item(withID id: String) -> ShelfItem? { knownItems[id] }
     /// Shelf items that show only a placeholder (no live or persisted glyph).
     var itemsMissingIcons: [ShelfItem] { items.filter { !$0.hasMenuBarIcon } }
+
+    private func captureToken(for item: ShelfItem) -> String {
+        captureToken(id: item.id, pid: item.menuBarReference.pid)
+    }
+
+    private func captureToken(id: String, pid: pid_t) -> String { "\(id)#\(pid)" }
     func setCollected(_ value: Bool, id: String) {
         var ids = Set(defaults.stringArray(forKey: "shelf.collectedItems") ?? [])
         if value {

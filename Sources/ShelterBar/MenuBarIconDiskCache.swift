@@ -23,6 +23,11 @@ struct MenuBarIconCacheRecord: Codable, Equatable {
     var visualVersion: Int? = nil
 }
 
+private struct MenuBarIconCaptureFailureRecord: Codable, Equatable {
+    var key: String
+    var updatedAt: Date
+}
+
 /// Persists the first usable glyph for every stable status-item identity.
 /// Resident and stowed items share the same cache so later launches never need
 /// another screen capture merely to reconstruct an icon already seen before.
@@ -34,6 +39,7 @@ final class MenuBarIconDiskCache {
     }
 
     static let indexName = "index.json"
+    static let captureFailuresName = "capture-failures-v1.json"
     static let maxImageBytes = 256 * 1024
 
     let directory: URL
@@ -41,6 +47,7 @@ final class MenuBarIconDiskCache {
     let maxBytes: Int
     private(set) var records: [String: MenuBarIconCacheRecord] = [:]
     private var images: [String: NSImage] = [:]
+    private var captureFailures: [String: Date] = [:]
 
     init(directory: URL = MenuBarIconDiskCache.defaultDirectory,
          maxEntries: Int = 128, maxBytes: Int = 4 * 1024 * 1024) {
@@ -48,6 +55,7 @@ final class MenuBarIconDiskCache {
         self.maxEntries = maxEntries
         self.maxBytes = maxBytes
         loadIndex()
+        loadCaptureFailures()
     }
 
     /// Keys follow the shelf model's item id ("ax:<bundle id>:<AX identifier
@@ -62,6 +70,30 @@ final class MenuBarIconDiskCache {
     }
 
     var keys: Set<String> { Set(records.keys) }
+
+    func hasCaptureFailure(for key: String) -> Bool {
+        captureFailures[key] != nil
+    }
+
+    /// Remembers that one stable item was inspected but did not yield a safe
+    /// glyph. Background scans then keep the placeholder instead of recording
+    /// the same pixels every 15 seconds and on every app restart.
+    func recordCaptureFailure(for key: String, now: Date = Date()) {
+        guard Self.isCacheable(key: key) else { return }
+        captureFailures[key] = now
+        while captureFailures.count > maxEntries,
+              let oldest = captureFailures.min(by: { $0.value < $1.value })?.key {
+            captureFailures.removeValue(forKey: oldest)
+        }
+        saveCaptureFailures()
+    }
+
+    /// Explicit user refreshes are the only reason to retry an unchanged,
+    /// stable identity after a failed capture.
+    func clearCaptureFailure(for key: String) {
+        guard captureFailures.removeValue(forKey: key) != nil else { return }
+        saveCaptureFailures()
+    }
 
     func image(for key: String, hasCount: Bool = false) -> NSImage? {
         if let image = images[key] { return image }
@@ -115,6 +147,7 @@ final class MenuBarIconDiskCache {
               !MenuBarGlyphImage.isStatusHostChrome(cgImage),
               let png = NSBitmapImageRep(cgImage: cgImage).representation(using: .png, properties: [:]),
               !png.isEmpty, png.count <= Self.maxImageBytes else { return false }
+        clearCaptureFailure(for: key)
         let digest = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
         let record = MenuBarIconCacheRecord(
             key: key, file: Self.fileName(for: key),
@@ -186,6 +219,19 @@ final class MenuBarIconDiskCache {
         }
     }
 
+    private func loadCaptureFailures() {
+        let url = directory.appendingPathComponent(Self.captureFailuresName)
+        guard let data = try? Data(contentsOf: url),
+              let list = try? { () -> JSONDecoder in
+                  let decoder = JSONDecoder()
+                  decoder.dateDecodingStrategy = .iso8601
+                  return decoder
+              }().decode([MenuBarIconCaptureFailureRecord].self, from: data) else { return }
+        for record in list where Self.isCacheable(key: record.key) {
+            captureFailures[record.key] = record.updatedAt
+        }
+    }
+
     private func saveIndex() {
         let list = records.values.sorted { $0.key < $1.key }
         do {
@@ -196,6 +242,23 @@ final class MenuBarIconDiskCache {
             try encoder.encode(list).write(to: directory.appendingPathComponent(Self.indexName), options: .atomic)
         } catch {
             iconCacheLog.error("could not write icon cache index: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func saveCaptureFailures() {
+        let list = captureFailures.map {
+            MenuBarIconCaptureFailureRecord(key: $0.key, updatedAt: $0.value)
+        }.sorted { $0.key < $1.key }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            try encoder.encode(list).write(
+                to: directory.appendingPathComponent(Self.captureFailuresName), options: .atomic
+            )
+        } catch {
+            iconCacheLog.error("could not write capture failure index: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

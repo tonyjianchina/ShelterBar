@@ -186,6 +186,9 @@ final class MenuBarCollectionEngine {
         }
 
         await model.reload()
+        if reason == .userRefresh {
+            model.retryMissingIconCaptures()
+        }
         guard await driver.refreshHostVisibility() else {
             return await degrade(CollectionEngineError.message(
                 "系统未能刷新菜单栏显示状态，已恢复显示全部图标。"
@@ -426,12 +429,16 @@ final class MenuBarCollectionEngine {
     }
 
     /// Opportunistically captures items while they are on screen.
-    private func recaptureVisible(_ items: [ShelfItem]) async {
+    private func recaptureVisible(_ items: [ShelfItem], recordFailures: Bool = true) async {
         let missing = model.captureCandidates(from: items)
         guard model.hasScreenCapturePermission, !missing.isEmpty, !Task.isCancelled else { return }
         for item in missing { model.remember(item) }
         let snapshots = await capture(missing)
-        guard !Task.isCancelled, !snapshots.isEmpty else { return }
+        guard !Task.isCancelled else { return }
+        if recordFailures {
+            model.recordCaptureResults(for: missing, snapshots: snapshots)
+        }
+        guard !snapshots.isEmpty else { return }
         model.applyMenuBarIcons(snapshots)
     }
 
@@ -454,6 +461,7 @@ final class MenuBarCollectionEngine {
             phase = .idle
             return .ignored
         }
+        model.recordCaptureResults(for: missing, snapshots: snapshots)
         model.applyMenuBarIcons(snapshots)
         phase = .idle
         return .ignored
@@ -496,7 +504,7 @@ final class MenuBarCollectionEngine {
         // existing post-move pass still supports legacy off-screen windows.
         await recaptureVisible(model.scan().filter {
             desiredCollectedIDs.contains($0.id) && driver.isClickable($0)
-        })
+        }, recordFailures: false)
         try Task.checkCancellation()
 
         // Protect every real participant, including residents displaced by
@@ -585,6 +593,7 @@ final class MenuBarCollectionEngine {
             for item in collectedItems { model.remember(item) }
             let snapshots = await capture(collectedItems)
             try Task.checkCancellation()
+            model.recordCaptureResults(for: collectedItems, snapshots: snapshots)
             model.applyMenuBarIcons(snapshots)
         }
 
