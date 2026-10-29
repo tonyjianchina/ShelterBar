@@ -4,7 +4,7 @@
 
 菜单栏太挤时，把暂时不用的图标拖进 ShelterBar。需要时点开原来的菜单，或者再拖回顶部。没有账号、广告或遥测，布局和图标缓存只保存在本机。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.12](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.12) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.13](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.13) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## macOS 27 重点适配
 
@@ -28,15 +28,21 @@ macOS 27 改变了菜单栏图标的管理方式，传统的 Command 拖动在�
 
 ## 下载
 
-当前版本：**v0.5.12 · build 36 · 预览版**
+当前版本：**v0.5.13 · build 37 · 预览版**
 
 系统要求：**macOS 14 Sonoma 及以上，Apple Silicon（M1 及更新芯片）**。暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/ShelterBar-0.5.12-macos-arm64.dmg)
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/ShelterBar-0.5.12-macos-arm64.zip)
-- [查看 SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.12/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/ShelterBar-0.5.13-macos-arm64.dmg)
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/ShelterBar-0.5.13-macos-arm64.zip)
+- [查看 SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/SHA256SUMS)
 
 这是使用固定自签名证书构建的早期预览版，尚未使用 Developer ID 签名，也未经过 Apple 公证。
+
+## 自动更新
+
+v0.5.12（build 35 / 36）用户保持应用运行即可自动检查并升级，也可从收纳栏的“更多 → 检查更新”立即触发。默认在启动约 5 秒后检查，此后每 6 小时检查一次；网络可用、未关闭自动更新且安装目录可写时自动下载、校验和替换。
+
+v0.5.11 及更早版本没有更新器，需要手动下载安装一次。新版沿用固定签名，保留既有布局、缓存和权限。
 
 ## 安装与第一次打开
 
@@ -124,7 +130,7 @@ python3.11 -m venv .build/dmg-tools
 
 ## 更多信息
 
-- [v0.5.12 发布说明](docs/releases/v0.5.12.md)
+- [v0.5.13 发布说明](docs/releases/v0.5.13.md)
 - [完整发布与安装指南](docs/RELEASE.md)
 - [MVP 验收清单](docs/MVP.md)
 - [问题反馈](https://github.com/tonyjianchina/ShelterBar/issues)
