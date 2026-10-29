@@ -93,6 +93,18 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             button.sendAction(on: .leftMouseUp)
         }
         configurePanel()
+        model.$message.map { _ in () }
+            .merge(with: model.$hasAccessibilityPermission.map { _ in () },
+                   model.$hasScreenCapturePermission.map { _ in () },
+                   model.$isDraggingToMenuBar.map { _ in () })
+            .sink { [weak self] in
+                // Published values emit before assignment. Defer one actor
+                // turn so height uses the updated notice, anchored at the top.
+                Task { @MainActor in
+                    guard let self, self.panel.isVisible else { return }
+                    self.positionPanel()
+                }
+            }.store(in: &subscriptions)
         presentation.handle(.setPinned(model.isPinned))
         model.onPermissionRequest = { [weak self] in
             self?.permissionOnboarding.requestAccessibility()
@@ -287,21 +299,16 @@ final class StatusBarController: NSObject, NSWindowDelegate {
                 ?? MenuBarGeometry.statusFrame(statusItem, help: MenuBarItemMover.handleHelp) else { return }
         let anchor = MenuBarGeometry.appKit(cgAnchor)
         guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) else { return }
-        let ready = model.hasAccessibilityPermission
         let iconsWidth = model.items.reduce(CGFloat.zero) { $0 + MenuBarIconPresentation.shelfWidth(for: $1.icon) + 5 }
-        let desired: CGFloat
-        if ready && !model.hasScreenCapturePermission {
-            desired = 760
-        } else {
-            desired = ready ? max(440, iconsWidth + 230) : 680
-        }
+        let desired = max(440, iconsWidth + 230)
         let width = min(760, min(desired, screen.frame.width - 24))
+        let height = ShelfLayoutMetrics.panelHeight(notice: ShelfNotice.current(model))
         let x = min(max(screen.frame.minX + 12, anchor.maxX - width), screen.frame.maxX - width - 12)
         panel.setFrame(
             CGRect(x: x,
-                   y: anchor.minY - ShelfLayoutMetrics.panelHeight - ShelfLayoutMetrics.menuBarGap,
+                   y: anchor.minY - height - ShelfLayoutMetrics.menuBarGap,
                    width: width,
-                   height: ShelfLayoutMetrics.panelHeight),
+                   height: height),
             display: true
         )
         updateMonitor()

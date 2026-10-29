@@ -21,6 +21,7 @@ struct ShelfIcon: NSViewRepresentable {
         view.onDragPosition = onDragPosition
         view.toolTip = "\(item.title) · 拖到顶部菜单栏可移回"
         view.setAccessibilityLabel(item.title)
+        view.setAccessibilityHelp("按空格或回车打开菜单；拖到顶部菜单栏可移回。")
         view.needsDisplay = true
     }
 }
@@ -76,6 +77,9 @@ final class ShelfIconView: NSView {
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 53, trackedItemID != nil { cancelOperation(nil) }
+        else if (event.keyCode == 36 || event.keyCode == 49), trackedItemID == nil {
+            if !event.isARepeat { onActivate?() }
+        }
         else { super.keyDown(with: event) }
     }
 
