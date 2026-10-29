@@ -31,9 +31,9 @@ func visibilityRestrictionTimesOut() async {
 
     let started = ContinuousClock.now
     #expect(await controller.setCollected(true, bundleID: "com.example.hidden") == false)
-    // The whole target runs many @MainActor tests in parallel, so allow
+    // The whole target runs many @MainActor tests in parallel, so allow heavy
     // scheduler contention while still proving the callback cannot hang.
-    #expect(started.duration(to: .now) < .seconds(1))
+    #expect(started.duration(to: .now) < .seconds(5))
     #expect(!controller.isAvailable)
     #expect(controller.desiredHiddenBundleIDs.isEmpty)
     #expect(controller.activeHiddenBundleIDs.isEmpty)

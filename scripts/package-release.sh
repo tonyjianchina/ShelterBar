@@ -80,12 +80,12 @@ Apple Silicon (M1 及更新芯片)，macOS 14.0 或更新版本。
 应用只显示在菜单栏，没有 Dock 图标和窗口；请留意右上角菜单栏的收纳箱图标。
 
 图标读取：使用 ScreenCaptureKit，仅截取与进程 PID、状态窗口及辅助功能
-（AX）范围严格匹配的单个状态图标。只有已收纳图标的小尺寸 PNG 会缓存到
-~/Library/Application Support/ShelterBar/IconCache/，移回菜单栏即删除；
+（AX）范围严格匹配的单个状态图标。具有稳定应用与菜单项标识的小尺寸 PNG
+会缓存到 ~/Library/Application Support/ShelterBar/IconCache/，并受容量上限约束；
 不采集音频、不录制视频、不保存整屏截图，也不上传任何图像。单色及灰阶图标
 随外观调整对比度，同时保留灰阶细节和彩色标记；彩色图标保留原色，浅色彩色
-图标在浅色收纳栏上加衬底，均保持比例。可见时捕获，收纳栏打开时尝试更新
-隐藏图标；收纳栏关闭时，定时任务不会截图。失败保留上次成功图像，
+图标在浅色收纳栏上加衬底，均保持比例。只有当前可见且尚未缓存的稳定图标才会
+读取；缓存命中后的周期扫描不会再截图或重新检查录屏权限。失败保留上次成功图像，
 没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
 
@@ -110,15 +110,15 @@ ShelterBar runs only in the menu bar: no Dock icon and no window. Look for its
 archive-box icon at the top right of the menu bar.
 
 ScreenCaptureKit captures a single original status icon only after strictly
-matching its process PID, status window, and accessibility (AX) bounds. Images
-are kept in memory; only collected items' small PNGs are cached under
-~/Library/Application Support/ShelterBar/IconCache/ and pruned when restored.
+matching its process PID, status window, and accessibility (AX) bounds. Small
+PNGs with a stable application and status-item identity are cached under
+~/Library/Application Support/ShelterBar/IconCache/ with bounded storage.
 No audio capture, video recording, full screenshots, or network uploads.
 Monochrome and neutral shaded glyphs adapt their contrast to the shelf
 appearance, preserving tonal detail and colored badges. Color-led status images
 retain their colors (light ones get a contrast plate). Aspect ratios are preserved.
-Icons are captured while visible; hidden icons receive refresh attempts while
-the shelf is open. The periodic task does not capture while the shelf is closed.
+Only visible stable items missing a cached glyph are captured. Periodic scans
+with a cache hit neither capture again nor recheck Screen Recording permission.
 A failed refresh retains the last successful image. If no capture is available,
 the shelf uses a placeholder without interrupting collection or restoration.
 Full original-icon and native third-party movement compatibility still requires

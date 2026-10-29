@@ -28,7 +28,7 @@ macOS 27 改变了菜单栏图标的管理方式，传统的 Command 拖动在�
 
 ## 下载
 
-当前版本：**v0.5.12 · build 35 · 预览版**
+当前版本：**v0.5.12 · build 36 · 预览版**
 
 系统要求：**macOS 14 Sonoma 及以上，Apple Silicon（M1 及更新芯片）**。暂不提供 Intel 版本。
 
