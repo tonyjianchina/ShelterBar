@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build and verify the Apple Silicon preview artifacts on macOS.
+# Build and verify the Apple Silicon release artifacts on macOS.
 set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -68,7 +68,7 @@ ditto "$app_dir/Contents/Resources/AppIcon.icns" "$work_dir/image/.VolumeIcon.ic
 swift "$project_dir/Tools/GenerateDMGBackground.swift" \
     "$work_dir/image/.background/ShelterBar.png"
 cat > "$work_dir/image/.background/INSTALL.txt" <<INSTALL
-ShelterBar v$version - 预览版 / Preview
+ShelterBar v$version - 正式版 / Release
 Apple Silicon (M1 及更新芯片)，macOS 14.0 或更新版本。
 
 安装：将 ShelterBar.app 拖入 Applications，然后推出磁盘映像。
@@ -90,7 +90,7 @@ Apple Silicon (M1 及更新芯片)，macOS 14.0 或更新版本。
 失败时保留上次成功图像，没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
 
-本预览版使用固定自签名证书“ShelterBar Self-Signed”签名，没有 Developer ID
+本版本使用固定自签名证书“ShelterBar Self-Signed”签名，没有 Developer ID
 签名或 Apple 公证。从 v0.5.6 及更早（ad-hoc）版本升级，需要重新授予一次辅助
 功能、输入监控和屏幕录制；之后的更新会保留授权。
 第一次打开：在访达“应用程序”里双击 ShelterBar。因为没有经过 Apple 公证，
@@ -125,7 +125,7 @@ the shelf uses a placeholder without interrupting collection or restoration.
 Full original-icon and native third-party movement compatibility still requires
 validation in an authorized macOS session.
 
-This preview is signed with the fixed self-signed "ShelterBar Self-Signed"
+This release is signed with the fixed self-signed "ShelterBar Self-Signed"
 certificate, without Developer ID signing or Apple notarization. Upgrading from
 an ad-hoc build (v0.5.6 or earlier) needs one re-grant of Accessibility, Input
 Monitoring and Screen Recording; later updates keep them.
@@ -202,5 +202,5 @@ mkdir -p "$release_dir"
 mv "$work_dir/artifacts/$asset_name.dmg" "$release_dir/"
 mv "$work_dir/artifacts/$asset_name.zip" "$release_dir/"
 mv "$work_dir/artifacts/SHA256SUMS" "$release_dir/"
-printf '\nVerified preview artifacts: %s\n' "$release_dir"
+printf '\nVerified release artifacts: %s\n' "$release_dir"
 ls -lh "$release_dir/$asset_name.dmg" "$release_dir/$asset_name.zip" "$release_dir/SHA256SUMS"

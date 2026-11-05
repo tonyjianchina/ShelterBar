@@ -6,7 +6,9 @@ Static official website for ShelterBar. The public assets are in `dist/`.
 python3 -m http.server 4178 --directory dist
 ```
 
-The download links target the tagged v0.5.13 GitHub preview release explicitly; the current package is build 37.
+The download links target the tagged v0.5.14 GitHub release explicitly; the current package is build 38.
+The release is prepared as a draft, without the pre-release flag. Do not deploy
+this website update until the maintainer has reviewed the draft and approved deployment.
 Update all matching links and version text together for a new release.
 The autoplay shelf is a labeled illustration, not a native app screenshot.
 It opens an empty shelf and drags three menu-bar glyphs into it in a loop.

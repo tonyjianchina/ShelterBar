@@ -1,12 +1,12 @@
-# ShelterBar v0.5.13 预览版
+# ShelterBar v0.5.14（Build 38）正式版
 
 支持 **Apple Silicon（M1 及更新芯片）和 macOS 14 Sonoma 及以上**。当前下载包没有 Intel 版本。
 
-自 v0.5.7（build 22）起，预览版使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名，不再使用 ad-hoc 临时签名；但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。签名验证仅用于检查应用包的完整性和保持稳定的 designated requirement，并不代表 Apple 已验证开发者身份或批准此应用。
+自 v0.5.7（build 22）起，发布包使用固定的自签名证书 **“ShelterBar Self-Signed”** 签名，不再使用 ad-hoc 临时签名；但仍 **没有 Developer ID 签名，也未经过 Apple 公证**。签名验证仅用于检查应用包的完整性和保持稳定的 designated requirement，并不代表 Apple 已验证开发者身份或批准此应用。
 
 ## 下载与安装
 
-从 [GitHub Releases v0.5.13](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.13) 下载 [ShelterBar-0.5.13-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/ShelterBar-0.5.13-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/ShelterBar-0.5.13-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
+从 [GitHub Releases v0.5.14](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.14) 下载 [ShelterBar-0.5.14-macos-arm64.dmg](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/ShelterBar-0.5.14-macos-arm64.dmg)。打开后会看到图形化安装窗口。也可下载 [ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/ShelterBar-0.5.14-macos-arm64.zip)，解压后将应用移到“应用程序”文件夹。
 
 ### 安装与第一次打开
 
@@ -44,7 +44,16 @@ ShelterBar 启动后会读取 GitHub Releases API（包含 pre-release）。候�
 
 默认 feed 为 `https://api.github.com/repos/tonyjianchina/ShelterBar/releases?per_page=30`。本地测试可使用环境变量 `SHELTERBAR_UPDATE_FEED_URL`，或 defaults key `updates.feedURL`覆盖；仅允许 HTTPS，以及供本机测试的 loopback HTTP。可用 `SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1` 或 `updates.disableAutomatic=true` 关闭自动路径。对外发布前必须提升 `CFBundleVersion`；功能版本还应同时提升 `CFBundleShortVersionString`。
 
-**从 v0.5.11 及更早版本升级：** 这些版本尚不具备自动更新能力，需要手动下载并覆盖安装 v0.5.13 一次。安装本版本后，后续版本即可使用自动更新或“检查更新”。
+**从 v0.5.11 及更早版本升级：** 这些版本尚不具备自动更新能力，需要手动下载并覆盖安装 v0.5.14 一次。安装本版本后，后续版本即可使用自动更新或“检查更新”。
+
+## v0.5.14（build 38）更新内容
+
+- DMG 安装窗口新增完整的中文三步引导：拖到 Applications、首次打开前往「隐私与安全性」点「仍要打开」、按提示开启辅助功能等权限。
+- 调整安装窗口尺寸和图标位置，为图标、名称与说明分别留出空间，避免遮挡。
+- 官网与下载文档统一使用正式版表述，版本号和 DMG、ZIP、校验值链接更新到 v0.5.14。
+- v0.5.12 / v0.5.13 用户可在本版本公开发布后通过应用内更新升级；v0.5.11 及更早版本须手动安装一次。
+
+完整说明见 [v0.5.14 发布说明](releases/v0.5.14.md)。
 
 ## v0.5.13（build 37）更新内容
 
@@ -124,7 +133,7 @@ macOS 26 合成显示菜单栏时，实际托管图标的控制中心窗口可�
 
 v0.5.4–v0.5.6 的权限引导会等待辅助功能和输入监控全部生效后才询问屏幕录制；v0.5.7 起改为辅助功能生效后立即询问（拖动拦截仍要求三项输入权限齐全）。v0.5.1 的图形化拖拽安装盘继续沿用。
 
-统一收纳引擎继续串行处理扫描、原生移动、位置验证、恢复和图标刷新，并自动收纳运行期间新出现的可移动菜单栏项。对外预览包使用“ShelterBar Self-Signed”固定证书签名。
+统一收纳引擎继续串行处理扫描、原生移动、位置验证、恢复和图标刷新，并自动收纳运行期间新出现的可移动菜单栏项。对外发布包使用“ShelterBar Self-Signed”固定证书签名。
 
 收纳栏通过 ScreenCaptureKit 截取原始菜单栏状态图标。只有进程 PID、状态窗口及辅助功能（AX）范围严格匹配时，才捕获该单个状态图标。具有稳定应用与菜单项标识的图标会以小尺寸 PNG 写入本机 `~/Library/Application Support/ShelterBar/IconCache/`，图标移回菜单栏后仍保留关联缓存，供下次收纳或重启直接读取；缓存受容量上限约束。应用不采集音频、不录制视频、不保存整屏截图，也不上传任何图像。
 
@@ -134,7 +143,7 @@ v0.5.4–v0.5.6 的权限引导会等待辅助功能和输入监控全部生效�
 
 ## 核对下载
 
-将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.13/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
+将两个安装包及 [SHA256SUMS](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/SHA256SUMS) 下载到同一个文件夹，在该文件夹运行：
 
 ```sh
 shasum -a 256 -c SHA256SUMS
@@ -143,7 +152,7 @@ shasum -a 256 -c SHA256SUMS
 如只下载了 DMG，运行以下命令，将结果与 `SHA256SUMS` 中该文件的一行比较：
 
 ```sh
-shasum -a 256 ShelterBar-0.5.13-macos-arm64.dmg
+shasum -a 256 ShelterBar-0.5.14-macos-arm64.dmg
 ```
 
 ## 从源码构建与打包
@@ -163,9 +172,9 @@ python3.11 -m venv .build/dmg-tools
 
 ```text
 dist/ShelterBar.app
-dist/releases/v0.5.13/ShelterBar-0.5.13-macos-arm64.dmg
-dist/releases/v0.5.13/ShelterBar-0.5.13-macos-arm64.zip
-dist/releases/v0.5.13/SHA256SUMS
+dist/releases/v0.5.14/ShelterBar-0.5.14-macos-arm64.dmg
+dist/releases/v0.5.14/ShelterBar-0.5.14-macos-arm64.zip
+dist/releases/v0.5.14/SHA256SUMS
 ```
 
 DMG 包含应用、指向 `/Applications` 的快捷方式、浅灰白背景上的中文三步安装引导、固定 Finder 图标布局和隐藏的中英双语安装说明。背景由 `Tools/GenerateDMGBackground.swift` 使用系统字体绘制为 720 × 520 的 PNG，依次说明拖入 Applications、首次打开被拦截后到「系统设置 › 隐私与安全性」底部点「仍要打开」、按提示开启辅助功能等权限。实际可拖动的应用与 Applications 图标独占中部区域，下方显示首次打开与授权步骤。
@@ -215,11 +224,14 @@ SHELTERBAR_EXPECTED_DR='identifier "com.jensen.shelterbar" and certificate leaf 
 
 ## 发布检查
 
-- 将 `v0.5.13` 标记为 **Pre-release**，公开说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
+- 版本设为 `0.5.14`，`CFBundleVersion` 从 v0.5.13 的 `37` 递增为 `38`。
+- 推送 `main` 与 `v0.5.14` tag 后，使用 `gh release create --draft --verify-tag` 创建中文标题、中文正文的 **draft release**；不要添加 `--prerelease`，不要直接 publish。
+- 正文说明系统要求、辅助功能与输入监控必需、屏幕录制可选、自签名但未公证、从 ad-hoc 版本升级需重新授权一次，以及已知限制。
 - 打包前确认 `codesign -d -r- dist/ShelterBar.app` 输出的 DR 与上面的期望值一致。
 - 上传经过校验的 DMG、ZIP 和 `SHA256SUMS` 三个文件。
-- 核对公开下载地址、资产文件名、下载后的 SHA256，以及官网指向相同版本的链接。
+- 草稿阶段核对资产文件名、上传后的 SHA256 与 draft 状态，保存 draft URL；草稿的公开下载链接在发布后才可访问。
+- 同步更新 `website/` 的版本号与下载链接，但不部署 Sites。由维护者确认 draft 后，再决定发布与官网部署，并在公开后核对下载地址。
 - 自动化测试与归档校验不等于授权后的原始图标捕获与第三方移动兼容性测试；未完成真实会话验收前，不应宣称完整兼容性已验证。
-- 后续正式版需要有效的 Developer ID Application 签名、Apple 公证与公证票据装订，再重新生成安装包和 SHA256；不要把自签名版本描述为已公证。
+- 本次沿用现有固定自签名流程，不执行 Developer ID 签名、Apple 公证或票据装订；正式版表述不代表已获 Apple 公证。
 
 没有添加未经实际验证的 GitHub Actions 发布工作流。当前发布流程是在上述 macOS 环境下本地构建、校验后上传。
