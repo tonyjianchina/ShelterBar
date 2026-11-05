@@ -3,7 +3,8 @@
 import AppKit
 import Foundation
 
-let canvasSize = NSSize(width: 720, height: 460)
+// Keep the canvas and the icon lane in sync with Tools/DMGLayout.py.
+let canvasSize = NSSize(width: 720, height: 520)
 
 guard CommandLine.arguments.count == 2 else {
     fputs("usage: GenerateDMGBackground.swift <output.png>\n", stderr)
@@ -38,91 +39,88 @@ NSGraphicsContext.current = graphicsContext
 
 let canvas = NSRect(origin: .zero, size: canvasSize)
 let background = NSGradient(colors: [
-    NSColor(calibratedRed: 0.965, green: 0.988, blue: 0.984, alpha: 1),
-    NSColor(calibratedRed: 0.925, green: 0.965, blue: 0.957, alpha: 1),
+    NSColor(calibratedWhite: 0.99, alpha: 1),
+    NSColor(calibratedWhite: 0.96, alpha: 1),
 ])
 background?.draw(in: canvas, angle: -90)
 
-// ShelterBar's mint and lime palette gives the installer a subtle branded frame.
-let mintShape = NSBezierPath()
-mintShape.move(to: NSPoint(x: 0, y: 0))
-mintShape.line(to: NSPoint(x: 285, y: 0))
-mintShape.line(to: NSPoint(x: 0, y: 118))
-mintShape.close()
-NSColor(calibratedRed: 0.749, green: 0.906, blue: 0.894, alpha: 0.72).setFill()
-mintShape.fill()
-
-let limeShape = NSBezierPath()
-limeShape.move(to: NSPoint(x: 720, y: 460))
-limeShape.line(to: NSPoint(x: 492, y: 460))
-limeShape.line(to: NSPoint(x: 720, y: 354))
-limeShape.close()
-NSColor(calibratedRed: 0.902, green: 0.965, blue: 0.678, alpha: 0.62).setFill()
-limeShape.fill()
-
-let paragraph = NSMutableParagraphStyle()
-paragraph.alignment = .center
-
-let titleAttributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 26, weight: .semibold),
-    .foregroundColor: NSColor(calibratedRed: 0.129, green: 0.153, blue: 0.161, alpha: 1),
-    .paragraphStyle: paragraph,
-]
-
-let subtitleAttributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 15, weight: .regular),
-    .foregroundColor: NSColor(calibratedWhite: 0.36, alpha: 1),
-    .paragraphStyle: paragraph,
-]
-
-let footerAttributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-    .foregroundColor: NSColor(calibratedWhite: 0.40, alpha: 0.92),
-    .paragraphStyle: paragraph,
-]
-
-("Drag ShelterBar to Applications" as NSString).draw(
-    in: NSRect(x: 60, y: 380, width: 600, height: 36),
-    withAttributes: titleAttributes
-)
-("拖动左侧应用到右侧文件夹即可安装" as NSString).draw(
-    in: NSRect(x: 60, y: 352, width: 600, height: 24),
-    withAttributes: subtitleAttributes
-)
-
-let arrowColor = NSColor(calibratedRed: 0.129, green: 0.153, blue: 0.161, alpha: 0.82)
-arrowColor.setStroke()
-for offset in [0.0, 31.0, 62.0] {
-    let chevron = NSBezierPath()
-    chevron.lineWidth = 8
-    chevron.lineCapStyle = .round
-    chevron.lineJoinStyle = .round
-    chevron.move(to: NSPoint(x: 311 + offset, y: 209))
-    chevron.line(to: NSPoint(x: 329 + offset, y: 228))
-    chevron.line(to: NSPoint(x: 311 + offset, y: 247))
-    chevron.stroke()
+// Use top-left coordinates, like Finder's icon positions, for the guide.
+func rect(x: CGFloat, top: CGFloat, width: CGFloat, height: CGFloat) -> NSRect {
+    NSRect(x: x, y: canvasSize.height - top - height, width: width, height: height)
 }
 
-// First-launch hint: the preview is not notarized, so Gatekeeper blocks the
-// first open. Keep it below the icon labels (icons sit at y = 286 from the top).
-let hintAttributes: [NSAttributedString.Key: Any] = [
-    .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-    .foregroundColor: NSColor(calibratedRed: 0.129, green: 0.153, blue: 0.161, alpha: 0.86),
-    .paragraphStyle: paragraph,
-]
-("拖到「应用程序」后，首次打开请到「隐私与安全性」点「仍要打开」" as NSString).draw(
-    in: NSRect(x: 40, y: 50, width: 640, height: 20),
-    withAttributes: hintAttributes
+func drawText(
+    _ text: String, in frame: NSRect, size: CGFloat,
+    weight: NSFont.Weight = .regular, gray: CGFloat = 0.16,
+    alignment: NSTextAlignment = .left
+) {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = alignment
+    (text as NSString).draw(in: frame, withAttributes: [
+        .font: NSFont.systemFont(ofSize: size, weight: weight),
+        .foregroundColor: NSColor(calibratedWhite: gray, alpha: 1),
+        .paragraphStyle: paragraph,
+    ])
+}
+
+func drawStep(_ number: Int, title: String, top: CGFloat) {
+    let badge = NSBezierPath(ovalIn: rect(x: 44, top: top, width: 28, height: 28))
+    NSColor(calibratedWhite: 0.90, alpha: 1).setFill()
+    badge.fill()
+    drawText(
+        String(number), in: rect(x: 44, top: top + 4, width: 28, height: 20),
+        size: 14, weight: .semibold, gray: 0.30, alignment: .center
+    )
+    drawText(
+        title, in: rect(x: 84, top: top + 2, width: 592, height: 26),
+        size: 17, weight: .semibold
+    )
+}
+
+drawText(
+    "安装 ShelterBar", in: rect(x: 44, top: 30, width: 632, height: 36),
+    size: 26, weight: .semibold, alignment: .center
 )
-("First launch: System Settings › Privacy & Security › Open Anyway · 安装完成后即可推出磁盘映像" as NSString).draw(
-    in: NSRect(x: 40, y: 28, width: 640, height: 18),
-    withAttributes: footerAttributes
+drawText(
+    "只需三步，即可开始整理菜单栏。", in: rect(x: 44, top: 74, width: 632, height: 24),
+    size: 14, gray: 0.42, alignment: .center
+)
+
+drawStep(1, title: "把 ShelterBar 拖到 Applications", top: 116)
+
+// Reserve the entire lane for Finder's real, draggable icons and their labels.
+// Icon centers: (180, 210) and (540, 210); labels stay above the divider.
+let arrowY = canvasSize.height - 210
+let arrow = NSBezierPath()
+arrow.lineWidth = 3
+arrow.lineCapStyle = .round
+arrow.lineJoinStyle = .round
+arrow.move(to: NSPoint(x: 330, y: arrowY))
+arrow.line(to: NSPoint(x: 390, y: arrowY))
+arrow.move(to: NSPoint(x: 380, y: arrowY + 10))
+arrow.line(to: NSPoint(x: 390, y: arrowY))
+arrow.line(to: NSPoint(x: 380, y: arrowY - 10))
+NSColor(calibratedWhite: 0.50, alpha: 1).setStroke()
+arrow.stroke()
+
+NSColor(calibratedWhite: 0.86, alpha: 1).setFill()
+rect(x: 44, top: 316, width: 632, height: 1).fill()
+
+drawStep(2, title: "第一次打开会提示无法打开", top: 342)
+drawText(
+    "请到「系统设置 › 隐私与安全性」底部点「仍要打开」。",
+    in: rect(x: 84, top: 378, width: 592, height: 24), size: 14, gray: 0.34
+)
+drawStep(3, title: "按提示开启辅助功能等所需权限", top: 432)
+drawText(
+    "辅助功能、输入监控为必需；屏幕录制仅用于读取图标，可稍后开启。",
+    in: rect(x: 84, top: 468, width: 592, height: 24), size: 13, gray: 0.34
 )
 
 graphicsContext.flushGraphics()
 NSGraphicsContext.restoreGraphicsState()
 
-guard let pngData = bitmap.representation(using: .png, properties: [:]) else {
+guard let imageData = bitmap.representation(using: .png, properties: [:]) else {
     fputs("failed to render the DMG background\n", stderr)
     exit(1)
 }
@@ -132,7 +130,7 @@ do {
         at: outputURL.deletingLastPathComponent(),
         withIntermediateDirectories: true
     )
-    try pngData.write(to: outputURL, options: .atomic)
+    try imageData.write(to: outputURL, options: .atomic)
 } catch {
     fputs("failed to write DMG background: \(error)\n", stderr)
     exit(1)
