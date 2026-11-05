@@ -8,7 +8,8 @@ from mac_alias import Alias
 
 
 WINDOW = {
-    "WindowBounds": "{{180, 120}, {720, 510}}",
+    # 720 x 520 background, plus space for Finder's title bar.
+    "WindowBounds": "{{180, 120}, {720, 548}}",
     "ShowStatusBar": False,
     "ShowToolbar": False,
     "ShowPathbar": False,
@@ -21,9 +22,13 @@ WINDOW = {
 ICONS = {
     "viewOptionsVersion": 1,
     "backgroundType": 2,
+    # Keep the complete background settings, including Finder's fallback color.
+    "backgroundColorRed": 1.0,
+    "backgroundColorGreen": 1.0,
+    "backgroundColorBlue": 1.0,
     "arrangeBy": "none",
     "iconSize": 112.0,
-    "textSize": 16.0,
+    "textSize": 14.0,
     "labelOnBottom": True,
     "showIconPreview": False,
     "showItemInfo": False,
@@ -33,7 +38,8 @@ ICONS = {
     "scrollPositionX": 0.0,
     "scrollPositionY": 0.0,
 }
-POSITIONS = {"ShelterBar.app": (170, 286), "Applications": (550, 286)}
+# Match the icon lane in GenerateDMGBackground.swift; the guide starts below it.
+POSITIONS = {"ShelterBar.app": (180, 210), "Applications": (540, 210)}
 
 
 def verify(mount: Path) -> None:
