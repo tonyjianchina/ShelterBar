@@ -41,11 +41,16 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         boundaryItem.button?.setAccessibilityLabel("收纳边界")
         let createdVisibility = MenuBarAgentVisibilityController()
         visibility = createdVisibility
+        let logicallyHidden: @MainActor (ShelfItem) -> Bool = { item in
+            // Same bundle id the mover hides. A nil application bundle with a
+            // live pid must still count as sheltered, or the shelf filters it out.
+            let bundleID = item.application?.bundleIdentifier
+                ?? NSRunningApplication(processIdentifier: item.menuBarReference.pid)?.bundleIdentifier
+            return createdVisibility.isActivelyHidden(bundleID: bundleID)
+        }
         let createdModel = ShelfViewModel(
             source: source,
-            isLogicallyHidden: { item in
-                createdVisibility.isActivelyHidden(bundleID: item.application?.bundleIdentifier)
-            },
+            isLogicallyHidden: logicallyHidden,
             iconStore: MenuBarIconDiskCache()
         )
         let createdMover = MenuBarItemMover(
@@ -53,9 +58,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             handle: statusItem,
             visibility: createdVisibility
         )
-        let createdCapture = MenuBarIconCapture(isLogicallyHidden: { item in
-            createdVisibility.isActivelyHidden(bundleID: item.application?.bundleIdentifier)
-        })
+        let createdCapture = MenuBarIconCapture(isLogicallyHidden: logicallyHidden)
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
             accessibilityGranted: {

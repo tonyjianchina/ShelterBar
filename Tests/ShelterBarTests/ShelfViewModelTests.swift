@@ -155,6 +155,64 @@ func visibleCollectedItemIsNotDuplicated() async {
     #expect(model.residentItems.isEmpty)
 }
 
+@Test("MenuBarAgent removing sheltered items from AX still leaves the saved collection on the shelf")
+@MainActor
+func shelteredItemsRemainAfterCompleteScanDropsThem() async {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let ids = [
+        "ax:com.example.shadowrocket:main",
+        "ax:com.example.codex:main",
+        "ax:com.example.wechat:main",
+    ]
+    defaults.set(ids, forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    // Stale on-screen frames: MenuBarAgent hides the pixels but the last AX
+    // rectangle still sits on the menu bar. A later complete scan omits them.
+    source.entries = ids.map { fixture($0) } + [fixture("resident")]
+    let model = ShelfViewModel(
+        source: source,
+        defaults: defaults,
+        isTrusted: { true },
+        isVisible: { $0.minY < 30 },
+        isLogicallyHidden: { _ in true }
+    )
+    await model.reload()
+    #expect(model.items.map(\.id) == ids.sorted())
+    #expect(model.residentItems.isEmpty)
+
+    source.entries = []
+    for item in model.allItems { item.menuBarReference.currentFrameReader = { nil } }
+    await model.reload()
+
+    #expect(model.items.map(\.id) == ids.sorted())
+    #expect(model.residentItems.isEmpty)
+    #expect(model.item(withID: "resident") == nil)
+}
+
+@Test("an off-screen sheltered item omitted by a complete scan stays listed without MenuBarAgent state")
+@MainActor
+func offScreenShelteredItemSurvivesAXRemoval() async {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["sync"], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [fixture("sync", hidden: true)]
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 }
+    )
+    await model.reload()
+    #expect(model.items.map(\.id) == ["sync"])
+
+    source.entries = []
+    model.item(withID: "sync")?.menuBarReference.currentFrameReader = { nil }
+    await model.reload()
+    #expect(model.items.map(\.id) == ["sync"])
+    #expect(model.residentItems.isEmpty)
+}
+
 @Test("a MenuBarAgent-hidden item appears in the shelf even while AX reports its stale top-bar frame")
 @MainActor
 func logicallyHiddenItemOverridesStaleAXFrame() async {

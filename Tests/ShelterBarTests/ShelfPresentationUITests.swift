@@ -45,6 +45,13 @@ private func makeFixtureView(_ model: ShelfViewModel, onActivate: @escaping (She
         onRevealAll: {}, onQuit: {})
 }
 
+private final class MutableShelfSource: ShelfItemSource, @unchecked Sendable {
+    var entries: [ShelfItem] = []
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        ShelfItemScanResult(items: entries, isComplete: true)
+    }
+}
+
 @MainActor
 private func iconViews(in view: NSView) -> [ShelfIconView] {
     (view as? ShelfIconView).map { [$0] } ?? view.subviews.flatMap { iconViews(in: $0) }
@@ -87,6 +94,51 @@ func exportShelfUIFixtures() async throws {
         try png.write(to: dir.appendingPathComponent("\(scenario).png"))
         print("Shelf fixture \(scenario): \(iconViews(in: host).count) mounted icon controls, \(host.bounds)")
     }
+}
+
+@Test("saved sheltered items stay visible in the panel after AX stops listing them")
+@MainActor
+func panelListsShelteredItemsMissingFromInventory() async throws {
+    let suite = "ShelterBarUIFixtures.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let names = ["Shadowrocket", "Codex", "微信", "QQ音乐", "Tailscale"]
+    let source = MutableShelfSource()
+    source.entries = names.enumerated().map { index, name in
+        ShelfItem(
+            id: "ax:com.example.shelf\(index):main", title: name, icon: NSImage(),
+            application: nil,
+            menuBarReference: MenuBarItemReference(
+                pid: getpid(), element: AXUIElementCreateApplication(getpid()),
+                frame: CGRect(x: 900 + index * 30, y: 5, width: 24, height: 24)
+            )
+        )
+    }
+    defaults.set(source.entries.map(\.id), forKey: "shelf.collectedItems")
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true },
+        isVisible: { $0.minY < 30 }, isLogicallyHidden: { _ in true }
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    // MenuBarAgent has removed every sheltered status item from the tree.
+    source.entries = []
+    for item in model.allItems { item.menuBarReference.currentFrameReader = { nil } }
+    await model.reload()
+    #expect(model.items.map(\.title).sorted() == names.sorted())
+
+    let host = await hostedFixture(model)
+    // Do not walk accessibilityChildren() on the hosting view. In swift test
+    // that re-enters SwiftUI's accessibility bridge with no live AX client and
+    // SIGSEGVs. The mounted ShelfIconViews are the buttons System Events sees
+    // once the panel is on screen; their labels and element flag are ordinary
+    // NSView properties.
+    let icons = iconViews(in: host)
+    #expect(icons.count == names.count, "sheltered icons missing from the panel")
+    #expect(Set(icons.compactMap { $0.accessibilityLabel() }) == Set(names))
+    #expect(icons.allSatisfy {
+        $0.isAccessibilityElement() && $0.bounds.width > 1 && $0.bounds.height > 1 && $0.enclosingScrollView != nil
+    })
 }
 
 @Test("status and optional recording notices retain all actionable shelf icons")
