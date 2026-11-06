@@ -17,7 +17,15 @@ final class MenuBarItemReference: @unchecked Sendable {
         AXUIElementPerformAction(element, kAXPressAction as CFString) == .success
     }
 
-    func currentFrame() -> CGRect? { MenuBarAX.frame(of: element) }
+    /// When set, tests supply the frame instead of asking Accessibility.
+    /// Production leaves this nil. A reader that returns nil is how a removed
+    /// MenuBarAgent element is simulated.
+    var currentFrameReader: (@Sendable () -> CGRect?)?
+
+    func currentFrame() -> CGRect? {
+        if let currentFrameReader { return currentFrameReader() }
+        return MenuBarAX.frame(of: element)
+    }
 }
 
 struct ShelfItem: Identifiable, @unchecked Sendable {

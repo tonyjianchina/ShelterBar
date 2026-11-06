@@ -45,6 +45,51 @@ private func makeFixtureView(_ model: ShelfViewModel, onActivate: @escaping (She
         onRevealAll: {}, onQuit: {})
 }
 
+private final class MutableShelfSource: ShelfItemSource, @unchecked Sendable {
+    var entries: [ShelfItem] = []
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        ShelfItemScanResult(items: entries, isComplete: true)
+    }
+}
+
+private struct AccessibilityProbe {
+    var label: String?
+    var identifier: String?
+    var children: [AccessibilityProbe]
+
+    var flattenedLabels: [String] {
+        (label.map { [$0] } ?? []) + children.flatMap(\.flattenedLabels)
+    }
+}
+
+@MainActor
+private func accessibilityProbe(_ object: Any?, depth: Int = 0, seen: inout Set<ObjectIdentifier>) -> AccessibilityProbe? {
+    guard depth < 14, let object = object as? NSObject else { return nil }
+    guard seen.insert(ObjectIdentifier(object)).inserted else { return nil }
+    let children = (object.accessibilityChildren() ?? []).compactMap {
+        accessibilityProbe($0, depth: depth + 1, seen: &seen)
+    }
+    return AccessibilityProbe(
+        label: object.accessibilityLabel(),
+        identifier: object.accessibilityIdentifier(),
+        children: children
+    )
+}
+
+@MainActor
+private func accessibilityNode(labeled label: String, identifier: String, in root: NSView) -> AccessibilityProbe? {
+    var seen = Set<ObjectIdentifier>()
+    guard let tree = accessibilityProbe(root, seen: &seen) else { return nil }
+    func find(_ node: AccessibilityProbe) -> AccessibilityProbe? {
+        if node.label == label || node.identifier == identifier { return node }
+        for child in node.children {
+            if let found = find(child) { return found }
+        }
+        return nil
+    }
+    return find(tree)
+}
+
 @MainActor
 private func iconViews(in view: NSView) -> [ShelfIconView] {
     (view as? ShelfIconView).map { [$0] } ?? view.subviews.flatMap { iconViews(in: $0) }
@@ -86,6 +131,57 @@ func exportShelfUIFixtures() async throws {
         let png = try #require(bitmap.representation(using: .png, properties: [:]))
         try png.write(to: dir.appendingPathComponent("\(scenario).png"))
         print("Shelf fixture \(scenario): \(iconViews(in: host).count) mounted icon controls, \(host.bounds)")
+    }
+}
+
+@Test("saved sheltered items stay visible in the panel after AX stops listing them")
+@MainActor
+func panelListsShelteredItemsMissingFromInventory() async throws {
+    let suite = "ShelterBarUIFixtures.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let names = ["Shadowrocket", "Codex", "微信", "QQ音乐", "Tailscale"]
+    let source = MutableShelfSource()
+    source.entries = names.enumerated().map { index, name in
+        ShelfItem(
+            id: "ax:com.example.shelf\(index):main", title: name, icon: NSImage(),
+            application: nil,
+            menuBarReference: MenuBarItemReference(
+                pid: getpid(), element: AXUIElementCreateApplication(getpid()),
+                frame: CGRect(x: 900 + index * 30, y: 5, width: 24, height: 24)
+            )
+        )
+    }
+    defaults.set(source.entries.map(\.id), forKey: "shelf.collectedItems")
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true },
+        isVisible: { $0.minY < 30 }, isLogicallyHidden: { _ in true }
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    // MenuBarAgent has removed every sheltered status item from the tree.
+    source.entries = []
+    for item in model.allItems { item.menuBarReference.currentFrameReader = { nil } }
+    await model.reload()
+    #expect(model.items.map(\.title).sorted() == names.sorted())
+
+    let host = await hostedFixture(model)
+    let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
+    window.contentView = host
+    defer { window.contentView = nil }
+    try? await Task.sleep(for: .milliseconds(80))
+    host.layoutSubtreeIfNeeded()
+
+    let icons = iconViews(in: host)
+    #expect(icons.count == names.count)
+    #expect(icons.allSatisfy { $0.isAccessibilityElement() && $0.bounds.width > 1 && $0.bounds.height > 1 })
+    let section = try #require(
+        accessibilityNode(labeled: "已收纳的图标", identifier: "shelterbar.shelved-icons", in: host)
+    )
+    #expect(!section.children.isEmpty, "已收纳的图标 AX child count is 0")
+    let labels = section.flattenedLabels
+    for name in names {
+        #expect(labels.contains(name), "missing sheltered icon \(name)")
     }
 }
 

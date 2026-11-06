@@ -12,6 +12,16 @@ struct ShelfIcon: NSViewRepresentable {
     let onDragPosition: (String, CGPoint) -> Void
 
     func makeNSView(context: Context) -> ShelfIconView { ShelfIconView() }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: ShelfIconView, context: Context) -> CGSize? {
+        // Scroll views propose an unspecified or zero size to representables
+        // that have no intrinsic content size. A zero frame is omitted from
+        // the accessibility tree, so the shelf looks empty.
+        let width = proposal.width.flatMap { $0 > 1 ? $0 : nil } ?? 32
+        let height = proposal.height.flatMap { $0 > 1 ? $0 : nil } ?? ShelfLayoutMetrics.iconRowHeight
+        return CGSize(width: width, height: height)
+    }
+
     func updateNSView(_ view: ShelfIconView, context: Context) {
         view.item = item
         view.onActivate = onActivate
@@ -42,6 +52,7 @@ final class ShelfIconView: NSView {
 
     init() {
         super.init(frame: .zero)
+        setAccessibilityElement(true)
         setAccessibilityRole(.button)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { nil }

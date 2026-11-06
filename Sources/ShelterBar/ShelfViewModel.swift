@@ -150,7 +150,9 @@ final class ShelfViewModel: ObservableObject {
         var byID = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         // A bounded scan may stop before reaching every application. Preserve
         // any non-terminated reference it omitted. A later complete scan is
-        // authoritative and removes stale resident AX elements.
+        // authoritative for residents and drops their stale AX elements.
+        // Sheltered items are different: MenuBarAgent removes them from the
+        // tree on purpose, and the saved collection still has to list them.
         for (id, old) in knownItems where byID[id] == nil
             && (!scanWasComplete || collectedIDs.contains(id)) {
             guard old.application?.isTerminated != true else { continue }
@@ -158,6 +160,14 @@ final class ShelfViewModel: ObservableObject {
                 byID[id] = old
             } else if let frame = old.menuBarReference.currentFrame(), frame.width > 1 {
                 old.menuBarReference.frame = frame
+                byID[id] = old
+            } else {
+                // A complete inventory is authoritative for residents, but not
+                // for a sheltered item MenuBarAgent has removed from AX.
+                // currentFrame() fails in that case; dropping the last
+                // reference empties the shelf even though the saved
+                // collection still lists the item. Opening the panel reloads
+                // inventory, so this is the click path.
                 byID[id] = old
             }
         }

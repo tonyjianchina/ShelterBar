@@ -103,11 +103,21 @@ struct ShelfView: View {
                                       onDragPosition: onDragPosition)
                                 .frame(width: MenuBarIconPresentation.shelfWidth(for: item.icon),
                                        height: ShelfLayoutMetrics.iconRowHeight)
+                                // NSViewRepresentable controls are not AX children of a
+                                // SwiftUI scroll view unless the row contains them.
+                                // Otherwise 「已收纳的图标」 reports child count 0.
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(item.title)
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityAction(.default) { onActivate(item) }
                         }
                     }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("已收纳的图标")
+                    .accessibilityIdentifier("shelterbar.shelved-icons")
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: ShelfLayoutMetrics.iconRowHeight + 8)
-                .accessibilityLabel("已收纳的图标")
             }
             if model.isBusy {
                 ProgressView().controlSize(.small).help("正在移动图标…")
