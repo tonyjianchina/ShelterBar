@@ -64,16 +64,31 @@ private struct AccessibilityProbe {
 
 @MainActor
 private func accessibilityProbe(_ object: Any?, depth: Int = 0, seen: inout Set<ObjectIdentifier>) -> AccessibilityProbe? {
-    guard depth < 14, let object = object as? NSObject else { return nil }
-    guard seen.insert(ObjectIdentifier(object)).inserted else { return nil }
-    let children = (object.accessibilityChildren() ?? []).compactMap {
-        accessibilityProbe($0, depth: depth + 1, seen: &seen)
+    guard depth < 14 else { return nil }
+    // These accessors exist on NSView and NSAccessibilityElement, not NSObject.
+    if let view = object as? NSView {
+        guard seen.insert(ObjectIdentifier(view)).inserted else { return nil }
+        let children = (view.accessibilityChildren() ?? []).compactMap {
+            accessibilityProbe($0, depth: depth + 1, seen: &seen)
+        }
+        return AccessibilityProbe(
+            label: view.accessibilityLabel(),
+            identifier: view.accessibilityIdentifier(),
+            children: children
+        )
     }
-    return AccessibilityProbe(
-        label: object.accessibilityLabel(),
-        identifier: object.accessibilityIdentifier(),
-        children: children
-    )
+    if let element = object as? NSAccessibilityElement {
+        guard seen.insert(ObjectIdentifier(element)).inserted else { return nil }
+        let children = (element.accessibilityChildren() ?? []).compactMap {
+            accessibilityProbe($0, depth: depth + 1, seen: &seen)
+        }
+        return AccessibilityProbe(
+            label: element.accessibilityLabel(),
+            identifier: element.accessibilityIdentifier(),
+            children: children
+        )
+    }
+    return nil
 }
 
 @MainActor
