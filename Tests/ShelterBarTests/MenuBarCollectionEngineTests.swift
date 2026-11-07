@@ -6,10 +6,11 @@ import Testing
 
 private final class EngineFixtureSource: ShelfItemSource, @unchecked Sendable {
     var entries: [ShelfItem] = []
+    var isComplete = true
     private(set) var calls = 0
     func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
         calls += 1
-        return ShelfItemScanResult(items: entries, isComplete: true)
+        return ShelfItemScanResult(items: entries, isComplete: isComplete)
     }
 }
 
@@ -54,11 +55,13 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     }
 
     var borrowNoRoom = false
+    var onBorrow: (() -> Void)?
     func borrowVisibleSlot(for item: ShelfItem) async -> MenuBarBorrowResult {
         events.append("borrow \(item.id)")
         if borrowNoRoom { return .noRoom("notch") }
         guard borrowSucceeds else { return .failed("never appeared") }
         placements[item.id] = .resident
+        onBorrow?()
         return .borrowed
     }
 
@@ -115,6 +118,168 @@ private final class EngineFixtureDriver: MenuBarLayoutDriving {
     }
 }
 
+@Test("a fresh installation keeps late initial inventory visible without saving collection",
+      arguments: [false, true], [0, 1, 3])
+@MainActor
+func engineFirstLaunchKeepsLateInitialInventoryVisible(savedEmptyCollection: Bool, initialCount: Int) async {
+    let suite = "ShelterBarFirstLaunchTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    if savedEmptyCollection { defaults.set([String](), forKey: "shelf.collectedItems") }
+    let source = EngineFixtureSource()
+    let ids = ["vpn", "chat", "sync"]
+    source.entries = ids.prefix(initialCount).map { engineFixture($0, hidden: false) }
+    source.isComplete = initialCount == ids.count
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = Dictionary(uniqueKeysWithValues: ids.map { ($0, MenuBarPlacement.resident) })
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+
+    // A bounded first walk can be empty, partial, or complete. Discovering
+    // the remaining pre-existing icons must never opt them into collection.
+    _ = await engine.perform(.reconcile(.launch))
+    source.entries = ids.map { engineFixture($0, hidden: false) }
+    source.isComplete = true
+    for reason in [MenuBarReconcileReason.poll, .shelfOpened, .userRefresh, .screenChanged] {
+        let outcome = await engine.perform(.reconcile(reason))
+        #expect(outcome.message == nil)
+        #expect(!outcome.didChangeLayout)
+    }
+    #expect(driver.moves.isEmpty)
+    #expect(driver.collapseCount == 0)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(model.items.isEmpty)
+    #expect(Set(model.residentItems.map(\.id)) == Set(ids))
+    #expect((defaults.stringArray(forKey: "shelf.collectedItems") ?? []).isEmpty)
+    #expect((defaults.object(forKey: "shelf.collectedItems") != nil) == savedEmptyCollection)
+
+    let restartedModel = ShelfViewModel(source: source, defaults: defaults,
+                                       isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let restartedEngine = MenuBarCollectionEngine(model: restartedModel, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    _ = await restartedEngine.perform(.reconcile(.launch))
+    #expect(restartedModel.collectedIDs.isEmpty)
+    #expect(restartedModel.items.isEmpty)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.collapseCount == 0)
+}
+
+@Test("an upgrade restores only saved collection while preserving missing items, order and pinning")
+@MainActor
+func engineUpgradePreservesSavedCollectionWithoutAdoptingOthers() async {
+    let suite = "ShelterBarFirstLaunchTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let saved = ["sync", "offline"]
+    defaults.set(saved, forKey: "shelf.collectedItems")
+    defaults.set(saved, forKey: "shelf.itemOrder")
+    defaults.set(true, forKey: "shelf.isPinned")
+    let source = EngineFixtureSource()
+    source.entries = [engineFixture("sync", hidden: false), engineFixture("vpn", hidden: false)]
+    source.isComplete = false
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["sync": .resident, "vpn": .resident]
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    _ = await engine.perform(.reconcile(.launch))
+
+    source.entries.append(engineFixture("chat", hidden: false))
+    source.isComplete = true
+    driver.placements["chat"] = .resident
+    _ = await engine.perform(.reconcile(.poll))
+    _ = await engine.perform(.reconcile(.userRefresh))
+
+    #expect(model.collectedIDs == Set(saved))
+    #expect(model.items.map(\.id) == ["sync"])
+    #expect(Set(model.residentItems.map(\.id)) == ["vpn", "chat"])
+    #expect(driver.moves == [PlannedMenuBarMove(id: "sync", placement: .collected)])
+    #expect(defaults.stringArray(forKey: "shelf.collectedItems") == saved)
+    #expect(defaults.stringArray(forKey: "shelf.itemOrder") == saved)
+    #expect(model.isPinned)
+    #expect(defaults.bool(forKey: "shelf.isPinned"))
+}
+
+@Test("granting input permission with an incomplete first inventory never opts icons into collection")
+@MainActor
+func engineFirstPermissionGrantKeepsInventoryResident() async {
+    let suite = "ShelterBarFirstLaunchTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    source.isComplete = false
+    var granted = false
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { granted }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = ["vpn": .resident, "chat": .resident]
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { granted }, screenCaptureGranted: { false })
+
+    _ = await engine.perform(.reconcile(.launch))
+    #expect(source.calls == 0)
+    granted = true
+    source.entries = [engineFixture("vpn", hidden: false)]
+    _ = await engine.perform(.reconcile(.poll))
+    source.entries.append(engineFixture("chat", hidden: false))
+    source.isComplete = true
+    _ = await engine.perform(.reconcile(.poll))
+
+    #expect(engine.phase == .idle)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.collapseCount == 0)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(model.items.isEmpty)
+    #expect(Set(model.residentItems.map(\.id)) == ["vpn", "chat"])
+    #expect(defaults.object(forKey: "shelf.collectedItems") == nil)
+}
+
+@Test("restoring preferences waits for the saved app before asking the host to collapse", arguments: [false, true])
+@MainActor
+func engineDefersSavedCollectionUntilInventoryArrives(hasResident: Bool) async {
+    let suite = "ShelterBarRestoreTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["qq"], forKey: "shelf.collectedItems")
+    let source = EngineFixtureSource()
+    source.isComplete = false
+    source.entries = hasResident ? [engineFixture("chat", hidden: false)] : []
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.placements = hasResident ? ["chat": .resident] : [:]
+    // MenuBarAgent has nothing to hide until a saved item is discovered.
+    // It correctly remains expanded when its intended hidden set is empty.
+    driver.onCollapse = {
+        driver.isCollapsed = driver.placements.values.contains(.collected)
+    }
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    for reason in [MenuBarReconcileReason.launch, .shelfOpened, .poll] {
+        let outcome = await engine.perform(.reconcile(reason))
+        #expect(outcome.message == nil)
+        #expect(!outcome.didChangeLayout)
+        #expect(engine.phase == .idle)
+    }
+    #expect(driver.collapseCount == 0)
+    #expect(model.collectedIDs == ["qq"])
+
+    source.entries.append(engineFixture("qq", hidden: false))
+    source.isComplete = true
+    driver.placements["qq"] = .resident
+    let restored = await engine.perform(.reconcile(.poll))
+    #expect(restored.message == nil)
+    #expect(driver.isCollapsed)
+    #expect(driver.moves == [PlannedMenuBarMove(id: "qq", placement: .collected)])
+    #expect(model.items.map(\.id) == ["qq"])
+    #expect(model.collectedIDs == ["qq"])
+    #expect(driver.placements["chat"] == (hasResident ? .resident : nil))
+    #expect(engine.phase == .idle)
+}
+
 @Test("unavailable uncollected AX remnants do not fail refresh or collection")
 @MainActor
 func engineIgnoresUnmanagedAXRemnant() async {
@@ -143,14 +308,15 @@ func engineIgnoresUnmanagedAXRemnant() async {
     #expect(model.collectedIDs == ["vpn"])
     #expect(driver.moves == [PlannedMenuBarMove(id: "vpn", placement: .collected)])
 
-    // A previously unavailable item becoming visible is new to the managed
-    // inventory, not permanently ignored because its stale AX entry was seen.
+    // A previously unavailable item becoming visible remains resident until
+    // the user explicitly drags it into the shelf.
     driver.placements["lark-remnant"] = .resident
     remnant.menuBarReference.frame = CGRect(x: 950, y: 5, width: 56, height: 24)
     let appeared = await engine.perform(.reconcile(.poll))
     #expect(source.calls == 3)
-    #expect(appeared.didChangeLayout)
-    #expect(model.collectedIDs == ["vpn", "lark-remnant"])
+    #expect(!appeared.didChangeLayout)
+    #expect(model.collectedIDs == ["vpn"])
+    #expect(driver.placements["lark-remnant"] == .resident)
 }
 
 @Test("collection is not persisted if the driver cannot preserve the visible entry")
@@ -391,9 +557,9 @@ private func engineFixture(_ id: String, hidden: Bool, stable: Bool = true) -> S
     )
 }
 
-@Test("the engine adopts a newly hidden item without revealing or moving the menu bar")
+@Test("an unsaved item found on the hidden side is restored instead of adopted")
 @MainActor
-func engineAdoptsNewHiddenItemInPlace() async {
+func engineRestoresNewUnsavedHiddenItem() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -423,10 +589,12 @@ func engineAdoptsNewHiddenItemInPlace() async {
     let outcome = await engine.perform(.reconcile(.poll))
 
     #expect(outcome.didChangeLayout)
-    #expect(driver.revealCount == 0)
-    #expect(driver.moves.isEmpty)
-    #expect(model.collectedIDs == ["new-chat"])
-    #expect(model.items.map(\.id) == ["new-chat"])
+    #expect(driver.moves == [PlannedMenuBarMove(id: "new-chat", placement: .resident)])
+    #expect(driver.collapseCount == 0)
+    #expect(!driver.isCollapsed)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(model.items.isEmpty)
+    #expect(driver.placements["new-chat"] == .resident)
 }
 
 @Test("screen capture is optional when restoring a saved collected item")
@@ -497,9 +665,9 @@ func engineShieldsPhysicalReconciliation() async {
     #expect(transition.dismissed == 1)
 }
 
-@Test("a newly launched visible status item is moved into the collected section")
+@Test("a newly launched visible status item stays resident until manually collected")
 @MainActor
-func engineCollectsNewVisibleItem() async {
+func engineKeepsNewVisibleItemResident() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -526,19 +694,22 @@ func engineCollectsNewVisibleItem() async {
 
     let outcome = await engine.perform(.reconcile(.poll))
 
-    #expect(outcome.message == "已自动收纳 1 个新增图标。")
-    #expect(driver.moves == [PlannedMenuBarMove(id: "new-vpn", placement: .collected)])
-    #expect(driver.collapseCount == 1)
-    #expect(model.collectedIDs == ["new-vpn"])
-    #expect(model.items.map(\.id) == ["new-vpn"])
+    #expect(outcome.message == nil)
+    #expect(!outcome.didChangeLayout)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.collapseCount == 0)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(model.items.isEmpty)
+    #expect(driver.placements["new-vpn"] == .resident)
 }
 
-@Test("a failed automatic move reveals everything and does not persist collection")
+@Test("a failed saved-layout restore reveals everything and preserves the saved collection")
 @MainActor
-func engineDoesNotPersistFailedAutomaticMove() async {
+func enginePreservesCollectionAfterFailedSavedRestore() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["new-vpn"], forKey: "shelf.collectedItems")
     let source = EngineFixtureSource()
     source.entries = [engineFixture("resident", hidden: false)]
     let model = ShelfViewModel(
@@ -564,7 +735,7 @@ func engineDoesNotPersistFailedAutomaticMove() async {
     let outcome = await engine.perform(.reconcile(.poll))
 
     #expect(outcome.message == "部分收纳图标未能移动，已展开菜单栏。")
-    #expect(model.collectedIDs.isEmpty)
+    #expect(model.collectedIDs == ["new-vpn"])
     #expect(driver.isCollapsed == false)
     #expect(engine.phase == .degraded("部分收纳图标未能移动，已展开菜单栏。"))
 
@@ -821,7 +992,14 @@ func engineSetsPlacementInBothDirections() async {
     _ = await engine.perform(.reconcile(.launch))
 
     let collected = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
+    source.entries.append(engineFixture("chat", hidden: false))
+    driver.placements["chat"] = .resident
+    let discovered = await engine.perform(.reconcile(.poll))
+    #expect(!discovered.didChangeLayout)
+    #expect(model.collectedIDs == ["vpn"])
+    #expect(driver.placements["chat"] == .resident)
     let returned = await engine.perform(.setPlacement(id: "vpn", placement: .resident))
+    _ = await engine.perform(.reconcile(.poll))
 
     #expect(collected.didChangeLayout && returned.didChangeLayout)
     #expect(driver.moves == [
@@ -830,6 +1008,15 @@ func engineSetsPlacementInBothDirections() async {
     ])
     #expect(model.collectedIDs.isEmpty)
     #expect(driver.isCollapsed == false)
+
+    let restartedModel = ShelfViewModel(source: source, defaults: defaults,
+                                       isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let restartedEngine = MenuBarCollectionEngine(model: restartedModel, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    _ = await restartedEngine.perform(.reconcile(.launch))
+    #expect(restartedModel.collectedIDs.isEmpty)
+    #expect(restartedModel.items.isEmpty)
+    #expect(driver.moves.count == 2)
 }
 
 @Test("collection keeps the original glyph when the host hides the item as soon as it moves")
@@ -1220,6 +1407,39 @@ func engineKeepsItemRevealedWhileMenuIsOpen() async {
     #expect(driver.collectedOrder(model.scan()) == ["uu", "muse"])
     #expect(model.collectedIDs == ["uu", "muse"])
     #expect(engine.phase == .idle)
+}
+
+@Test("opening a sheltered menu uses the replacement AX item created when the host reveals it")
+@MainActor
+func engineReloadsRevealedAXReferenceBeforePressing() async {
+    let suite = "ShelterBarRevealTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["qq"], forKey: "shelf.collectedItems")
+    let source = EngineFixtureSource()
+    let hidden = engineFixture("qq", hidden: true)
+    let revealed = engineFixture("qq", hidden: false)
+    source.entries = [hidden]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    driver.isCollapsed = true
+    driver.placements = ["qq": .collected]
+    driver.hiddenOrder = ["qq"]
+    driver.onBorrow = { source.entries = [revealed] }
+    var pressedLiveItem = false
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false },
+        press: {
+            pressedLiveItem = $0.menuBarReference === revealed.menuBarReference
+            return pressedLiveItem
+        }, awaitMenuClosed: { _ in })
+    let outcome = await engine.perform(.activate(id: "qq"))
+    #expect(pressedLiveItem)
+    #expect(outcome.shouldDismissShelf)
+    #expect(driver.placements["qq"] == .collected)
+    #expect(driver.isCollapsed)
+    #expect(model.pendingRestore == nil)
 }
 
 @Test("when the single-item move fails, expanding the hidden section is the last resort")

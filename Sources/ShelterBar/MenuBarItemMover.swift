@@ -484,7 +484,7 @@ final class MenuBarItemMover {
             try? await Task.sleep(for: .milliseconds(40))
             let settled = item.menuBarReference.currentFrame() ?? shown
             if let exposed = MenuBarGeometry.visibleFrame(settled), exposed.width >= settled.width - 2 {
-                borrowedTarget = MenuBarMenuOpener.onScreenStatusWindow(near: settled)?.frame ?? settled
+                borrowedTarget = MenuBarMenuOpener.onScreenStatusWindow(near: settled, clientPID: item.menuBarReference.pid)?.frame ?? settled
                 menuBarMoveLog.info("borrowed visible slot for \(item.id, privacy: .public) at \(String(describing: settled), privacy: .public) (\(slot.afterHandle ? "after" : "before", privacy: .public) handle)")
                 return .borrowed
             }

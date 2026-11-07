@@ -23,9 +23,10 @@ struct CheckNativeCollection {
         // menu-bar overflow arrow, or arbitrary items selected by coordinates.
         let allowedTargets: Set<String> = [
             "com.electron.ollama", "com.openai.codex", "com.netease.uuremote", "com.meta.endo",
+            "com.tencent.QQMusicMac",
         ]
         guard let bundleID = target.bundleIdentifier, allowedTargets.contains(bundleID) else {
-            throw Failure("Only Ollama, Codex, UU Remote and Muse are permitted test targets.")
+            throw Failure("Only Ollama, Codex, UU Remote, Muse and QQ Music are permitted test targets.")
         }
         let repeats = CommandLine.arguments.count == 4 ? Int(CommandLine.arguments[3]) ?? 1 : 1
         guard (1...20).contains(repeats) else { throw Failure("Repeat count must be 1...20.") }
@@ -62,7 +63,7 @@ struct CheckNativeCollection {
                     return reveal != nil
                 }), let reveal else { throw Failure("Cannot find reveal command.") }
                 AXUIElementPerformAction(reveal, kAXPressAction as CFString)
-                guard awaitCondition({ texts(shelterAX).compactMap(Int.init).first == 0 })
+                guard awaitCondition({ shelfCount(shelterAX) == 0 })
                 else { throw Failure("Reveal failed at iteration \(iteration): \(texts(shelterAX))") }
                 Thread.sleep(forTimeInterval: 0.3)
             }
@@ -84,11 +85,11 @@ struct CheckNativeCollection {
             print("BEFORE target=\(target.bundleIdentifier ?? "?") frame=\(liveSource) shelf=\(texts(shelterAX))")
             drag(from: pickup, to: CGPoint(x: panel.midX, y: panel.midY))
             let passed = awaitCondition {
-                texts(shelterAX).compactMap(Int.init).first == expected && !hasFailure(shelterAX)
+                shelfCount(shelterAX) == expected && !hasFailure(shelterAX)
             }
             guard passed else { throw Failure("Expected shelf count \(expected); actual UI: \(texts(shelterAX))") }
             Thread.sleep(forTimeInterval: 2.5)
-            guard texts(shelterAX).compactMap(Int.init).first == expected, !hasFailure(shelterAX)
+            guard shelfCount(shelterAX) == expected, !hasFailure(shelterAX)
             else { throw Failure("Collection did not survive polling: \(texts(shelterAX))") }
             print("PASS iteration=\(iteration) collection \(target.bundleIdentifier ?? "?") shelf=\(expected) after polling")
         }
@@ -116,6 +117,19 @@ struct CheckNativeCollection {
         guard let window = shelfWindow(app) else { return [] }
         return descendants(window).filter { value(kAXRoleAttribute, $0) as String? == kAXStaticTextRole }
             .compactMap { value(kAXValueAttribute, $0) }
+    }
+    static func shelfCount(_ app: AXUIElement) -> Int? {
+        guard let window = shelfWindow(app) else { return nil }
+        // The header exposes one combined accessibility label; its visual
+        // count is intentionally no longer a separate static-text child.
+        for element in descendants(window) {
+            for attribute in [kAXDescriptionAttribute, kAXTitleAttribute, kAXValueAttribute] {
+                if let label: String = value(attribute, element), label.hasPrefix("收纳栏，") {
+                    return Int(label.dropFirst("收纳栏，".count).prefix(while: \.isNumber))
+                }
+            }
+        }
+        return texts(app).compactMap(Int.init).first
     }
     static func hasFailure(_ app: AXUIElement) -> Bool {
         texts(app).contains { $0.contains("系统没有完成布局调整") || $0.contains("未能收纳") }

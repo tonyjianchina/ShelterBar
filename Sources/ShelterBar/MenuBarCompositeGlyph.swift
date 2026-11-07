@@ -93,7 +93,7 @@ enum MenuBarCompositeGlyph {
         // chevron. Stable pixels are not proof of ownership. Reject that
         // mostly-empty, edge-clipped strip BEFORE cropping; a rejected
         // capture never overwrites the last usable app glyph.
-        // Saved overflow fixtures sit flush with the edge (0...6 px of margin).
+        // A clipped chevron can retain a few points of background at the edge.
         // A third-party control such as QQ Music can be much wider than its
         // glyph: the pictogram has real padding and the rest is a title or
         // empty space. Crop that glyph instead of throwing the capture away.
@@ -101,7 +101,10 @@ enum MenuBarCompositeGlyph {
         let narrowAndOffCenter = ink.width < CGFloat(width) * 0.65
             && abs(left - right) > max(6, CGFloat(width) * 0.18)
         if narrowAndOffCenter {
-            guard min(left, right) > 6 else { return nil }
+            // Measure padding in points. Seven Retina pixels are only 3.5
+            // points and do not establish ownership of a real pictogram.
+            let scale = CGFloat(width) / logicalSize.width
+            guard min(left, right) > 6 * scale else { return nil }
             return imageByIsolatingInk(
                 pixels, ink: ink, width: width, height: height,
                 logicalSize: logicalSize, space: space, bitmapInfo: info

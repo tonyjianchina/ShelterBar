@@ -22,7 +22,11 @@ private final class ShelfInventoryScanner: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.jensen.shelterbar.ax-inventory", qos: .userInitiated)
 
     func scan(source: any ShelfItemSource, budget: Duration) async -> ShelfItemScanResult {
-        let deadline = ContinuousClock.now + budget
+        // Each synchronous AX request can outlive the cooperative deadline
+        // by its messaging timeout (80ms in the real source). Leave room to
+        // deliver gathered items before the hard watchdog returns an empty
+        // inventory. An uncooperative source is still bounded by `budget`.
+        let deadline = ContinuousClock.now + budget - min(.milliseconds(100), budget / 4)
         return await withCheckedContinuation { continuation in
             let completion = ShelfScanCompletion(continuation)
             queue.async {

@@ -26,6 +26,19 @@ private final class SlowFixtureSource: ShelfItemSource, @unchecked Sendable {
     }
 }
 
+private struct DeadlineFixtureSource: ShelfItemSource {
+    let entries: [ShelfItem]
+
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        // A synchronous AX request that began before the deadline may return
+        // shortly after it. It still contains the inventory already gathered.
+        let remaining = ContinuousClock.now.duration(to: deadline) + .milliseconds(20)
+        let parts = remaining.components
+        Thread.sleep(forTimeInterval: max(0, Double(parts.seconds) + Double(parts.attoseconds) / 1e18))
+        return ShelfItemScanResult(items: entries, isComplete: false)
+    }
+}
+
 @Test("the shelf permission button keeps Settings closed and shows manual guidance")
 @MainActor
 func shelfInputPermissionButtonShowsFallbackGuidance() {
@@ -134,6 +147,15 @@ func inventoryBudgetCapsUncooperativeSource() async {
 
     #expect(started.duration(to: .now) < .milliseconds(150))
     #expect(model.residentItems.map(\.id) == ["sync"])
+}
+
+@Test("a final bounded AX request does not discard the entire partial inventory at the watchdog deadline")
+@MainActor
+func inventoryKeepsPartialResultsBeforeWatchdog() async {
+    let source = DeadlineFixtureSource(entries: [fixture("qq")])
+    let model = ShelfViewModel(source: source, isTrusted: { true }, isVisible: { _ in true })
+    await model.reload(budget: .milliseconds(200))
+    #expect(model.residentItems.map(\.id) == ["qq"])
 }
 
 @Test("a saved collected icon still visible on top must not be duplicated in the shelf")

@@ -146,6 +146,28 @@ private func compositeContext(width: Int, height: Int) throws -> CGContext {
         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
 }
 
+@Test("overflow rejection and padded glyphs stay consistent across display scales", arguments: [1, 2, 3])
+@MainActor
+func compositeGlyphMarginsRespectDisplayScale(scale: Int) throws {
+    func capture(inset: CGFloat) throws -> CGImage {
+        let context = try compositeContext(width: 80 * scale, height: 24 * scale)
+        context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+        context.setFillColor(CGColor(red: 0.35, green: 0.45, blue: 0.6, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 80, height: 24))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fillEllipse(in: CGRect(x: 80 - inset - 14, y: 4, width: 14, height: 16))
+        return try #require(context.makeImage())
+    }
+
+    let logicalSize = CGSize(width: 80, height: 24)
+    let overflow = try capture(inset: 4)
+    #expect(MenuBarCompositeGlyph.make(from: overflow, logicalSize: logicalSize) == nil)
+    let padded = try capture(inset: 12)
+    let icon = try #require(MenuBarCompositeGlyph.make(from: padded, logicalSize: logicalSize))
+    #expect(icon.size.width > 8 && icon.size.width < 40)
+    #expect(icon.size.height == 24)
+}
+
 @Test("a padded glyph in a wide status item is kept, while an edge-flush chevron is not")
 @MainActor
 func compositeKeepsPaddedGlyphInsideWideItem() throws {
