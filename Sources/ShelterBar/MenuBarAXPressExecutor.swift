@@ -9,17 +9,32 @@ final class MenuBarAXPressExecutor: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "com.jensen.shelterbar.ax-press", qos: .userInitiated)
     private let action: Action
+    private let menuAction: Action
 
-    init(action: @escaping Action = { reference in
+    private static func perform(_ reference: MenuBarItemReference, action: CFString) -> AXError {
         let element = reference.element
         AXUIElementSetMessagingTimeout(element, 0.25)
         defer { AXUIElementSetMessagingTimeout(element, 0) }
-        return AXUIElementPerformAction(element, kAXPressAction as CFString)
-    }) {
+        return AXUIElementPerformAction(element, action)
+    }
+
+    init(
+        action: @escaping Action = { perform($0, action: kAXPressAction as CFString) },
+        menuAction: @escaping Action = { perform($0, action: kAXShowMenuAction as CFString) }
+    ) {
         self.action = action
+        self.menuAction = menuAction
     }
 
     func press(_ reference: MenuBarItemReference) async -> AXError {
+        await enqueue(reference, action: action)
+    }
+
+    func showMenu(_ reference: MenuBarItemReference) async -> AXError {
+        await enqueue(reference, action: menuAction)
+    }
+
+    private func enqueue(_ reference: MenuBarItemReference, action: @escaping Action) async -> AXError {
         guard !Task.isCancelled else { return .failure }
         return await withCheckedContinuation { continuation in
             queue.async { [action] in

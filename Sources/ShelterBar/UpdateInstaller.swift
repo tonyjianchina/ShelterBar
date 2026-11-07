@@ -40,7 +40,6 @@ enum UpdateInstaller {
         currentAppURL: URL,
         currentVersion: ShelterBarVersion,
         currentBuild: ShelterBarBuildNumber,
-        allowsReinstall: Bool,
         currentPID: Int32 = ProcessInfo.processInfo.processIdentifier
     ) throws -> UpdateInstallPlan? {
         guard currentAppURL.lastPathComponent == "ShelterBar.app" else {
@@ -73,10 +72,9 @@ enum UpdateInstaller {
                 currentVersion: currentVersion,
                 currentBuild: currentBuild,
                 candidateVersion: candidate.version,
-                candidateBuild: candidateBuild,
-                allowsReinstall: allowsReinstall
+                candidateBuild: candidateBuild
             ) {
-            case .newer, .reinstall:
+            case .newer:
                 break
             case .notNewer:
                 try fileManager.removeItem(at: workRoot)

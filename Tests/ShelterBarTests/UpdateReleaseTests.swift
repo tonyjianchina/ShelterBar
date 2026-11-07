@@ -35,37 +35,45 @@ func buildNumberComparisonAndEligibility() throws {
         currentVersion: version,
         currentBuild: build34,
         candidateVersion: version,
-        candidateBuild: build35,
-        allowsReinstall: false
+        candidateBuild: build35
     ) == .newer)
     #expect(UpdateEligibility.evaluate(
         currentVersion: version,
         currentBuild: build34,
         candidateVersion: version,
-        candidateBuild: build34,
-        allowsReinstall: false
+        candidateBuild: build34
     ) == .notNewer)
-    #expect(UpdateEligibility.evaluate(
-        currentVersion: version,
-        currentBuild: build34,
-        candidateVersion: version,
-        candidateBuild: build34,
-        allowsReinstall: true
-    ) == .reinstall)
     #expect(UpdateEligibility.evaluate(
         currentVersion: version,
         currentBuild: build35,
         candidateVersion: nextVersion,
-        candidateBuild: build34,
-        allowsReinstall: false
+        candidateBuild: build34
     ) == .invalidBuildRegression)
     #expect(UpdateEligibility.evaluate(
         currentVersion: version,
         currentBuild: build35,
         candidateVersion: nextVersion,
-        candidateBuild: build35,
-        allowsReinstall: false
+        candidateBuild: build35
     ) == .notNewer)
+}
+
+@Test("the same public version and build is never reinstalled over the running app")
+func sameVersionIsNotEligibleForReinstall() throws {
+    let version = try #require(ShelterBarVersion("0.5.14"))
+    let build = try #require(ShelterBarBuildNumber("38"))
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: build,
+        candidateVersion: version,
+        candidateBuild: build
+    ) == .notNewer)
+    let localPatch = try #require(ShelterBarBuildNumber("39"))
+    #expect(UpdateEligibility.evaluate(
+        currentVersion: version,
+        currentBuild: localPatch,
+        candidateVersion: version,
+        candidateBuild: build
+    ) == .invalidBuildRegression)
 }
 
 @Test("update readiness marker is restricted to updater temporary directories")

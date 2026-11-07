@@ -225,14 +225,21 @@ final class MenuBarCollectionEngine {
             items: observed,
             knownItemIDs: knownItemIDs,
             desiredCollectedIDs: previouslyCollectedIDs,
-            newItemPolicy: .collect
+            // A bounded first scan can be empty or partial. Discovering an
+            // icon later is not permission to collect it: only restore the
+            // saved selection, and add items through explicit setPlacement.
+            newItemPolicy: .keepVisible
         ))
 
         do {
+            // Preferences can arrive before the saved app's AX inventory.
+            // An empty host intent correctly stays expanded; collapsing it
+            // here used to degrade the engine and prevent later restoration.
+            let hasLiveCollection = items.contains { plan.desiredCollectedIDs.contains($0.id) }
             let needsPhysicalChange = !plan.moves.isEmpty
                 || !plan.unresolvedItemIDs.isEmpty
-                || (!plan.desiredCollectedIDs.isEmpty && !driver.isCollapsed)
-                || (plan.desiredCollectedIDs.isEmpty && driver.isCollapsed)
+                || (hasLiveCollection && !driver.isCollapsed)
+                || (!hasLiveCollection && driver.isCollapsed)
             let userInitiated = reason == .userRefresh || reason == .shelfOpened
             // "刷新并恢复收纳" briefly reveals stowed items to capture glyphs that
             // are neither live nor persisted yet.
@@ -350,6 +357,10 @@ final class MenuBarCollectionEngine {
                 return MenuBarCollectionOutcome(message: "顶部菜单栏没有空位显示「\(item.title)」（可能被刘海遮挡）。请关闭一些菜单栏图标，或在外接显示器上打开。")
             }
             if borrowed == .borrowed {
+                // MenuBarAgent may replace the AX element when unhiding it.
+                // The old reference can still have a frame but reject every
+                // action, so obtain the new element before opening its menu.
+                await model.reload()
                 let target = fresh()
                 let opened = await press(target)
                 if opened { await awaitMenuClosed(target) }
@@ -395,6 +406,7 @@ final class MenuBarCollectionEngine {
         let wasCollapsed = driver.isCollapsed
         let collected = model.collectedIDs
         await driver.revealHiddenSection()
+        await model.reload()
         func fresh() -> ShelfItem { model.scan().first(where: { $0.id == id }) ?? item }
         var target = fresh()
         var movedOut = false

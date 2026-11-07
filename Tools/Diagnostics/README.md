@@ -25,7 +25,7 @@ permission-blocked run must not count as successful native reconciliation.
 app and asserts the expected shelf count with no layout error, including after
 a background poll. It temporarily pins the shelf and restores the prior pin
 state even on failure. It uses the app's UI, not direct preference writes.
-Test targets are restricted to Ollama, Codex, UU Remote and Muse. System
+Test targets are restricted to Ollama, Codex, UU Remote, Muse and QQ Music. System
 recording indicators and the menu-bar overflow arrow are excluded; a pickup
 that overlaps a system control aborts without sending a drag.
 
@@ -35,6 +35,8 @@ swiftc -parse-as-library Tools/Diagnostics/CheckNativeCollection.swift -o /tmp/s
 /tmp/shelter-native-collection com.meta.endo 4
 # With those four apps collected, reveal and collect again five times:
 /tmp/shelter-native-collection com.meta.endo 4 5
+# With QQ Music resident and an empty shelf:
+/tmp/shelter-native-collection com.tencent.QQMusicMac 1
 ```
 
 The repeat command caught Build 30 returning all icons to the menu bar during

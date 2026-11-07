@@ -26,6 +26,19 @@ private final class SlowFixtureSource: ShelfItemSource, @unchecked Sendable {
     }
 }
 
+private struct DeadlineFixtureSource: ShelfItemSource {
+    let entries: [ShelfItem]
+
+    func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+        // A synchronous AX request that began before the deadline may return
+        // shortly after it. It still contains the inventory already gathered.
+        let remaining = ContinuousClock.now.duration(to: deadline) + .milliseconds(20)
+        let parts = remaining.components
+        Thread.sleep(forTimeInterval: max(0, Double(parts.seconds) + Double(parts.attoseconds) / 1e18))
+        return ShelfItemScanResult(items: entries, isComplete: false)
+    }
+}
+
 @Test("the shelf permission button keeps Settings closed and shows manual guidance")
 @MainActor
 func shelfInputPermissionButtonShowsFallbackGuidance() {
@@ -134,6 +147,15 @@ func inventoryBudgetCapsUncooperativeSource() async {
 
     #expect(started.duration(to: .now) < .milliseconds(150))
     #expect(model.residentItems.map(\.id) == ["sync"])
+}
+
+@Test("a final bounded AX request does not discard the entire partial inventory at the watchdog deadline")
+@MainActor
+func inventoryKeepsPartialResultsBeforeWatchdog() async {
+    let source = DeadlineFixtureSource(entries: [fixture("qq")])
+    let model = ShelfViewModel(source: source, isTrusted: { true }, isVisible: { _ in true })
+    await model.reload(budget: .milliseconds(200))
+    #expect(model.residentItems.map(\.id) == ["qq"])
 }
 
 @Test("a saved collected icon still visible on top must not be duplicated in the shelf")
@@ -270,6 +292,132 @@ func permissionRevocationClearsItems() async {
     model.refresh()
     #expect(model.items.isEmpty && model.residentItems.isEmpty)
     #expect(!model.hasAccessibilityPermission)
+}
+
+@Test("a sheltered item with no captured glyph shows the owning app icon")
+@MainActor
+func shelteredItemWithoutCaptureUsesApplicationIcon() async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let id = "ax:com.tencent.QQMusicMac:main"
+    defaults.set([id], forKey: "shelf.collectedItems")
+    _ = NSApplication.shared
+    let app = NSRunningApplication.current
+    let source = FixtureSource()
+    source.entries = [ShelfItem(
+        id: id, title: "QQ音乐", icon: NSImage(), application: app,
+        menuBarReference: MenuBarItemReference(
+            pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+            frame: CGRect(x: 1028, y: 5.5, width: 150, height: 22)
+        )
+    )]
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 },
+        isLogicallyHidden: { $0.id == id }
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+
+    let shown = try #require(model.items.first)
+    let original = try #require(MenuBarIconPresentation.reportedApplicationIcon(app))
+    #expect(shown.hasMenuBarIcon == false)
+    #expect(!shown.icon.isTemplate)
+    #expect(shown.icon.size == original.size)
+    #expect(model.residentItems.isEmpty)
+
+    let glyph = NSImage(size: NSSize(width: 22, height: 22))
+    model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: glyph)])
+    #expect(model.item(withID: id)?.icon === glyph)
+    #expect(model.items.first?.icon.size == original.size)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+}
+
+@Test("only sheltered QQ Music replaces live and persisted playback strips with its app icon",
+      arguments: ["com.tencent.QQMusicMac", "com.tencent.QQMusicMacHelper", "com.example.player"], [false, true])
+@MainActor
+func shelteredQQMusicShowsOnlyApplicationIcon(bundleID: String, persisted: Bool) async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let id = "ax:\(bundleID):main"
+    defaults.set([id], forKey: "shelf.collectedItems")
+    _ = NSApplication.shared
+    let app = NSRunningApplication.current
+    let reference = MenuBarItemReference(
+        pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+        frame: CGRect(x: 900, y: 980, width: 150, height: 22)
+    )
+    let source = FixtureSource()
+    source.entries = [ShelfItem(
+        id: id, title: "A song — QQ音乐", icon: NSImage(), application: app,
+        menuBarReference: reference
+    )]
+    let strip = NSImage(size: NSSize(width: 150, height: 22), flipped: false) { _ in
+        NSColor.systemGreen.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 132, y: 3, width: 16, height: 16)).fill()
+        ("A song  ▶  ❚❚" as NSString).draw(at: NSPoint(x: 2, y: 3), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor
+        ])
+        return true
+    }
+    if persisted {
+        #expect(MenuBarIconDiskCache(directory: directory).store(strip, for: id))
+    }
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 },
+        iconStore: MenuBarIconDiskCache(directory: directory)
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    if !persisted {
+        model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: strip)])
+    }
+
+    let shown = try #require(model.items.first)
+    #expect(model.items.count == 1)
+    #expect(shown.id == id)
+    #expect(shown.menuBarReference === reference)
+    #expect(shown.hasMenuBarIcon)
+    // Keep the captured artwork and original reference available to the
+    // activation/restore path; only the shelf's presentation is replaced.
+    #expect(model.item(withID: id)?.icon.size == strip.size)
+    if bundleID == "com.tencent.QQMusicMac" {
+        let original = try #require(MenuBarIconPresentation.reportedApplicationIcon(app))
+        #expect(MenuBarIconPresentation.renderedImage(for: shown.icon).tiffRepresentation
+            == MenuBarIconPresentation.renderedImage(for: original).tiffRepresentation)
+        #expect(MenuBarIconPresentation.displaySize(for: shown.icon) == NSSize(width: 24, height: 24))
+        #expect(MenuBarIconPresentation.shelfWidth(for: shown.icon) == 38)
+    } else {
+        #expect(shown.icon.size == strip.size)
+        #expect(MenuBarIconPresentation.displaySize(for: shown.icon).width > 100)
+    }
+
+    reference.frame.origin.y = 5
+    model.setCollected(false, id: id)
+    model.refresh()
+    #expect(model.items.isEmpty)
+    #expect(model.residentItems.first?.icon.size == strip.size)
+}
+
+@Test("an item with no application identity still uses the question-mark placeholder")
+@MainActor
+func itemWithoutApplicationUsesQuestionMark() async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["sync"], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [fixture("sync", hidden: true)]
+    let model = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 })
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    let shown = try #require(model.items.first)
+    #expect(shown.hasMenuBarIcon == false)
+    #expect(shown.icon.isTemplate)
+    #expect(shown.icon.size.height == 18)
 }
 
 @Test("a captured menu glyph survives a fresh hidden-item scan without a Dock icon replacement")

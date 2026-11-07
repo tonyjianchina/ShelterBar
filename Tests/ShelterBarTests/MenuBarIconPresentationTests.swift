@@ -45,6 +45,22 @@ func menuBarIconPlaceholder() {
     #expect(MenuBarIconPresentation.shelfWidth(for: empty) == 32)
 }
 
+@Test("a missing status glyph uses the owning app icon instead of a question mark")
+@MainActor
+func unresolvedIconPrefersRunningApplication() throws {
+    let missing = MenuBarIconPresentation.unresolvedIcon(application: nil, accessibilityDescription: "QQ音乐")
+    #expect(missing.isTemplate)
+    #expect(missing.size.height == 18)
+
+    let app = NSRunningApplication.current
+    let original = try #require(MenuBarIconPresentation.reportedApplicationIcon(app))
+    #expect(original.size.width > 1)
+    let icon = MenuBarIconPresentation.unresolvedIcon(application: app, accessibilityDescription: "QQ音乐")
+    #expect(!icon.isTemplate)
+    #expect(icon.size == original.size)
+    #expect(icon !== original)
+}
+
 @MainActor
 private func sampleIcon(template: Bool) -> NSImage {
     let image = NSImage(size: NSSize(width: 16, height: 12), flipped: false) { _ in

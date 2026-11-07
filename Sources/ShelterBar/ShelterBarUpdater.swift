@@ -40,7 +40,6 @@ struct UpdatePreparation: Sendable {
     let currentAppURL: URL
     let currentVersion: ShelterBarVersion
     let currentBuild: ShelterBarBuildNumber
-    let allowsReinstall: Bool
 }
 
 /// Injectable I/O keeps regression tests on the real updater flow without
@@ -54,8 +53,7 @@ struct UpdateOperations: Sendable {
             try UpdateInstaller.prepare(
                 candidate: request.candidate, archiveData: request.archiveData,
                 checksumData: request.checksumData, currentAppURL: request.currentAppURL,
-                currentVersion: request.currentVersion, currentBuild: request.currentBuild,
-                allowsReinstall: request.allowsReinstall
+                currentVersion: request.currentVersion, currentBuild: request.currentBuild
             )
         }.value
     }
@@ -175,14 +173,17 @@ final class ShelterBarUpdater {
             guard let self else { return }
             do { try await Task.sleep(for: configuration.initialDelay) } catch { return }
             while !Task.isCancelled {
-                beginUpdate(allowsReinstall: false)
+                beginUpdate(userInitiated: false)
                 do { try await Task.sleep(for: configuration.interval) } catch { return }
             }
         }
     }
 
+    /// User-initiated check from the shelf menu. Reports the result in the shelf.
+    /// When this build is already the verified public release, the check does not
+    /// download that package and never replaces the running app with it.
     func checkForUpdatesAndInstall() {
-        beginUpdate(allowsReinstall: true)
+        beginUpdate(userInitiated: true)
     }
 
     func stop() {
@@ -192,24 +193,24 @@ final class ShelterBarUpdater {
         updateTask = nil
     }
 
-    private func beginUpdate(allowsReinstall: Bool) {
+    private func beginUpdate(userInitiated: Bool) {
         guard updateTask == nil else { return }
         updateTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await performUpdate(allowsReinstall: allowsReinstall)
+            await performUpdate(userInitiated: userInitiated)
             updateTask = nil
         }
     }
 
-    func performUpdate(allowsReinstall: Bool) async {
-        isUserInitiated = allowsReinstall
+    func performUpdate(userInitiated: Bool) async {
+        isUserInitiated = userInitiated
         guard let currentVersion, let currentBuild else {
             fail("无法读取当前版本或构建号")
             return
         }
         do {
             state = .checking
-            updateLog.notice("checking \(self.configuration.feedURL.absoluteString, privacy: .public) from \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public)); reinstall=\(allowsReinstall)")
+            updateLog.notice("checking \(self.configuration.feedURL.absoluteString, privacy: .public) from \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public)); manual=\(userInitiated)")
             let feedData = try await operations.fetch(configuration.feedURL, 5 * 1_024 * 1_024)
             try Task.checkCancellation()
             let catalog = try ReleaseCatalog(data: feedData)
@@ -219,9 +220,13 @@ final class ShelterBarUpdater {
                 return
             }
             let cache = UpdateCheckCache(defaults: defaults)
-            if !allowsReinstall, cache.contains(candidate: candidate, feed: configuration.feedURL,
-                                                version: currentVersion, build: currentBuild) {
+            // Manual and automatic checks share this memo. A menu click on
+            // "已是最新版" must not download or reinstall the public package
+            // that was already verified for this exact version and build.
+            if cache.contains(candidate: candidate, feed: configuration.feedURL,
+                              version: currentVersion, build: currentBuild) {
                 state = .upToDate("\(currentVersion) (\(currentBuild))")
+                updateLog.notice("up to date at \(currentVersion.description, privacy: .public) (\(currentBuild.description, privacy: .public)); cached, no download")
                 return
             }
             state = .downloading(candidate.version.description)
@@ -237,8 +242,7 @@ final class ShelterBarUpdater {
                     checksumData: checksumData,
                     currentAppURL: currentAppURL,
                     currentVersion: currentVersion,
-                    currentBuild: currentBuild,
-                    allowsReinstall: allowsReinstall
+                    currentBuild: currentBuild
                 ))
             guard let plan else {
                 try Task.checkCancellation()

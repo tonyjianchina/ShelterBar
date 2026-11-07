@@ -139,3 +139,72 @@ func compositeFixtureSingleDigit() throws {
     let image = try #require(MenuBarCompositeGlyph.make(from: source, logicalSize: CGSize(width: 36, height: 24), hasCount: true))
     #expect(image.size.width < 25)
 }
+
+private func compositeContext(width: Int, height: Int) throws -> CGContext {
+    try #require(CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+        bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+}
+
+@Test("overflow rejection and padded glyphs stay consistent across display scales", arguments: [1, 2, 3])
+@MainActor
+func compositeGlyphMarginsRespectDisplayScale(scale: Int) throws {
+    func capture(inset: CGFloat) throws -> CGImage {
+        let context = try compositeContext(width: 80 * scale, height: 24 * scale)
+        context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+        context.setFillColor(CGColor(red: 0.35, green: 0.45, blue: 0.6, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 80, height: 24))
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fillEllipse(in: CGRect(x: 80 - inset - 14, y: 4, width: 14, height: 16))
+        return try #require(context.makeImage())
+    }
+
+    let logicalSize = CGSize(width: 80, height: 24)
+    let overflow = try capture(inset: 4)
+    #expect(MenuBarCompositeGlyph.make(from: overflow, logicalSize: logicalSize) == nil)
+    let padded = try capture(inset: 12)
+    let icon = try #require(MenuBarCompositeGlyph.make(from: padded, logicalSize: logicalSize))
+    #expect(icon.size.width > 8 && icon.size.width < 40)
+    #expect(icon.size.height == 24)
+}
+
+@Test("a padded glyph in a wide status item is kept, while an edge-flush chevron is not")
+@MainActor
+func compositeKeepsPaddedGlyphInsideWideItem() throws {
+    let wide = try compositeContext(width: 160, height: 48)
+    wide.setFillColor(CGColor(red: 0.35, green: 0.45, blue: 0.6, alpha: 1))
+    wide.fill(CGRect(x: 0, y: 0, width: 160, height: 48))
+    wide.setFillColor(CGColor(red: 0.1, green: 0.75, blue: 0.3, alpha: 1))
+    wide.fillEllipse(in: CGRect(x: 24, y: 8, width: 28, height: 32))
+    let padded = try #require(wide.makeImage())
+    let icon = try #require(MenuBarCompositeGlyph.make(
+        from: padded, logicalSize: CGSize(width: 80, height: 24)
+    ))
+    #expect(icon.size.width < 40)
+    #expect(icon.size.width > 8)
+    #expect(icon.size.height == 24)
+
+    let flush = try compositeContext(width: 160, height: 48)
+    flush.setFillColor(CGColor(red: 0.35, green: 0.45, blue: 0.6, alpha: 1))
+    flush.fill(CGRect(x: 0, y: 0, width: 160, height: 48))
+    flush.setFillColor(CGColor(gray: 1, alpha: 1))
+    flush.fillEllipse(in: CGRect(x: 132, y: 8, width: 28, height: 32))
+    let chevron = try #require(flush.makeImage())
+    #expect(MenuBarCompositeGlyph.make(from: chevron, logicalSize: CGSize(width: 80, height: 24)) == nil)
+}
+
+@Test("an ambiguous numeric title keeps the wide glyph instead of discarding it")
+@MainActor
+func compositeAmbiguousCountKeepsWideArtwork() throws {
+    let context = try compositeContext(width: 200, height: 48)
+    context.setFillColor(CGColor(red: 0.35, green: 0.45, blue: 0.6, alpha: 1))
+    context.fill(CGRect(x: 0, y: 0, width: 200, height: 48))
+    context.setFillColor(CGColor(gray: 1, alpha: 1))
+    context.fill(CGRect(x: 10, y: 12, width: 170, height: 24))
+    let source = try #require(context.makeImage())
+    let image = try #require(MenuBarCompositeGlyph.make(
+        from: source, logicalSize: CGSize(width: 100, height: 24), hasCount: true
+    ))
+    #expect(image.size.width == 100)
+    #expect(image.size.height == 24)
+}
