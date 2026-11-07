@@ -302,6 +302,7 @@ func shelteredItemWithoutCaptureUsesApplicationIcon() async throws {
     defer { defaults.removePersistentDomain(forName: suite) }
     let id = "ax:com.tencent.QQMusicMac:main"
     defaults.set([id], forKey: "shelf.collectedItems")
+    _ = NSApplication.shared
     let app = NSRunningApplication.current
     let source = FixtureSource()
     source.entries = [ShelfItem(
@@ -327,8 +328,78 @@ func shelteredItemWithoutCaptureUsesApplicationIcon() async throws {
 
     let glyph = NSImage(size: NSSize(width: 22, height: 22))
     model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: glyph)])
-    #expect(model.items.first?.icon === glyph)
+    #expect(model.item(withID: id)?.icon === glyph)
+    #expect(model.items.first?.icon.size == original.size)
     #expect(model.items.first?.hasMenuBarIcon == true)
+}
+
+@Test("only sheltered QQ Music replaces live and persisted playback strips with its app icon",
+      arguments: ["com.tencent.QQMusicMac", "com.tencent.QQMusicMacHelper", "com.example.player"], [false, true])
+@MainActor
+func shelteredQQMusicShowsOnlyApplicationIcon(bundleID: String, persisted: Bool) async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let id = "ax:\(bundleID):main"
+    defaults.set([id], forKey: "shelf.collectedItems")
+    _ = NSApplication.shared
+    let app = NSRunningApplication.current
+    let reference = MenuBarItemReference(
+        pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+        frame: CGRect(x: 900, y: 980, width: 150, height: 22)
+    )
+    let source = FixtureSource()
+    source.entries = [ShelfItem(
+        id: id, title: "A song — QQ音乐", icon: NSImage(), application: app,
+        menuBarReference: reference
+    )]
+    let strip = NSImage(size: NSSize(width: 150, height: 22), flipped: false) { _ in
+        NSColor.systemGreen.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 132, y: 3, width: 16, height: 16)).fill()
+        ("A song  ▶  ❚❚" as NSString).draw(at: NSPoint(x: 2, y: 3), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor
+        ])
+        return true
+    }
+    if persisted {
+        #expect(MenuBarIconDiskCache(directory: directory).store(strip, for: id))
+    }
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 },
+        iconStore: MenuBarIconDiskCache(directory: directory)
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    if !persisted {
+        model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: strip)])
+    }
+
+    let shown = try #require(model.items.first)
+    #expect(model.items.count == 1)
+    #expect(shown.id == id)
+    #expect(shown.menuBarReference === reference)
+    #expect(shown.hasMenuBarIcon)
+    // Keep the captured artwork and original reference available to the
+    // activation/restore path; only the shelf's presentation is replaced.
+    #expect(model.item(withID: id)?.icon.size == strip.size)
+    if bundleID == "com.tencent.QQMusicMac" {
+        let original = try #require(MenuBarIconPresentation.reportedApplicationIcon(app))
+        #expect(MenuBarIconPresentation.renderedImage(for: shown.icon).tiffRepresentation
+            == MenuBarIconPresentation.renderedImage(for: original).tiffRepresentation)
+        #expect(MenuBarIconPresentation.displaySize(for: shown.icon) == NSSize(width: 24, height: 24))
+        #expect(MenuBarIconPresentation.shelfWidth(for: shown.icon) == 38)
+    } else {
+        #expect(shown.icon.size == strip.size)
+        #expect(MenuBarIconPresentation.displaySize(for: shown.icon).width > 100)
+    }
+
+    reference.frame.origin.y = 5
+    model.setCollected(false, id: id)
+    model.refresh()
+    #expect(model.items.isEmpty)
+    #expect(model.residentItems.first?.icon.size == strip.size)
 }
 
 @Test("an item with no application identity still uses the question-mark placeholder")

@@ -206,6 +206,17 @@ final class ShelfViewModel: ObservableObject {
         items = ordered.filter {
             collectedIDs.contains($0.id)
                 && (isLogicallyHidden($0) || !isVisible($0.menuBarReference.frame))
+        }.map { item in
+            // QQ Music's status view includes the song title and hover playback
+            // controls. Show only its app icon in the shelf, even when that
+            // entire strip was captured in an earlier session. Keep knownItems
+            // and the original AX reference intact for menu opening/restoring.
+            guard item.id.hasPrefix("ax:com.tencent.QQMusicMac:") else { return item }
+            var presented = item
+            presented.icon = MenuBarIconPresentation.unresolvedIcon(
+                application: item.application, accessibilityDescription: item.title
+            )
+            return presented
         }
         residentItems = ordered.filter {
             !isLogicallyHidden($0) && isVisible($0.menuBarReference.frame)
