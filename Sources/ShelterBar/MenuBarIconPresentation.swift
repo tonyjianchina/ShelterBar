@@ -30,15 +30,22 @@ enum MenuBarIconPresentation {
     /// the shared system image. Not a captured status glyph: callers must not
     /// persist it as one or stop trying to capture the real menu-bar artwork.
     static func applicationIcon(for application: NSRunningApplication?) -> NSImage? {
-        guard let application, !application.isTerminated else { return nil }
-        let icon = application.icon
-        guard icon.size.width > 1, icon.size.height > 1,
+        guard let application, !application.isTerminated,
+              let icon = reportedApplicationIcon(application),
+              icon.size.width > 1, icon.size.height > 1,
               let copy = icon.copy() as? NSImage else { return nil }
         copy.isTemplate = false
         if (copy.accessibilityDescription ?? "").isEmpty {
             copy.accessibilityDescription = application.localizedName
         }
         return copy
+    }
+
+    /// `NSRunningApplication.icon` is a non-optional `NSImage` in SDKs before
+    /// macOS 27.2 and `NSImage?` in the 27.2 SDK. Returning `NSImage?` compiles
+    /// against both; callers unwrap the result.
+    static func reportedApplicationIcon(_ application: NSRunningApplication) -> NSImage? {
+        application.icon
     }
 
     static func displaySize(for image: NSImage) -> NSSize {

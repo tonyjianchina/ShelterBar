@@ -297,9 +297,10 @@ func shelteredItemWithoutCaptureUsesApplicationIcon() async throws {
     await model.reload()
 
     let shown = try #require(model.items.first)
+    let original = try #require(MenuBarIconPresentation.reportedApplicationIcon(app))
     #expect(shown.hasMenuBarIcon == false)
     #expect(!shown.icon.isTemplate)
-    #expect(shown.icon.size == app.icon.size)
+    #expect(shown.icon.size == original.size)
     #expect(model.residentItems.isEmpty)
 
     let glyph = NSImage(size: NSSize(width: 22, height: 22))
