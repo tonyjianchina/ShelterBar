@@ -272,6 +272,60 @@ func permissionRevocationClearsItems() async {
     #expect(!model.hasAccessibilityPermission)
 }
 
+@Test("a sheltered item with no captured glyph shows the owning app icon")
+@MainActor
+func shelteredItemWithoutCaptureUsesApplicationIcon() async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let id = "ax:com.tencent.QQMusicMac:main"
+    defaults.set([id], forKey: "shelf.collectedItems")
+    let app = NSRunningApplication.current
+    let source = FixtureSource()
+    source.entries = [ShelfItem(
+        id: id, title: "QQ音乐", icon: NSImage(), application: app,
+        menuBarReference: MenuBarItemReference(
+            pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+            frame: CGRect(x: 1028, y: 5.5, width: 150, height: 22)
+        )
+    )]
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 },
+        isLogicallyHidden: { $0.id == id }
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+
+    let shown = try #require(model.items.first)
+    #expect(shown.hasMenuBarIcon == false)
+    #expect(!shown.icon.isTemplate)
+    #expect(shown.icon.size == app.icon.size)
+    #expect(model.residentItems.isEmpty)
+
+    let glyph = NSImage(size: NSSize(width: 22, height: 22))
+    model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: glyph)])
+    #expect(model.items.first?.icon === glyph)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+}
+
+@Test("an item with no application identity still uses the question-mark placeholder")
+@MainActor
+func itemWithoutApplicationUsesQuestionMark() async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["sync"], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [fixture("sync", hidden: true)]
+    let model = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minY < 30 })
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    let shown = try #require(model.items.first)
+    #expect(shown.hasMenuBarIcon == false)
+    #expect(shown.icon.isTemplate)
+    #expect(shown.icon.size.height == 18)
+}
+
 @Test("a captured menu glyph survives a fresh hidden-item scan without a Dock icon replacement")
 @MainActor
 func capturedGlyphSurvivesRefresh() async {

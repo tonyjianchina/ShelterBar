@@ -208,6 +208,32 @@ func failedStableCaptureIsNegativelyCached() async throws {
     #expect(!reloadedStore.hasCaptureFailure(for: id))
 }
 
+@Test("a capture miss after the item is already sheltered stays retryable")
+@MainActor
+func shelteredCaptureMissIsNotNegativelyCached() async throws {
+    let dir = tempDirectory()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let suite = "ShelterBarIconCacheTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    // Stale AX still reports an on-screen rectangle after MenuBarAgent hides it.
+    let id = "ax:com.tencent.QQMusicMac:main"
+    let source = CacheFixtureSource()
+    source.entries = [cachedItem(id, hidden: false)]
+    let store = MenuBarIconDiskCache(directory: dir)
+    let model = ShelfViewModel(
+        source: source, defaults: defaults, isTrusted: { true }, isVisible: { $0.minX >= 0 },
+        isLogicallyHidden: { $0.id == id }, iconStore: store
+    )
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    let initial = model.captureCandidates(from: model.allItems)
+    #expect(initial.map(\.id) == [id])
+    model.recordCaptureResults(for: initial, snapshots: [])
+    #expect(!store.hasCaptureFailure(for: id))
+    #expect(model.captureCandidates(from: model.allItems).map(\.id) == [id])
+}
+
 @Test("pruning drops untracked items and the size cap evicts the oldest entries")
 @MainActor
 func iconCachePruneAndCap() {

@@ -17,6 +17,30 @@ enum MenuBarIconPresentation {
         return image
     }
 
+    /// Icon to draw when no status-item glyph has been captured. Prefer the
+    /// owning application's icon — it stays recognizable for third-party items
+    /// whose menu-bar pixels cannot be captured — and only then the question mark.
+    static func unresolvedIcon(
+        application: NSRunningApplication?, accessibilityDescription: String? = nil
+    ) -> NSImage {
+        applicationIcon(for: application) ?? placeholder(accessibilityDescription: accessibilityDescription)
+    }
+
+    /// Dock/app icon of a running owner. Copied so later drawing cannot mutate
+    /// the shared system image. Not a captured status glyph: callers must not
+    /// persist it as one or stop trying to capture the real menu-bar artwork.
+    static func applicationIcon(for application: NSRunningApplication?) -> NSImage? {
+        guard let application, !application.isTerminated else { return nil }
+        let icon = application.icon
+        guard icon.size.width > 1, icon.size.height > 1,
+              let copy = icon.copy() as? NSImage else { return nil }
+        copy.isTemplate = false
+        if (copy.accessibilityDescription ?? "").isEmpty {
+            copy.accessibilityDescription = application.localizedName
+        }
+        return copy
+    }
+
     static func displaySize(for image: NSImage) -> NSSize {
         let nativeSize = image.size
         guard nativeSize.width.isFinite, nativeSize.height.isFinite,

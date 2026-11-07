@@ -180,7 +180,12 @@ final class ShelfViewModel: ObservableObject {
                 item.icon = cached
                 item.hasMenuBarIcon = true
             } else {
-                item.icon = MenuBarIconPresentation.placeholder(accessibilityDescription: item.title)
+                // No live or persisted status glyph. The owning app icon is
+                // still recognizable; the question mark is only for an item
+                // with no application identity (or a terminated owner).
+                item.icon = MenuBarIconPresentation.unresolvedIcon(
+                    application: item.application, accessibilityDescription: item.title
+                )
                 item.hasMenuBarIcon = false
             }
             byID[id] = item
@@ -228,7 +233,12 @@ final class ShelfViewModel: ObservableObject {
             if captured.contains(token) {
                 attemptedCaptureTokens.remove(token)
                 iconStore?.clearCaptureFailure(for: item.id)
-            } else {
+            } else if !isLogicallyHidden(item), isVisible(item.menuBarReference.frame) {
+                // Only a miss on a glyph that was actually on screen is evidence
+                // the item cannot be captured. MenuBarAgent removes a sheltered
+                // item's pixels while AX can still report the old rectangle;
+                // recording that miss permanently is what left third-party
+                // icons (QQ Music) on the question-mark placeholder.
                 attemptedCaptureTokens.insert(token)
                 if item.hasPersistentIdentity {
                     iconStore?.recordCaptureFailure(for: item.id)

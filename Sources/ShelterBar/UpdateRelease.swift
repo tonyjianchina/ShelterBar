@@ -176,21 +176,22 @@ struct ShelterBarBuildNumber: Comparable, CustomStringConvertible, Sendable {
 
 enum UpdateEligibility: Equatable, Sendable {
     case newer
-    case reinstall
     case notNewer
     case invalidBuildRegression
 
+    /// A public release is installable only when its build is strictly newer.
+    /// The same version and build is already current, including when a local
+    /// test build happens to share the public version number. Reinstalling
+    /// that package would replace the running binary with the public one.
     static func evaluate(
         currentVersion: ShelterBarVersion,
         currentBuild: ShelterBarBuildNumber,
         candidateVersion: ShelterBarVersion,
-        candidateBuild: ShelterBarBuildNumber,
-        allowsReinstall: Bool
+        candidateBuild: ShelterBarBuildNumber
     ) -> Self {
         guard candidateVersion >= currentVersion else { return .notNewer }
         if candidateBuild > currentBuild { return .newer }
         if candidateBuild < currentBuild { return .invalidBuildRegression }
-        if candidateVersion == currentVersion, allowsReinstall { return .reinstall }
         return .notNewer
     }
 }

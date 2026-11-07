@@ -93,15 +93,29 @@ enum MenuBarCompositeGlyph {
         // chevron. Stable pixels are not proof of ownership. Reject that
         // mostly-empty, edge-clipped strip BEFORE cropping; a rejected
         // capture never overwrites the last usable app glyph.
+        // Saved overflow fixtures sit flush with the edge (0...6 px of margin).
+        // A third-party control such as QQ Music can be much wider than its
+        // glyph: the pictogram has real padding and the rest is a title or
+        // empty space. Crop that glyph instead of throwing the capture away.
         let left = ink.minX, right = CGFloat(width) - ink.maxX
-        guard !(ink.width < CGFloat(width) * 0.65
-            && abs(left - right) > max(6, CGFloat(width) * 0.18)) else { return nil }
+        let narrowAndOffCenter = ink.width < CGFloat(width) * 0.65
+            && abs(left - right) > max(6, CGFloat(width) * 0.18)
+        if narrowAndOffCenter {
+            guard min(left, right) > 6 else { return nil }
+            return imageByIsolatingInk(
+                pixels, ink: ink, width: width, height: height,
+                logicalSize: logicalSize, space: space, bitmapInfo: info
+            )
+        }
 
         var removedCount = false
         if hasCount, logicalSize.width > logicalSize.height {
             // AX tells us whether this item carries a count. Keep its leading
             // pictogram, separated from the text by a clear vertical gap. Do
             // not impose this crop on ordinary wide logos or text-only items.
+            // An ambiguous title (a song name, a wide logo) is not a count:
+            // keep the whole glyph. Discarding it is what left a question mark
+            // on the shelf when no earlier image existed to preserve.
             let columns = (0..<width).map { x in
                 (0..<height).contains { y in pixels[(y * width + x) * 4 + 3] > 40 }
             }
@@ -109,16 +123,18 @@ enum MenuBarCompositeGlyph {
             let minIcon = Int(Double(height) * 0.5), maxIcon = Int(Double(height) * 1.3)
             let gap = max(2, Int(CGFloat(width) / logicalSize.width))
             let upper = min(width - gap, start + maxIcon)
-            guard start + minIcon < upper else { return nil }
-            let candidates = (start + minIcon)..<upper
-            guard let split = candidates.first(where: { x in
-                columns[x..<(x + gap)].allSatisfy { !$0 } && columns[(x + gap)...].contains(true)
-            }) else { return nil }
-            for y in 0..<height { for x in split..<width {
-                    let i = (y * width + x) * 4
-                    for c in 0..<4 { pixels[i + c] = 0 }
-            } }
-            removedCount = true
+            if start + minIcon < upper {
+                let candidates = (start + minIcon)..<upper
+                if let split = candidates.first(where: { x in
+                    columns[x..<(x + gap)].allSatisfy { !$0 } && columns[(x + gap)...].contains(true)
+                }) {
+                    for y in 0..<height { for x in split..<width {
+                            let i = (y * width + x) * 4
+                            for c in 0..<4 { pixels[i + c] = 0 }
+                    } }
+                    removedCount = true
+                }
+            }
         }
         guard let remaining = inkBounds(),
               let provider = CGDataProvider(data: Data(pixels) as CFData),
@@ -136,6 +152,32 @@ enum MenuBarCompositeGlyph {
             return MenuBarGlyphImage.make(from: icon, logicalSize: CGSize(width: crop.width / scale, height: logicalSize.height))
         }
         return MenuBarGlyphImage.make(from: decoded, logicalSize: logicalSize)
+    }
+
+    /// Crop a padded glyph out of a wider status item. The buffer is already
+    /// unmatted, so the crop is the pictogram rather than another wallpaper rect.
+    private static func imageByIsolatingInk(
+        _ pixels: [UInt8], ink: CGRect, width: Int, height: Int,
+        logicalSize: CGSize, space: CGColorSpace, bitmapInfo: UInt32
+    ) -> NSImage? {
+        let scale = CGFloat(width) / logicalSize.width
+        let pad = 3 * scale
+        let crop = CGRect(
+            x: max(0, floor(ink.minX - pad)), y: 0,
+            width: min(CGFloat(width), ceil(ink.maxX + pad)) - max(0, floor(ink.minX - pad)),
+            height: CGFloat(height)
+        ).integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
+        guard crop.width > 1, crop.height > 1,
+              let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let decoded = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                  bytesPerRow: width * 4, space: space,
+                  bitmapInfo: CGBitmapInfo(rawValue: bitmapInfo),
+                  provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent),
+              let icon = decoded.cropping(to: crop) else { return nil }
+        return MenuBarGlyphImage.make(
+            from: icon,
+            logicalSize: CGSize(width: crop.width / scale, height: logicalSize.height)
+        )
     }
 
 }

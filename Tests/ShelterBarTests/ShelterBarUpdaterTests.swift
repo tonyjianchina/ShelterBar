@@ -14,7 +14,6 @@ private actor UpdateFixtureServer {
     private(set) var requested: [URL] = []
     private(set) var bytes = 0
     private(set) var preparations = 0
-    private(set) var reinstallFlags: [Bool] = []
 
     func setFailure(_ value: Bool) { preparationError = value }
     func setCancellation(_ value: Bool) { cancellation = value }
@@ -51,7 +50,6 @@ private actor UpdateFixtureServer {
 
     func prepare(_ request: UpdatePreparation) throws -> UpdateInstallPlan? {
         preparations += 1
-        reinstallFlags.append(request.allowsReinstall)
         if cancellation { throw CancellationError() }
         if preparationError { throw UpdateValidationError.checksumMismatch(request.candidate.archive.name) }
         return nil
@@ -107,14 +105,14 @@ func updaterSkipsPreviouslyVerifiedPayload() async throws {
     let fixture = try UpdaterFixture()
     defer { fixture.cleanUp() }
     let first = fixture.updater()
-    await first.performUpdate(allowsReinstall: false)
+    await first.performUpdate(userInitiated: false)
     let firstTotals = await fixture.server.totals()
     #expect(firstTotals.requests == 3)
     #expect(firstTotals.preparations == 1)
     #expect(first.state == .upToDate("0.5.12 (36)"))
 
     let restarted = fixture.updater()
-    await restarted.performUpdate(allowsReinstall: false)
+    await restarted.performUpdate(userInitiated: false)
     let secondTotals = await fixture.server.totals()
     #expect(secondTotals.requests - firstTotals.requests == 1)
     #expect(secondTotals.preparations == 1)
@@ -129,27 +127,43 @@ func updaterNoticesReplacedSameVersionAssets(checksumsOnly: Bool) async throws {
     let fixture = try UpdaterFixture()
     defer { fixture.cleanUp() }
     let updater = fixture.updater()
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
     if checksumsOnly { await fixture.server.replaceChecksums() } else { await fixture.server.replaceArchive() }
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
     let totals = await fixture.server.totals()
     #expect(totals.requests == 6)
     #expect(totals.preparations == 2)
 }
 
-@Test("manual reinstall and changed feeds bypass a previously verified result", arguments: [false, true])
+@Test("a manual check of the already verified release reports up to date without downloading")
 @MainActor
-func updaterManualAndFeedChangesCheckFully(manual: Bool) async throws {
+func updaterManualCheckDoesNotRedownloadCurrentRelease() async throws {
     let fixture = try UpdaterFixture()
     defer { fixture.cleanUp() }
-    await fixture.updater().performUpdate(allowsReinstall: false)
-    let updater = fixture.updater(feed: manual ? "https://updates.example.test/releases" : "https://other.example.test/releases")
-    await updater.performUpdate(allowsReinstall: manual)
+    await fixture.updater().performUpdate(userInitiated: false)
+    let before = await fixture.server.totals()
+    let updater = fixture.updater()
+    await updater.performUpdate(userInitiated: true)
+    let after = await fixture.server.totals()
+    #expect(after.requests - before.requests == 1, "only the feed is fetched again")
+    #expect(after.preparations == before.preparations, "the public package is not prepared or installed")
+    #expect(after.bytes - before.bytes < 1_000)
+    #expect(updater.isUserInitiated)
+    #expect(updater.state == .upToDate("0.5.12 (36)"))
+}
+
+@Test("a changed feed still validates after another feed was verified")
+@MainActor
+func updaterChangedFeedChecksFully() async throws {
+    let fixture = try UpdaterFixture()
+    defer { fixture.cleanUp() }
+    await fixture.updater().performUpdate(userInitiated: false)
+    let updater = fixture.updater(feed: "https://other.example.test/releases")
+    await updater.performUpdate(userInitiated: false)
     let totals = await fixture.server.totals()
     #expect(totals.requests == 6)
     #expect(totals.preparations == 2)
-    #expect(await fixture.server.reinstallFlags == [false, manual])
-    #expect(updater.isUserInitiated == manual)
+    #expect(!updater.isUserInitiated)
 }
 
 @Test("missing asset digests never skip a fresh validation")
@@ -159,8 +173,8 @@ func updaterWithoutDigestsChecksFully() async throws {
     defer { fixture.cleanUp() }
     await fixture.server.omitDigests()
     let updater = fixture.updater()
-    await updater.performUpdate(allowsReinstall: false)
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
+    await updater.performUpdate(userInitiated: false)
     #expect(await fixture.server.totals().preparations == 2)
 }
 
@@ -171,8 +185,8 @@ func updaterDoesNotTrustUnverifiedFeedDigests(digest: String) async throws {
     defer { fixture.cleanUp() }
     await fixture.server.overrideDigest(digest)
     let updater = fixture.updater()
-    await updater.performUpdate(allowsReinstall: false)
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
+    await updater.performUpdate(userInitiated: false)
     #expect(await fixture.server.totals().preparations == 2)
 }
 
@@ -182,8 +196,8 @@ func updaterInstalledBuildChangesCheckFully() async throws {
     let fixture = try UpdaterFixture()
     let changed = try UpdaterFixture(build: "37")
     defer { fixture.cleanUp(); changed.cleanUp() }
-    await fixture.updater().performUpdate(allowsReinstall: false)
-    await fixture.updater(installedBundle: changed.bundle).performUpdate(allowsReinstall: false)
+    await fixture.updater().performUpdate(userInitiated: false)
+    await fixture.updater(installedBundle: changed.bundle).performUpdate(userInitiated: false)
     #expect(await fixture.server.totals().preparations == 2)
 }
 
@@ -195,12 +209,12 @@ func updaterFailureDoesNotCache(cancelled: Bool) async throws {
     await fixture.server.setFailure(!cancelled)
     await fixture.server.setCancellation(cancelled)
     let updater = fixture.updater()
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
     if cancelled { #expect(updater.state == .idle) }
     else { #expect(updater.state.menuTitle == "更新失败，点击重试") }
     await fixture.server.setFailure(false)
     await fixture.server.setCancellation(false)
-    await updater.performUpdate(allowsReinstall: false)
+    await updater.performUpdate(userInitiated: false)
     #expect(await fixture.server.totals().preparations == 2)
     #expect(updater.state == .upToDate("0.5.12 (36)"))
 }
