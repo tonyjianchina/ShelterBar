@@ -1,3 +1,4 @@
+#if !SHELTERBAR_APP_STORE
 import Foundation
 
 enum UpdateInstallError: LocalizedError {
@@ -252,3 +253,4 @@ enum UpdateReadiness {
         try? Data().write(to: file, options: .atomic)
     }
 }
+#endif

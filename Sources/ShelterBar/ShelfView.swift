@@ -136,11 +136,16 @@ struct ShelfView: View {
                 Button("刷新并恢复收纳") { model.onRefresh?() }
                 Button("显示全部顶部图标", action: onRevealAll)
                 Divider()
+                #if !SHELTERBAR_APP_STORE
                 Button(action: model.checkForUpdates) {
                     Label(model.updateMenuTitle, systemImage: "arrow.triangle.2.circlepath")
                 }
                 .disabled(model.isUpdating)
                 .accessibilityIdentifier("shelterbar.check-updates")
+                Divider()
+                #endif
+                Button("隐私政策") { ShelterBarDistribution.openPrivacyPolicy() }
+                    .accessibilityIdentifier("shelterbar.privacy-policy")
                 Divider()
                 Button("输入控制权限", action: model.openAccessibilitySettings)
                 Button("屏幕录制设置", action: model.openScreenCaptureSettings)

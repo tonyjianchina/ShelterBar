@@ -31,5 +31,15 @@
     </dict>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>ShelterBar uses Accessibility to find menu bar icons, move the ones you drag into the shelf, and open a sheltered icon’s original menu. It does not read text you type in other apps.</string>
+    <key>NSScreenCaptureUsageDescription</key>
+    <string>ShelterBar can read a single menu bar icon so the shelf can show the original glyph. Screen Recording is optional. Without it, sheltering still works and the shelf shows a placeholder. ShelterBar does not record video, save full screenshots, or upload images.</string>
 </dict>
 </plist>

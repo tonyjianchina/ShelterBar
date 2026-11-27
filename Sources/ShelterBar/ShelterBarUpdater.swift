@@ -1,9 +1,3 @@
-import AppKit
-import Foundation
-import OSLog
-
-private let updateLog = Logger(subsystem: "com.jensen.shelterbar", category: "updates")
-
 enum ShelterBarUpdateState: Equatable {
     case idle
     case checking
@@ -32,6 +26,14 @@ enum ShelterBarUpdateState: Equatable {
         }
     }
 }
+
+#if !SHELTERBAR_APP_STORE
+
+import AppKit
+import Foundation
+import OSLog
+
+private let updateLog = Logger(subsystem: "com.jensen.shelterbar", category: "updates")
 
 struct UpdatePreparation: Sendable {
     let candidate: ReleaseCandidate
@@ -279,3 +281,18 @@ final class ShelterBarUpdater {
         defaults.set(Date(), forKey: "updates.lastStatusDate")
     }
 }
+
+#else
+
+@MainActor
+final class ShelterBarUpdater {
+    var onStateChange: ((ShelterBarUpdateState) -> Void)?
+    private(set) var isUserInitiated = false
+
+    func startAutomaticUpdates() {}
+    func checkForUpdatesAndInstall() {}
+    func stop() {}
+    func performUpdate(allowsReinstall: Bool) async {}
+}
+
+#endif

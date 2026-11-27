@@ -133,4 +133,5 @@ python3.11 -m venv .build/dmg-tools
 - [v0.5.14 发布说明](docs/releases/v0.5.14.md)
 - [完整发布与安装指南](docs/RELEASE.md)
 - [MVP 验收清单](docs/MVP.md)
+- [Mac App Store 就绪审计](docs/MAC-APP-STORE.md)
 - [问题反馈](https://github.com/tonyjianchina/ShelterBar/issues)
