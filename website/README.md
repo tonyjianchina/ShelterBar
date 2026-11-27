@@ -18,3 +18,8 @@ state when reduced motion is requested.
 Local Sites configuration lives in `.openai/hosting.json`; this repository snapshot
 omits service identity and credentials. The product uses no external web fonts,
 analytics, third-party scripts, or account sign-in.
+
+`dist/privacy/index.html` is the Chinese and English privacy policy. The live
+sites still serve the marketing homepage for `/privacy` until this file is
+deployed and the host serves it instead of falling back to `index.html`. Do not
+deploy from this repository snapshot; the maintainer publishes the site.

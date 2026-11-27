@@ -1,3 +1,4 @@
+#if !SHELTERBAR_APP_STORE
 import Foundation
 import CryptoKit
 
@@ -246,3 +247,4 @@ struct ReleaseCatalog: Sendable {
         }.max { $0.version < $1.version }
     }
 }
+#endif

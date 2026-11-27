@@ -1,3 +1,4 @@
+#if !SHELTERBAR_APP_STORE
 import Foundation
 import CryptoKit
 
@@ -60,3 +61,4 @@ struct UpdateCheckCache {
         "sha256:" + SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
+#endif
