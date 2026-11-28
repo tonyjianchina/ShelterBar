@@ -4,7 +4,7 @@
 
 菜单栏太挤时，把暂时不用的图标拖进 ShelterBar。需要时点开原来的菜单，或者再拖回顶部。没有账号、广告或遥测，布局和图标缓存只保存在本机。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.14](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.14) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.zhengjian.me/) · [下载 v0.5.16](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.16) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
 
 ## macOS 27 重点适配
 
@@ -28,36 +28,25 @@ macOS 27 改变了菜单栏图标的管理方式，传统的 Command 拖动在�
 
 ## 下载
 
-当前版本：**v0.5.14 · build 38 · 正式版**
+当前版本：**v0.5.16 · build 42 · 正式版**
 
 系统要求：**macOS 14 Sonoma 及以上，Apple Silicon（M1 及更新芯片）**。暂不提供 Intel 版本。
 
-- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/ShelterBar-0.5.14-macos-arm64.dmg)
-- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/ShelterBar-0.5.14-macos-arm64.zip)
-- [查看 SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.14/SHA256SUMS)
+- [下载 DMG](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.16/ShelterBar-0.5.16-macos-arm64.dmg)
+- [下载 ZIP](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.16/ShelterBar-0.5.16-macos-arm64.zip)
+- [查看 SHA256 校验值](https://github.com/tonyjianchina/ShelterBar/releases/download/v0.5.16/SHA256SUMS)
 
-本版本沿用固定自签名证书，尚未使用 Developer ID 签名，也未经过 Apple 公证。
+本版本使用 Developer ID Application 签名，并经过 Apple 公证。
 
 ## 自动更新
 
-v0.5.12（build 35 / 36）及 v0.5.13（build 37）用户保持应用运行即可自动检查并升级，也可从收纳栏的“更多 → 检查更新”立即触发。默认在启动约 5 秒后检查，此后每 6 小时检查一次；网络可用、未关闭自动更新且安装目录可写时自动下载、校验和替换。
-
-v0.5.11 及更早版本没有更新器，需要手动下载安装一次。新版沿用固定签名，保留既有布局、缓存和权限。
+v0.5.15 及之后使用同一 Developer ID 签名的版本可以自动检查更新，也可从收纳栏的“更多 → 检查更新”立即触发。v0.5.14 及更早的自签名版本需要手动下载安装一次，并重新授予所需权限。
 
 ## 安装与第一次打开
 
 1. 打开 DMG，把 ShelterBar 拖进“应用程序”，然后推出安装盘。
-2. 在访达的“应用程序”中双击 ShelterBar。
-3. 如果 macOS 提示无法验证，先点“完成”，再前往“系统设置 → 隐私与安全性 → 安全性”，点击 ShelterBar 旁的“仍要打开”。
-4. 打开成功后，留意右上角菜单栏里的收纳箱图标。ShelterBar 没有 Dock 图标，也没有普通窗口。
-
-高级用户核对 SHA256 后，也可以运行：
-
-```sh
-xattr -dr com.apple.quarantine /Applications/ShelterBar.app
-```
-
-从 v0.5.6 或更早的 ad-hoc 签名版本升级时，需要重新授权一次。v0.5.7 及之后使用同一签名身份，正常覆盖安装会保留权限。
+2. 在访达的“应用程序”中双击 ShelterBar，按系统提示开启所需权限。
+3. 点击右上角菜单栏里的收纳箱图标，打开收纳栏。ShelterBar 没有 Dock 图标或普通窗口。
 
 ## 权限说明
 
