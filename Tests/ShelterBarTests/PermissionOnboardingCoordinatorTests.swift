@@ -2,6 +2,31 @@ import Testing
 import ShelterBarCore
 @testable import ShelterBar
 
+@Test("granting accessibility in System Settings triggers screen capture without reopening the shelf")
+@MainActor
+func permissionCoordinatorObservesSystemSettingsGrant() async throws {
+    var accessibilityGranted = false
+    var requests: [PermissionOnboardingAction] = []
+    let coordinator = PermissionOnboardingCoordinator(
+        accessibilityGranted: { accessibilityGranted },
+        screenCaptureGranted: { false },
+        requestAccessibility: { requests.append(.requestAccessibility) },
+        requestScreenCapture: { requests.append(.requestScreenCapture) }
+    )
+
+    #expect(coordinator.advance() == .requestAccessibility)
+    #expect(requests == [.requestAccessibility])
+    accessibilityGranted = true
+
+    // System Settings changes trust while the app receives no new UI calls.
+    let deadline = ContinuousClock.now + .seconds(5)
+    while requests.count < 2 && ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(requests == [.requestAccessibility, .requestScreenCapture])
+    #expect(coordinator.advance() == nil)
+}
+
 @Test("the coordinator asks for screen capture as soon as accessibility is granted")
 @MainActor
 func permissionCoordinatorAdvancesToScreenCapture() {
@@ -38,13 +63,7 @@ func permissionCoordinatorDoesNotWaitForInputPermissions() {
     let screenCaptureGranted = false
     var requests: [PermissionOnboardingAction] = []
     let coordinator = PermissionOnboardingCoordinator(
-        accessibilityGranted: {
-            AccessibilityPermission.readyForScreenCaptureOnboarding(
-                accessibility: accessibility,
-                listenEvents: listenEvents,
-                postEvents: postEvents
-            )
-        },
+        accessibilityGranted: { accessibility },
         screenCaptureGranted: { screenCaptureGranted },
         requestAccessibility: { requests.append(.requestAccessibility) },
         requestScreenCapture: { requests.append(.requestScreenCapture) }

@@ -58,19 +58,14 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         })
         model = createdModel
         permissionOnboarding = PermissionOnboardingCoordinator(
-            accessibilityGranted: {
-                AccessibilityPermission.readyForScreenCaptureOnboarding(
-                    accessibility: AccessibilityPermission.isAccessibilityTrusted,
-                    listenEvents: CGPreflightListenEventAccess(),
-                    postEvents: CGPreflightPostEventAccess()
-                )
-            },
+            accessibilityGranted: { AccessibilityPermission.isAccessibilityTrusted },
             screenCaptureGranted: { ScreenCapturePermission.isGranted },
             requestAccessibility: {
                 createdModel.inputPermissionHint = AccessibilityPermission.request().guidance
                 createdModel.hasAccessibilityPermission = AccessibilityPermission.isGranted
             },
             requestScreenCapture: {
+                createdModel.hasAccessibilityPermission = AccessibilityPermission.isGranted
                 createdModel.screenCapturePermissionHint = ScreenCapturePermission.request().guidance
                 createdModel.hasScreenCapturePermission = ScreenCapturePermission.isGranted
             }
@@ -151,6 +146,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     func shutdown() {
         updater.stop()
+        permissionOnboarding.stopObservingAccessibility()
         operation?.cancel()
         iconRefreshTask?.cancel()
         screenChangeTask?.cancel()

@@ -28,14 +28,6 @@ enum AccessibilityPermission {
     // monitoring and event posting to settle as well.
     static var isAccessibilityTrusted: Bool { AXIsProcessTrusted() }
 
-    static func readyForScreenCaptureOnboarding(
-        accessibility: Bool,
-        listenEvents: Bool,
-        postEvents: Bool
-    ) -> Bool {
-        accessibility
-    }
-
     @MainActor
     struct RequestOperations {
         var requestAccessibility: () -> Void
