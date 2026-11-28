@@ -71,8 +71,10 @@ Older systems return the item to its previous position using the nearby icons
 as anchors. A pending-restore record allows recovery on the next launch.
 The cursor is restored after each synthetic drag. Without room (e.g. beside the
 notch) it explains instead of expanding. Newly discovered items stay in the menu
-bar. Clicking the handle opens the shelf for viewing and dragging. Use the More
-menu to show all top icons or explicitly restore saved choices.
+bar. Clicking the handle opens the shelf for viewing and dragging. Show All
+keeps saved items visible through panel and display changes and app restart,
+until the user explicitly restores the saved layout. A manual drag changes
+only the selected item's collection in this mode.
 
 ## Acceptance checks
 

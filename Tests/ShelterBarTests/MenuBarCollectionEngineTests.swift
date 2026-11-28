@@ -921,7 +921,7 @@ func engineKeepsGlyphWhenCollectionImmediatelyHidesItem() async {
     #expect(model.items.first?.icon === glyph)
 }
 
-@Test("reopening the shelf after show all leaves the menu bar expanded until explicit refresh")
+@Test("show all survives opening the shelf, display changes, and relaunch until explicit refresh")
 @MainActor
 func engineRevealAllThenRestore() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
@@ -953,12 +953,52 @@ func engineRevealAllThenRestore() async {
     #expect(reopened == .ignored)
     #expect(!driver.isCollapsed)
     let poll = await engine.perform(.reconcile(.poll))
-    let restored = await engine.perform(.reconcile(.userRefresh))
+    engine.cancelAndReveal()
+    let screenChange = await engine.perform(.reconcile(.screenChanged))
 
     #expect(poll == .ignored)
+    #expect(screenChange == .ignored)
+    #expect(!driver.isCollapsed)
+
+    let restartedModel = ShelfViewModel(source: source, defaults: defaults,
+        isTrusted: { true }, isVisible: { $0.minX >= 0 })
+    let restartedEngine = MenuBarCollectionEngine(model: restartedModel, driver: driver,
+        capture: { _ in [] }, accessibilityGranted: { true }, screenCaptureGranted: { false })
+    let launched = await restartedEngine.perform(.reconcile(.launch))
+    #expect(launched == .ignored)
+    #expect(!driver.isCollapsed)
+    #expect(driver.collapseCount == 0)
+
+    let restored = await restartedEngine.perform(.reconcile(.userRefresh))
+
     #expect(restored.didChangeLayout)
     #expect(driver.isCollapsed)
-    #expect(model.collectedIDs == ["vpn"])
+    #expect(restartedModel.collectedIDs == ["vpn"])
+}
+
+@Test("a manual drag in show-all mode collects just that item and leaves saved icons visible",
+      arguments: [false, true])
+@MainActor
+func engineManualCollectDoesNotResumePausedLayout(usesBundleVisibility: Bool) async {
+    let (model, driver, defaults, suite) = activationFixture(collected: ["vpn"], resident: ["muse"])
+    defer { defaults.removePersistentDomain(forName: suite) }
+    driver.usesBundleVisibility = usesBundleVisibility
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+    _ = await engine.perform(.reconcile(.launch))
+    _ = await engine.perform(.revealAll)
+    driver.placements["vpn"] = .resident
+    model.item(withID: "vpn")?.menuBarReference.frame.origin.x = 900
+
+    let dragged = await engine.perform(.setPlacement(id: "muse", placement: .collected))
+    let polled = await engine.perform(.reconcile(.poll))
+
+    #expect(dragged.didChangeLayout)
+    #expect(polled == .ignored)
+    #expect(driver.placements == ["vpn": .resident, "muse": .collected])
+    #expect(driver.moves == [PlannedMenuBarMove(id: "muse", placement: .collected)])
+    #expect(driver.recoveryHistory == (usesBundleVisibility ? [[]] : []))
+    #expect(model.collectedIDs == ["vpn", "muse"])
 }
 
 @Test("activating a hidden item reveals it, opens its menu, and restows after the menu closes")

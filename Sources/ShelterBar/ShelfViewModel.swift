@@ -97,6 +97,11 @@ final class ShelfViewModel: ObservableObject {
         Set(defaults.stringArray(forKey: "shelf.collectedItems") ?? []).union(sessionCollected)
     }
 
+    var isLayoutRestorePaused: Bool {
+        get { defaults.bool(forKey: "shelf.isLayoutRestorePaused") }
+        set { defaults.set(newValue, forKey: "shelf.isLayoutRestorePaused") }
+    }
+
     /// The most recent operation-level snapshot. Callers may re-read live AX
     /// frames from its references without walking every running application.
     func scan() -> [ShelfItem] { allItems.sorted { $0.id < $1.id } }

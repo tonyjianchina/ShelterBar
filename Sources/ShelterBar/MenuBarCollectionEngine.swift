@@ -14,8 +14,8 @@ protocol MenuBarLayoutDriving: AnyObject {
     /// a collected item that no longer appears in the live AX inventory.
     func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool
     func revealHiddenSection() async
-    /// Reveals every item after a failed transaction and restores the host's
-    /// intended hidden set to the collection already persisted by the model.
+    /// Reveals every item and resets the host's intended hidden set to the
+    /// supplied collection.
     func recoverVisibleLayout(collectedItems: [ShelfItem]) async
     func collapseHiddenSection() async
     func revealImmediately()
@@ -106,8 +106,6 @@ final class MenuBarCollectionEngine {
     private let press: @MainActor (ShelfItem) async -> Bool
     private let awaitMenuClosed: @MainActor (ShelfItem) async -> Void
     private let transitionShield: MenuBarTransitionShield?
-    private var suspendAutomaticReconciliation = false
-
     init(
         model: ShelfViewModel,
         driver: any MenuBarLayoutDriving,
@@ -151,11 +149,11 @@ final class MenuBarCollectionEngine {
         case .refreshPresentation:
             return await refreshPresentation()
         case .revealAll:
+            model.isLayoutRestorePaused = true
             driver.revealImmediately()
-            suspendAutomaticReconciliation = true
             model.refresh()
             return MenuBarCollectionOutcome(
-                message: "已临时展开全部图标。点击刷新可恢复收纳。",
+                message: "已显示全部图标。点击「刷新并恢复收纳」可恢复布局。",
                 didChangeLayout: true
             )
         }
@@ -168,19 +166,13 @@ final class MenuBarCollectionEngine {
     }
 
     private func reconcile(reason: MenuBarReconcileReason) async -> MenuBarCollectionOutcome {
-        if reason == .shelfOpened {
+        if reason == .shelfOpened || (model.isLayoutRestorePaused && reason != .userRefresh) {
             // Refresh the positions used by dragging without applying a layout.
             phase = .observing
-            updatePermissions()
+            updatePermissions(checkScreenCapture: reason != .poll)
             await model.reload()
             phase = .idle
             return .ignored
-        }
-        if suspendAutomaticReconciliation {
-            guard reason == .userRefresh || reason == .screenChanged else {
-                return .ignored
-            }
-            suspendAutomaticReconciliation = false
         }
 
         phase = .observing
@@ -261,6 +253,9 @@ final class MenuBarCollectionEngine {
             for id in previouslyCollectedIDs.subtracting(plan.desiredCollectedIDs) {
                 model.setCollected(false, id: id)
             }
+            if reason == .userRefresh, model.isLayoutRestorePaused {
+                model.isLayoutRestorePaused = false
+            }
             model.refresh()
             phase = .idle
 
@@ -286,7 +281,7 @@ final class MenuBarCollectionEngine {
         guard model.item(withID: id) != nil || model.scan().contains(where: { $0.id == id }) else {
             return await degrade(CollectionEngineError.message("这个图标已退出或暂时不可用，已展开菜单栏。"))
         }
-        var desired = model.collectedIDs
+        var desired = currentlyCollectedIDs
         if placement == .collected { desired.insert(id) } else { desired.remove(id) }
         driver.mayRevealAutoHiddenMenuBar = true
         defer { driver.mayRevealAutoHiddenMenuBar = false }
@@ -308,6 +303,17 @@ final class MenuBarCollectionEngine {
         }
     }
 
+    /// During show-all mode, explicit moves operate on the current layout
+    /// without applying saved preferences for the other items.
+    private var currentlyCollectedIDs: Set<String> {
+        let saved = model.collectedIDs
+        guard model.isLayoutRestorePaused else { return saved }
+        guard driver.isCollapsed else { return [] }
+        return Set(model.scan().compactMap { item in
+            saved.contains(item.id) && driver.observedPlacement(of: item) == .collected ? item.id : nil
+        })
+    }
+
     private func activate(id: String) async -> MenuBarCollectionOutcome {
         updatePermissions()
         guard model.hasAccessibilityPermission else {
@@ -321,6 +327,7 @@ final class MenuBarCollectionEngine {
         if driver.isClickable(item) {
             return await press(item) ? MenuBarCollectionOutcome(shouldDismissShelf: true) : notResponding
         }
+        let collected = currentlyCollectedIDs
         phase = .applying
         driver.mayRevealAutoHiddenMenuBar = true
         defer { driver.mayRevealAutoHiddenMenuBar = false }
@@ -344,7 +351,7 @@ final class MenuBarCollectionEngine {
             if case let .noRoom(reason) = borrowed {
                 menuBarMoveLog.notice("no room to reveal \(id, privacy: .public) alone: \(reason, privacy: .public)")
                 if driver.observedPlacement(of: fresh()) != .collected {
-                    do { try await applyLayout(collected: model.collectedIDs) } catch { return await degrade(error) }
+                    do { try await applyLayout(collected: collected) } catch { return await degrade(error) }
                 }
                 phase = .idle
                 model.refresh()
@@ -369,7 +376,7 @@ final class MenuBarCollectionEngine {
                      (usesBundleVisibility || driver.collectedOrder(model.scan()) == order)) {
                     menuBarMoveLog.error("single-item restore of \(id, privacy: .public) incomplete; repairing layout")
                     do {
-                        try await applyLayout(collected: model.collectedIDs)
+                        try await applyLayout(collected: collected)
                     } catch {
                         return await degrade(error)
                     }
@@ -382,7 +389,7 @@ final class MenuBarCollectionEngine {
                 // The borrow moved it but it is not usable (e.g. under the
                 // notch): put the layout back before the fallback below.
                 do {
-                    try await applyLayout(collected: model.collectedIDs)
+                    try await applyLayout(collected: collected)
                 } catch {
                     return await degrade(error)
                 }
@@ -399,7 +406,7 @@ final class MenuBarCollectionEngine {
         // revealed until the menu closes, then stow everything again.
         phase = .applying
         let wasCollapsed = driver.isCollapsed
-        let collected = model.collectedIDs
+        let collected = currentlyCollectedIDs
         await driver.revealHiddenSection()
         func fresh() -> ShelfItem { model.scan().first(where: { $0.id == id }) ?? item }
         var target = fresh()
@@ -480,18 +487,21 @@ final class MenuBarCollectionEngine {
         let item = preferredMove.flatMap { move in
             model.item(withID: move.id) ?? model.scan().first(where: { $0.id == move.id })
         }
+        let previousCollection = currentlyCollectedIDs
         let region = transitionRegion(for: item, dropPoint: preferredMove?.dropPoint)
         try await withTransition(over: region) {
             try await self.applyLayoutUnshielded(
                 collected: desiredCollectedIDs,
-                preferredMove: preferredMove
+                preferredMove: preferredMove,
+                previousCollection: previousCollection
             )
         }
     }
 
     private func applyLayoutUnshielded(
         collected requestedCollectedIDs: Set<String>,
-        preferredMove: (id: String, placement: MenuBarPlacement, dropPoint: CGPoint?)?
+        preferredMove: (id: String, placement: MenuBarPlacement, dropPoint: CGPoint?)?,
+        previousCollection: Set<String>
     ) async throws {
         var desiredCollectedIDs = requestedCollectedIDs
         phase = .applying
@@ -501,7 +511,16 @@ final class MenuBarCollectionEngine {
             item.isMovable && driver.observedPlacement(of: item)
                 != (desiredCollectedIDs.contains(item.id) ? .collected : .resident)
         }
-        if driver.isCollapsed || needsMoves { await driver.revealHiddenSection() }
+        if driver.isCollapsed || needsMoves {
+            if model.isLayoutRestorePaused && driver.usesBundleVisibility {
+                // Showing all keeps the saved bundle intent. Use the actual
+                // collection as the starting point for this transaction.
+                let previouslyHidden = model.scan().filter { previousCollection.contains($0.id) }
+                await driver.recoverVisibleLayout(collectedItems: previouslyHidden)
+            } else {
+                await driver.revealHiddenSection()
+            }
+        }
         try Task.checkCancellation()
 
         // MenuBarAgent removes an item's pixels during move(.collected),
@@ -534,7 +553,7 @@ final class MenuBarCollectionEngine {
                 try Task.checkCancellation()
                 // Nothing else has changed yet: put the previous layout back
                 // instead of expanding every collected icon.
-                try await restoreLayout(collected: model.collectedIDs)
+                try await restoreLayout(collected: previousCollection)
                 let name = item?.title ?? model.item(withID: preferredMove.id)?.title ?? "这个图标"
                 let side = preferredMove.placement == .collected ? "收纳" : "放回菜单栏"
                 let hint = driver.lastMoveFailure.map { reason in
