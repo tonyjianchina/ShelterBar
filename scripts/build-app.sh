@@ -62,7 +62,7 @@ else
     echo "Signing with explicitly requested identity: $signing_identity" >&2
 fi
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$staged_app/Contents/Info.plist")
-set -- --force --sign "$signing_identity" --timestamp=none
+set -- --force --sign "$signing_identity"
 if [ "$signing_identity" != - ]; then
     # Pin the designated requirement to bundle id + exact leaf certificate so
     # TCC grants survive every future release signed with the same identity.
@@ -73,12 +73,23 @@ if [ "$signing_identity" != - ]; then
         echo "Could not read the certificate hash for $signing_identity." >&2
         exit 1
     fi
-    set -- "$@" "-r=designated => identifier \"$bundle_id\" and certificate leaf = H\"$leaf_sha1\""
-    # Hardened runtime is optional without notarization; ShelterBar needs no
-    # runtime exceptions. Set SHELTERBAR_HARDENED_RUNTIME=0 to disable.
-    if [ "${SHELTERBAR_HARDENED_RUNTIME:-1}" = 1 ]; then
-        set -- "$@" --options runtime
-    fi
+    case "${SHELTERBAR_CODESIGN_CERT_NAME:-$signing_identity}" in
+        "Developer ID Application:"*)
+            # Developer ID releases always require a secure timestamp and
+            # hardened runtime, even if a local-build override disables it.
+            set -- "$@" --timestamp --options runtime \
+                "-r=designated => identifier \"$bundle_id\" and anchor apple generic and certificate leaf[subject.OU] = \"5UKPG93ACW\" and certificate leaf = H\"$leaf_sha1\""
+            ;;
+        *)
+            set -- "$@" --timestamp=none \
+                "-r=designated => identifier \"$bundle_id\" and certificate leaf = H\"$leaf_sha1\""
+            if [ "${SHELTERBAR_HARDENED_RUNTIME:-1}" = 1 ]; then
+                set -- "$@" --options runtime
+            fi
+            ;;
+    esac
+else
+    set -- "$@" --timestamp=none
 fi
 codesign "$@" "$staged_app"
 codesign --verify --strict --verbose=2 "$staged_app"

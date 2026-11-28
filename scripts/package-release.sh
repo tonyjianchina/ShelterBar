@@ -16,18 +16,23 @@ if ! "$dmg_python" -c 'import ds_store, mac_alias' 2>/dev/null; then
     exit 1
 fi
 
-# Releases are signed with a stable self-signed identity ("ShelterBar Self-Signed")
-# so the designated requirement stays constant and users' TCC grants survive
-# updates. Its private key lives only in the maintainer's keychain (+ offline
-# .p12 backup); never commit it. Set SHELTERBAR_RELEASE_CODESIGN_IDENTITY=- to
-# fall back to ad-hoc explicitly.
-release_identity=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:-"ShelterBar Self-Signed"}
-if [ "$release_identity" != - ] && ! security find-identity -p codesigning \
-        | grep -Fq "\"$release_identity\""; then
-    echo "Release signing identity '$release_identity' not found in the keychain." >&2
-    echo "Restore it from the .p12 backup (see docs/RELEASE.md); refusing to ship a build with a different requirement." >&2
+# Release credentials stay in the existing keychain profile. Never pass API
+# credentials to this script or create replacement identities automatically.
+release_identity=${SHELTERBAR_RELEASE_CODESIGN_IDENTITY:-"Developer ID Application: jian tony (5UKPG93ACW)"}
+case "$release_identity" in
+    "Developer ID Application:"*) ;;
+    *) echo "A notarized release requires a Developer ID Application identity." >&2; exit 1 ;;
+esac
+if ! security find-identity -v -p codesigning | grep -Fq "\"$release_identity\""; then
+    echo "Required Developer ID signing identity is unavailable; stopping." >&2
     exit 1
 fi
+if [ -e "$release_dir/$asset_name.dmg" ] || [ -e "$release_dir/$asset_name.zip" ]; then
+    echo "Release artifacts already exist; refusing to overwrite them." >&2
+    exit 1
+fi
+notary_dir="$release_dir/notarization"
+mkdir -p "$notary_dir"
 SHELTERBAR_CODESIGN_IDENTITY=$release_identity SHELTERBAR_CODESIGN_CERT_NAME=$release_identity \
     "$project_dir/scripts/build-app.sh" release
 if [ "$release_identity" != - ] && [ -n "${SHELTERBAR_EXPECTED_DR:-}" ]; then
@@ -61,6 +66,15 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# First obtain an app ticket. The temporary ZIP is only the notary input;
+# create the distributable ZIP after stapling the app.
+ditto -c -k --sequesterRsrc --keepParent "$app_dir" "$notary_dir/ShelterBar-app.zip"
+python3 "$project_dir/scripts/notarize-artifact.py" \
+    "$notary_dir/ShelterBar-app.zip" "$notary_dir/app"
+xcrun stapler staple "$app_dir"
+xcrun stapler validate "$app_dir"
+spctl --assess -vv --type execute "$app_dir"
+
 mkdir -p "$work_dir/image/.background" "$work_dir/artifacts" "$mount_dir"
 ditto "$app_dir" "$work_dir/image/ShelterBar.app"
 ln -s /Applications "$work_dir/image/Applications"
@@ -90,15 +104,10 @@ Apple Silicon (M1 及更新芯片)，macOS 14.0 或更新版本。
 失败时保留上次成功图像，没有可用图像时显示占位图标，不会中断收纳。
 原始图标捕获与第三方图标移动的完整兼容性，仍待授权后的真实会话验证。
 
-本版本使用固定自签名证书“ShelterBar Self-Signed”签名，没有 Developer ID
-签名或 Apple 公证。从 v0.5.6 及更早（ad-hoc）版本升级，需要重新授予一次辅助
-功能、输入监控和屏幕录制；之后的更新会保留授权。
-第一次打开：在访达“应用程序”里双击 ShelterBar。因为没有经过 Apple 公证，
-系统会拦下；先点“完成”，再到“系统设置 → 隐私与安全性”，往下滚到“安全性”，
-点“仍要打开”，再确认“打开”。macOS 15 起右键“打开”已不能绕过。
-请先核实下载来源及 SHA256 校验值；受管理设备可能不提供该选项。
-每次下载只需放行一次。
-Apple 官方说明：https://support.apple.com/zh-cn/102445
+本版本使用 Developer ID Application 签名，并经过 Apple 公证。
+从 v0.5.14 或更早的自签名版本升级，请手动安装：旧版更新器不接受新证书。
+更换签名证书后，需要重新授予辅助功能、输入监控及所需的屏幕录制权限。
+请核实下载来源及 SHA256 校验值。
 
 Install: drag ShelterBar.app to Applications, then eject this disk image.
 Open ShelterBar from Applications and allow Accessibility and Input Monitoring.
@@ -125,16 +134,12 @@ the shelf uses a placeholder without interrupting collection or restoration.
 Full original-icon and native third-party movement compatibility still requires
 validation in an authorized macOS session.
 
-This release is signed with the fixed self-signed "ShelterBar Self-Signed"
-certificate, without Developer ID signing or Apple notarization. Upgrading from
-an ad-hoc build (v0.5.6 or earlier) needs one re-grant of Accessibility, Input
-Monitoring and Screen Recording; later updates keep them.
-macOS blocks the first launch because the app is not notarized: click Done, then
-open System Settings > Privacy & Security, scroll to Security, click Open Anyway
-and confirm Open. Control-click > Open no longer bypasses this on macOS 15+.
-Verify the download source and SHA256 first. Approve once per download.
-Managed devices may not offer an exception. Do not disable Gatekeeper.
-Apple guidance: https://support.apple.com/102445
+This release uses Developer ID Application signing and Apple notarization.
+Install manually when upgrading from v0.5.14 or earlier: the old updater pins
+its self-signed certificate and cannot accept this new signing identity.
+After switching certificates, re-grant Accessibility, Input Monitoring and any
+Screen Recording access you need. Verify the download source and SHA256.
+
 INSTALL
 
 ditto -c -k --sequesterRsrc --keepParent "$app_dir" "$work_dir/artifacts/$asset_name.zip"
@@ -172,6 +177,14 @@ hdiutil convert "$readwrite_image" \
     -ov \
     -o "$work_dir/artifacts/$asset_name.dmg" >/dev/null
 
+# The website download is a signed, notarized and stapled DMG.
+codesign --force --sign "$release_identity" --timestamp "$work_dir/artifacts/$asset_name.dmg"
+python3 "$project_dir/scripts/notarize-artifact.py" \
+    "$work_dir/artifacts/$asset_name.dmg" "$notary_dir/dmg"
+xcrun stapler staple "$work_dir/artifacts/$asset_name.dmg"
+xcrun stapler validate "$work_dir/artifacts/$asset_name.dmg"
+spctl --assess -vv --type open --context context:primary-signature "$work_dir/artifacts/$asset_name.dmg"
+
 # Check the artifacts themselves, not just the source app.
 hdiutil verify "$work_dir/artifacts/$asset_name.dmg"
 hdiutil attach "$work_dir/artifacts/$asset_name.dmg" -readonly -nobrowse \
@@ -183,6 +196,7 @@ test -f "$mount_dir/.background/ShelterBar.png"
 test -f "$mount_dir/.background/INSTALL.txt"
 "$dmg_python" "$project_dir/Tools/DMGLayout.py" "$mount_dir" --verify
 codesign --verify --strict --verbose=2 "$mount_dir/ShelterBar.app"
+xcrun stapler validate "$mount_dir/ShelterBar.app"
 cmp "$app_dir/Contents/MacOS/ShelterBar" "$mount_dir/ShelterBar.app/Contents/MacOS/ShelterBar"
 cmp "$app_dir/Contents/Info.plist" "$mount_dir/ShelterBar.app/Contents/Info.plist"
 hdiutil detach "$mount_dir" -quiet
@@ -190,6 +204,7 @@ mounted=no
 
 ditto -x -k "$work_dir/artifacts/$asset_name.zip" "$work_dir/unzipped"
 codesign --verify --strict --verbose=2 "$work_dir/unzipped/ShelterBar.app"
+xcrun stapler validate "$work_dir/unzipped/ShelterBar.app"
 cmp "$app_dir/Contents/MacOS/ShelterBar" "$work_dir/unzipped/ShelterBar.app/Contents/MacOS/ShelterBar"
 cmp "$app_dir/Contents/Info.plist" "$work_dir/unzipped/ShelterBar.app/Contents/Info.plist"
 (

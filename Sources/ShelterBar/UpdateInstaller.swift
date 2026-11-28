@@ -30,8 +30,11 @@ struct UpdateInstallPlan: Sendable {
 
 enum UpdateInstaller {
     static let expectedBundleIdentifier = "com.jensen.shelterbar"
-    static let expectedCertificateSHA1 = "abcd7a5b7b4ff47f6e6448fab665faf8f0c5f910"
-    static let expectedDesignatedRequirement = "identifier \"\(expectedBundleIdentifier)\" and certificate leaf = H\"\(expectedCertificateSHA1)\""
+    // Public certificate fingerprint only. v0.5.14 pins the previous self-signed
+    // certificate and must be replaced manually before this trust policy applies.
+    static let expectedCertificateSHA1 = "4b54a69c86c740043d656927e438fbc356d1a67e"
+    static let expectedTeamIdentifier = "5UKPG93ACW"
+    static let expectedDesignatedRequirement = "identifier \"\(expectedBundleIdentifier)\" and anchor apple generic and certificate leaf[subject.OU] = \"\(expectedTeamIdentifier)\" and certificate leaf = H\"\(expectedCertificateSHA1)\""
 
     static func prepare(
         candidate: ReleaseCandidate,

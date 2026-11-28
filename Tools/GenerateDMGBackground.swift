@@ -106,9 +106,9 @@ arrow.stroke()
 NSColor(calibratedWhite: 0.86, alpha: 1).setFill()
 rect(x: 44, top: 316, width: 632, height: 1).fill()
 
-drawStep(2, title: "第一次打开会提示无法打开", top: 342)
+drawStep(2, title: "在「应用程序」中打开 ShelterBar", top: 342)
 drawText(
-    "请到「系统设置 › 隐私与安全性」底部点「仍要打开」。",
+    "本安装包使用 Developer ID 签名，并经过 Apple 公证。",
     in: rect(x: 84, top: 378, width: 592, height: 24), size: 14, gray: 0.34
 )
 drawStep(3, title: "按提示开启辅助功能等所需权限", top: 432)
