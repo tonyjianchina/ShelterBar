@@ -288,14 +288,16 @@ final class MenuBarCollectionEngine {
         do {
             try await applyLayout(collected: desired, preferredMove: (id, placement, dropPoint))
             model.setCollected(placement == .collected, id: id)
-            model.refresh()
+            // Moving one item can shift the rest. Finish the live scan before
+            // the controller re-enables drag hit testing on the open shelf.
+            await model.reload()
             phase = .idle
             return MenuBarCollectionOutcome(didChangeLayout: true)
         } catch CollectionEngineError.preferredMoveRejected(let message) {
             // The rest of the layout was restored and verified; only this one
             // item keeps its previous side, so nothing else is unstowed.
             model.message = message
-            model.refresh()
+            await model.reload()
             phase = .idle
             return MenuBarCollectionOutcome(message: message, didChangeLayout: true)
         } catch {

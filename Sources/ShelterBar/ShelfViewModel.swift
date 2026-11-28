@@ -162,7 +162,8 @@ final class ShelfViewModel: ObservableObject {
         for (id, old) in knownItems where byID[id] == nil
             && (!scanWasComplete || collectedIDs.contains(id)) {
             guard old.application?.isTerminated != true else { continue }
-            if !scanWasComplete {
+            // MenuBarAgent can remove a hidden icon from AX entirely.
+            if !scanWasComplete || isLogicallyHidden(old) {
                 byID[id] = old
             } else if let frame = old.menuBarReference.currentFrame(), frame.width > 1 {
                 old.menuBarReference.frame = frame

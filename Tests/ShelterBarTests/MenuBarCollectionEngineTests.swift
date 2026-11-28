@@ -138,7 +138,7 @@ func engineIgnoresUnmanagedAXRemnant() async {
     #expect(source.calls == 1)
     #expect(driver.revealCount == 0)
     let collected = await engine.perform(.setPlacement(id: "vpn", placement: .collected))
-    #expect(source.calls == 2)
+    #expect(source.calls == 3)
     #expect(collected.didChangeLayout)
     #expect(engine.phase == .idle)
     #expect(model.collectedIDs == ["vpn"])
@@ -148,11 +148,71 @@ func engineIgnoresUnmanagedAXRemnant() async {
     driver.placements["lark-remnant"] = .resident
     remnant.menuBarReference.frame = CGRect(x: 950, y: 5, width: 56, height: 24)
     let appeared = await engine.perform(.reconcile(.poll))
-    #expect(source.calls == 3)
+    #expect(source.calls == 4)
     #expect(appeared == .ignored)
     #expect(model.collectedIDs == ["vpn"])
     #expect(model.residentItems.map(\.id) == ["lark-remnant"])
     #expect(driver.moves == [PlannedMenuBarMove(id: "vpn", placement: .collected)])
+}
+
+@Test("a second drag in the same shelf uses the positions after the first collection")
+@MainActor
+func engineUsesNewFramesForConsecutiveDrags() async throws {
+    let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    let wechat = engineFixture("wechat", hidden: false)
+    let muse = engineFixture("muse", hidden: false)
+    muse.menuBarReference.frame.origin.x = 800
+    let shiftedMuse = engineFixture("muse", hidden: false)
+    shiftedMuse.menuBarReference.frame.origin.x = 850
+    source.entries = [wechat, muse]
+    let driver = EngineFixtureDriver()
+    driver.placements = ["wechat": .resident, "muse": .resident]
+    let model = ShelfViewModel(source: source, defaults: defaults,
+                              isTrusted: { true }, isVisible: { $0.minX >= 0 },
+                              isLogicallyHidden: { driver.placements[$0.id] == .collected })
+    driver.onCollapse = { [weak driver] in
+        source.entries = [wechat, shiftedMuse].filter { driver?.placements[$0.id] == .resident }
+    }
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false })
+
+    let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+    try #require(monitor.refreshPermission())
+    var lastOutcome: MenuBarDragGesture.Outcome?
+    monitor.onOutcome = { lastOutcome = $0 }
+    let shelf = CGRect(x: 500, y: 35, width: 450, height: 74)
+
+    func consume(_ type: CGEventType, at point: CGPoint) -> Bool {
+        let event = CGEvent(mouseEventSource: nil, mouseType: type,
+                            mouseCursorPosition: point, mouseButton: .left)!
+        event.flags = []
+        return monitor.consume(type, event: event)
+    }
+
+    _ = await engine.perform(.reconcile(.shelfOpened))
+    monitor.update(isEnabled: true, items: model.residentItems, shelfFrame: shelf)
+    try #require(consume(.leftMouseDown, at: CGPoint(x: 912, y: 12)))
+    try #require(consume(.leftMouseDragged, at: CGPoint(x: 900, y: 65)))
+    try #require(consume(.leftMouseUp, at: CGPoint(x: 900, y: 65)))
+    try #require(lastOutcome == .collect("wechat"))
+    let firstMove = await engine.perform(.setPlacement(id: "wechat", placement: .collected))
+    try #require(firstMove.didChangeLayout)
+    #expect(model.items.map(\.id) == ["wechat"])
+
+    // macOS moves the remaining icon into a different slot. Keep the same
+    // monitor and shelf session, and use the inventory from the first drop.
+    monitor.update(isEnabled: true, items: model.residentItems, shelfFrame: shelf)
+    #expect(!consume(.leftMouseDown, at: CGPoint(x: 812, y: 12)))
+    try #require(consume(.leftMouseDown, at: CGPoint(x: 862, y: 12)))
+    try #require(consume(.leftMouseDragged, at: CGPoint(x: 860, y: 65)))
+    try #require(consume(.leftMouseUp, at: CGPoint(x: 860, y: 65)))
+    try #require(lastOutcome == .collect("muse"))
+    let secondMove = await engine.perform(.setPlacement(id: "muse", placement: .collected))
+    #expect(secondMove.didChangeLayout)
+    #expect(Set(model.items.map(\.id)) == ["wechat", "muse"])
 }
 
 @Test("collection is not persisted if the driver cannot preserve the visible entry")
