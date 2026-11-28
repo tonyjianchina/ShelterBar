@@ -2,16 +2,20 @@ import Foundation
 import Testing
 @testable import ShelterBar
 
-@Test("the default build keeps the GitHub updater")
+@Test("the distribution selects the correct updater policy")
 func directDistributionKeepsTheGitHubUpdater() {
+    #if SHELTERBAR_APP_STORE
+    #expect(!ShelterBarDistribution.includesGitHubUpdater)
+    #else
     #expect(ShelterBarDistribution.includesGitHubUpdater)
+    #endif
 }
 
 @Test("the in-app privacy link is the canonical HTTPS policy page")
 func privacyPolicyLinkIsTheCanonicalHTTPSPage() {
     let url = ShelterBarDistribution.privacyPolicyURL
     #expect(url.scheme == "https")
-    #expect(url.host == "shelterbar.tonyjianchina.chatgpt.site")
+    #expect(url.host == "shelterbar.zhengjian.me")
     #expect(url.path == "/privacy")
 }
 
@@ -41,3 +45,11 @@ func infoPlistDeclaresStoreMetadataAndUsageStrings() throws {
     let collected = try #require(privacy["NSPrivacyCollectedDataTypes"] as? [Any])
     #expect(collected.isEmpty)
 }
+
+#if SHELTERBAR_APP_STORE
+@Test("the updater-free audit never loads a private visibility backend")
+@MainActor
+func storeAuditHasNoPrivateBackend() {
+    #expect(!MenuBarClientRestriction().isAvailable)
+}
+#endif

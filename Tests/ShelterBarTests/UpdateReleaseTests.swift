@@ -1,3 +1,4 @@
+#if !SHELTERBAR_APP_STORE
 import Testing
 import Foundation
 @testable import ShelterBar
@@ -132,3 +133,5 @@ func releaseSelectionIncludesPrereleases() throws {
     let beyondLatest = try #require(ShelterBarVersion("0.6.0-beta.2"))
     #expect(catalog.latest(for: beyondLatest) == nil)
 }
+
+#endif

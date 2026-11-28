@@ -2,3 +2,7 @@
 /dist/
 .DS_Store
 /.publish/
+
+/validation/
+*.xcuserstate
+xcuserdata/

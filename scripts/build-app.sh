@@ -18,8 +18,8 @@ case "$distribution" in
     direct) distribution_flags= ;;
     app-store)
         distribution_flags="-Xswiftc -DSHELTERBAR_APP_STORE"
-        echo "App Store flavor: the GitHub updater is compiled out." >&2
-        echo "App Sandbox is not enabled. This artifact cannot be uploaded." >&2
+        echo "Updater-free audit flavor: GitHub updater and private visibility API are compiled out." >&2
+        echo "App Sandbox is not enabled. This is an audit artifact; do not install or upload it." >&2
         echo "See docs/MAC-APP-STORE.md." >&2
         ;;
     *)
@@ -41,7 +41,12 @@ deployment_target=${target_triple#arm64-apple-macosx}
 sdk_version=$(xcrun --sdk macosx --show-sdk-version)
 linker_flags="-Xlinker -platform_version -Xlinker macos -Xlinker $deployment_target -Xlinker $sdk_version"
 local_signing_name=${SHELTERBAR_LOCAL_SIGNING_NAME:-"ShelterBar Local Code Signing"}
-app_dir="$project_dir/dist/ShelterBar.app"
+if [ "$distribution" = app-store ]; then
+    app_dir="$project_dir/dist/updater-free-audit/ShelterBar.app"
+else
+    app_dir="$project_dir/dist/ShelterBar.app"
+fi
+mkdir -p "$(dirname "$app_dir")"
 mkdir -p "$project_dir/dist"
 staging_root=$(mktemp -d "$project_dir/dist/.ShelterBar.XXXXXX")
 staged_app="$staging_root/ShelterBar.app"
@@ -131,13 +136,7 @@ if codesign -d --entitlements :- "$staged_app" 2>/dev/null | grep -q "com.apple.
     echo "See docs/MAC-APP-STORE.md." >&2
     exit 1
 fi
-if [ "$distribution" = "app-store" ]; then
-    if /usr/bin/strings "$staged_app/Contents/MacOS/ShelterBar" \
-        | grep -F "api.github.com/repos/tonyjianchina/ShelterBar/releases" >/dev/null; then
-        echo "App Store flavor still contains the GitHub releases feed." >&2
-        exit 1
-    fi
-fi
+"$project_dir/scripts/verify-distribution.sh" "$distribution" "$staged_app"
 codesign -d -r- "$staged_app" 2>&1 | sed -n 's/^designated => /Designated requirement: /p' >&2
 rm -rf "$app_dir"
 mv "$staged_app" "$app_dir"
