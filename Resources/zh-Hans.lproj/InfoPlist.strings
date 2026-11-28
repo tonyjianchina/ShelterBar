@@ -1,0 +1,2 @@
+"NSAccessibilityUsageDescription" = "ShelterBar 需要辅助功能权限，才能发现菜单栏图标、移动你拖进收纳栏的图标，并点开已收纳图标原来的菜单。不会读取你在其他应用里输入的文字。";
+"NSScreenCaptureUsageDescription" = "ShelterBar 可以读取单个菜单栏图标，以便在收纳栏显示原来的图标。屏幕录制是可选权限；拒绝后仍可收纳，只是显示占位图标。不会录制视频、不会保存整屏截图，也不会上传图像。";

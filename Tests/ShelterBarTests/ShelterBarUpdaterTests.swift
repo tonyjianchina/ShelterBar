@@ -1,3 +1,4 @@
+#if !SHELTERBAR_APP_STORE
 import AppKit
 import CryptoKit
 import Foundation
@@ -226,3 +227,5 @@ func backgroundUpdateResultsDoNotInterruptShelf() {
     model.applyUpdateState(.upToDate("0.5.12 (36)"), isUserInitiated: true)
     #expect(model.message == "ShelterBar 0.5.12 (36) 已是最新版本。")
 }
+
+#endif

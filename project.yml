@@ -1,0 +1,110 @@
+name: ShelterBar
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    macOS: '14.0'
+  createIntermediateGroups: true
+  defaultConfig: Release
+configs:
+  Debug: debug
+  Release: release
+  UpdaterFreeAudit: release
+  AppStore: release
+settings:
+  base:
+    SDKROOT: macosx
+    MACOSX_DEPLOYMENT_TARGET: '14.0'
+    ARCHS: arm64
+    SWIFT_VERSION: '6.0'
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_APP_SANDBOX: NO
+    SWIFT_OPTIMIZATION_LEVEL: -O
+    DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: -Onone
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: '$(inherited) DEBUG'
+    UpdaterFreeAudit:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: '$(inherited) SHELTERBAR_APP_STORE'
+    AppStore:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: '$(inherited) SHELTERBAR_APP_STORE'
+      ENABLE_APP_SANDBOX: YES
+targets:
+  ShelterBarCore:
+    type: library.static
+    platform: macOS
+    sources: [Sources/ShelterBarCore]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jensen.shelterbar.core
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+  ShelterBar:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/ShelterBar
+      - path: Resources/AppIcon.icns
+        buildPhase: resources
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Resources/en.lproj
+        buildPhase: resources
+      - path: Resources/zh-Hans.lproj
+        buildPhase: resources
+    dependencies:
+      - target: ShelterBarCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jensen.shelterbar
+        INFOPLIST_FILE: Resources/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        PRODUCT_NAME: ShelterBar
+        SKIP_INSTALL: NO
+        COMBINE_HIDPI_IMAGES: YES
+      configs:
+        AppStore:
+          CODE_SIGN_ENTITLEMENTS: Resources/ShelterBar-AppStore.entitlements
+    preBuildScripts:
+      - name: Require a working App Store backend
+        script: |
+          if [ "$CONFIGURATION" = AppStore ]; then
+              "$SRCROOT/scripts/check-app-store-backend.sh"
+          fi
+        basedOnDependencyAnalysis: false
+    postBuildScripts:
+      - name: Verify distribution contents
+        script: |
+          if [ "$CONFIGURATION" = UpdaterFreeAudit ] || [ "$CONFIGURATION" = AppStore ]; then
+              flavor=app-store
+          else
+              flavor=direct
+          fi
+          "$SRCROOT/scripts/verify-distribution.sh" "$flavor" "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+        basedOnDependencyAnalysis: false
+schemes:
+  ShelterBar-Direct:
+    build:
+      targets:
+        ShelterBar: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  ShelterBar-UpdaterFree-Audit:
+    build:
+      targets:
+        ShelterBar: all
+    run:
+      config: UpdaterFreeAudit
+    archive:
+      config: UpdaterFreeAudit
+  ShelterBar-AppStore:
+    build:
+      targets:
+        ShelterBar: all
+    run:
+      config: AppStore
+    archive:
+      config: AppStore

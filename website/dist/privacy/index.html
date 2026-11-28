@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f8">
+  <title>ShelterBar 隐私政策 · Privacy Policy</title>
+  <meta name="description" content="ShelterBar 的隐私政策。没有账号、广告或遥测。布局和图标缓存只保存在本机。">
+  <link rel="canonical" href="https://shelterbar.zhengjian.me/privacy">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .policy { width: min(760px, calc(100% - 48px)); margin: 12px auto 72px; }
+    .policy h1 { font-size: clamp(32px, 4vw, 44px); }
+    .policy h2 { font-size: 22px; margin-top: 36px; }
+    .policy .meta { color: var(--muted); font-size: 14px; margin-top: 12px; }
+    .policy ul { padding-left: 1.2em; color: var(--muted); }
+    .policy li { margin: 8px 0; }
+    .lang { margin-top: 64px; padding-top: 8px; border-top: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#policy-zh">跳到正文</a>
+  <header class="header wrap">
+    <a class="brand" href="/">ShelterBar</a>
+    <nav>
+      <a href="#policy-zh">中文</a>
+      <a href="#policy-en">English</a>
+      <a href="/">返回首页</a>
+    </nav>
+  </header>
+  <main class="policy">
+    <article id="policy-zh" lang="zh-CN">
+      <p class="eyebrow">隐私政策</p>
+      <h1>给菜单栏留空白，不拿走你的数据。</h1>
+      <p class="meta">生效日期：2026 年 11 月 28 日。官方隐私政策地址： <a href="https://shelterbar.zhengjian.me/privacy">shelterbar.zhengjian.me/privacy</a>。</p>
+      <p>ShelterBar 是运行在你自己 Mac 上的菜单栏图标收纳工具。维护者通过 <a href="https://github.com/tonyjianchina/ShelterBar">GitHub 仓库 tonyjianchina/ShelterBar</a> 发布它。应用没有账号，没有广告，也没有遥测 SDK。</p>
+
+      <h2>我们不收集的内容</h2>
+      <p>开发者不收集、不上传、不出售你的身份、通讯录、位置、键盘输入、屏幕录像或使用记录。图标缓存和收纳布局只留在本机。</p>
+
+      <h2>只保存在本机的数据</h2>
+      <ul>
+        <li>收纳了哪些图标、收纳栏是否固定，以及 ShelterBar 自己的菜单栏位置，写在本应用的偏好设置里。</li>
+        <li>菜单栏图标的小尺寸 PNG 缓存在 <code>~/Library/Application Support/ShelterBar/IconCache/</code>。容量有上限。图标回到顶部菜单栏后，缓存仍会留下，供下次收纳使用。</li>
+        <li>直装版还会在本机记下最近一次更新检查的状态。这些记录不会上传。</li>
+      </ul>
+
+      <h2>系统权限</h2>
+      <ul>
+        <li><strong>辅助功能（必需）。</strong>用来发现菜单栏图标、移动你拖进收纳栏的图标，并点开已收纳图标原来的菜单。不读取你在其他应用里输入的文字。</li>
+        <li><strong>输入监控（必需）。</strong>用来识别从菜单栏拖到收纳栏的鼠标动作。拖动过程中可以按 Esc 取消。应用不记录、不保存、不上传按键内容。</li>
+        <li><strong>屏幕录制（可选）。</strong>只在你允许时读取单个菜单栏图标，以便收纳栏显示原来的图形。拒绝后仍然可以收纳和恢复，只是显示占位图标。不录音、不录制视频、不保存整屏截图，也不上传图像。后台轮询在缓存命中后不会反复截图。</li>
+      </ul>
+
+      <h2>网络</h2>
+      <p>从本站或 GitHub 下载的版本会访问 <code>https://api.github.com/repos/tonyjianchina/ShelterBar/releases</code>，检查有没有更新的 Apple Silicon 安装包，并在校验通过后下载对应的 ZIP 和 <code>SHA256SUMS</code>。请求使用固定的 User-Agent <code>ShelterBar-Updater</code>。GitHub 因此能看到连接的 IP 地址。访问官网或本隐私政策时，网站托管服务（香港阿里云 VPS）也会接收 IP 地址、浏览器请求头和请求路径等通常的访问日志信息，用于提供网站服务；这些信息不包含应用内的收纳布局或图标缓存。应用不把布局、图标或使用记录发给 GitHub，也不发给开发者。</p>
+      <p>可以用环境变量 <code>SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1</code>，或偏好键 <code>updates.disableAutomatic</code>，关闭自动检查。收纳栏的「更多」菜单仍可手动检查。</p>
+      <p>计划中的 Mac App Store 版本只通过 Mac App Store 更新。当前移除更新器的审计构建不包含上述 GitHub 网络功能，但尚不具备可上传的沙盒收纳实现；目前不能从 Mac App Store 下载 ShelterBar。</p>
+
+      <h2>第三方</h2>
+      <p>应用本体没有广告、分析和账号 SDK。直装版的更新检查会联系 GitHub。Apple 在你从 Mac App Store 下载软件时按 Apple 自己的隐私政策处理商店交易；这与 ShelterBar 是否读取你的菜单栏无关。</p>
+
+      <h2>儿童</h2>
+      <p>ShelterBar 不是面向儿童的应用，也不会有意收集儿童的个人资料。</p>
+
+      <h2>保留与删除</h2>
+      <p>开发者的服务器上没有你的 ShelterBar 资料可以删除。要清除本机数据，退出应用后删除上述图标缓存目录；在终端执行 <code>defaults delete com.jensen.shelterbar</code> 可删除收纳布局和偏好设置。你也可以在系统设置中移除 ShelterBar 的权限；卸载应用不会自动撤销已经授予的辅助功能、输入监控或屏幕录制。</p>
+
+      <h2>本页的变更与联系</h2>
+      <p>政策变更会更新这一页的日期。应用内「更多 → 隐私政策」打开的就是这个地址。问题请提交到 <a href="https://github.com/tonyjianchina/ShelterBar/issues">GitHub Issues</a>。</p>
+    </article>
+
+    <article class="lang" id="policy-en" lang="en">
+      <p class="eyebrow">Privacy Policy</p>
+      <h1>Room in the menu bar, without taking your data.</h1>
+      <p class="meta">Effective 28 November 2026. Canonical privacy policy: <a href="https://shelterbar.zhengjian.me/privacy">shelterbar.zhengjian.me/privacy</a>.</p>
+      <p>ShelterBar is a menu-bar icon organizer that runs on your own Mac. Its maintainer publishes it from the <a href="https://github.com/tonyjianchina/ShelterBar">GitHub repository tonyjianchina/ShelterBar</a>. The app has no account, no advertising, and no telemetry SDK.</p>
+
+      <h2>What we do not collect</h2>
+      <p>The developer does not collect, upload, or sell your identity, contacts, location, keystrokes, screen recordings, or usage history. Icon cache and shelf layout stay on the Mac.</p>
+
+      <h2>Data that stays on this Mac</h2>
+      <ul>
+        <li>Which icons are sheltered, whether the shelf is pinned, and ShelterBar’s own menu-bar positions are stored in this app’s preferences.</li>
+        <li>Small PNG copies of menu-bar icons are cached at <code>~/Library/Application Support/ShelterBar/IconCache/</code>. The cache has a size limit. A glyph remains cached after its icon returns to the menu bar so the next shelter can reuse it.</li>
+        <li>The direct-download build also stores the latest update-check status locally. That record is not uploaded.</li>
+      </ul>
+
+      <h2>System permissions</h2>
+      <ul>
+        <li><strong>Accessibility (required).</strong> Used to find menu-bar icons, move the ones you drag into the shelf, and open a sheltered icon’s original menu. It does not read text you type in other apps.</li>
+        <li><strong>Input Monitoring (required).</strong> Used to recognize a drag from the menu bar into the shelf. Escape cancels the gesture in progress. The app does not record, store, or upload keystrokes.</li>
+        <li><strong>Screen Recording (optional).</strong> When you allow it, ShelterBar reads a single menu-bar icon so the shelf can show the original glyph. Sheltering and restoring still work if you refuse; the shelf shows a placeholder. There is no audio capture, video recording, full-screen screenshot, or image upload. Periodic scans do not capture again after a cache hit.</li>
+      </ul>
+
+      <h2>Network</h2>
+      <p>Builds downloaded from this site or from GitHub contact <code>https://api.github.com/repos/tonyjianchina/ShelterBar/releases</code> to look for a newer Apple silicon package and, after verification, download that release’s ZIP and <code>SHA256SUMS</code>. The request uses the fixed User-Agent <code>ShelterBar-Updater</code>. GitHub can therefore see the connection’s IP address. When you visit the website or this policy, the website host (an Alibaba Cloud VPS in Hong Kong) also receives standard access-log information such as IP address, browser request headers, and requested path to serve the website; this does not include in-app layout or icon cache. The app does not send layout, icons, or usage history to GitHub or to the developer.</p>
+      <p>Set <code>SHELTERBAR_DISABLE_AUTOMATIC_UPDATES=1</code>, or the preference <code>updates.disableAutomatic</code>, to turn off automatic checks. The shelf’s More menu can still check manually.</p>
+      <p>A future Mac App Store version will update only through the Mac App Store. The current updater-free audit build omits the GitHub network functionality, but does not yet have a sandbox-compatible collection implementation. ShelterBar is currently unavailable on the Mac App Store.</p>
+
+      <h2>Third parties</h2>
+      <p>The app bundle contains no advertising, analytics, or account SDK. The direct-download update check contacts GitHub. If you later download ShelterBar from the Mac App Store, Apple processes that store transaction under Apple’s own privacy policy. That is separate from ShelterBar reading your menu bar.</p>
+
+      <h2>Children</h2>
+      <p>ShelterBar is not directed at children, and it does not knowingly collect personal information from children.</p>
+
+      <h2>Retention and deletion</h2>
+      <p>There is no ShelterBar profile on the developer’s servers to delete. To remove local data, quit the app and delete the icon-cache directory above. Run <code>defaults delete com.jensen.shelterbar</code> in Terminal to remove layout and preferences. You can also remove ShelterBar’s permissions in System Settings. Uninstalling the app does not by itself revoke Accessibility, Input Monitoring, or Screen Recording.</p>
+
+      <h2>Changes and contact</h2>
+      <p>Changes to this policy update the date on this page. The shelf menu item labeled 「隐私政策」 opens this URL. Questions go to <a href="https://github.com/tonyjianchina/ShelterBar/issues">GitHub Issues</a>.</p>
+    </article>
+  </main>
+  <footer class="footer wrap">
+    <span>© 2026 ShelterBar</span>
+    <div>
+      <a href="/">首页</a>
+      <a href="https://github.com/tonyjianchina/ShelterBar/issues">反馈问题</a>
+    </div>
+  </footer>
+</body>
+</html>

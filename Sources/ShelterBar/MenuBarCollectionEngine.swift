@@ -225,7 +225,11 @@ final class MenuBarCollectionEngine {
             items: observed,
             knownItemIDs: knownItemIDs,
             desiredCollectedIDs: previouslyCollectedIDs,
-            newItemPolicy: .collect
+            // Discovery is not consent to collect. In particular, a bounded
+            // first scan may be empty or partial, so later inventory can
+            // contain pre-existing icons. Restore only the saved selection;
+            // adding an item requires an explicit setPlacement command.
+            newItemPolicy: .keepVisible
         ))
 
         do {

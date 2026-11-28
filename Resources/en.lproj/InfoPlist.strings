@@ -1,0 +1,2 @@
+"NSAccessibilityUsageDescription" = "ShelterBar uses Accessibility to find menu bar icons, move the ones you drag into the shelf, and open a sheltered icon’s original menu. It does not read text you type in other apps.";
+"NSScreenCaptureUsageDescription" = "ShelterBar can read a single menu bar icon so the shelf can show the original glyph. Screen Recording is optional. Without it, sheltering still works and the shelf shows a placeholder. ShelterBar does not record video, save full screenshots, or upload images.";

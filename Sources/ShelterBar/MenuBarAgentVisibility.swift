@@ -25,11 +25,13 @@ enum MenuBarCollectionCapability {
     }
 }
 
+#if !SHELTERBAR_APP_STORE
 @objc private protocol MenuBarAssessmentAssertion: AnyObject {
     @objc(activateWithConfiguration:completionHandler:)
     func activate(with configuration: AnyObject, completionHandler: @escaping (NSError?) -> Void)
     func invalidate()
 }
+#endif
 
 enum MenuBarRestrictionError: LocalizedError {
     case unavailable
@@ -40,7 +42,7 @@ enum MenuBarRestrictionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable:
-            return "MenuBarClientCore.framework 不可用或接口已经改变"
+            return "菜单栏显示接口不可用或已经改变"
         case .configurationFailed:
             return "无法创建菜单栏显示配置"
         case let .activation(error):
@@ -61,6 +63,18 @@ protocol MenuBarRestrictionApplying: AnyObject {
     func release()
 }
 
+#if SHELTERBAR_APP_STORE
+/// Audit builds must never load private APIs. This deliberately reports no
+/// backend; it does not turn the legacy AX/HID path into a sandbox solution.
+@MainActor
+final class MenuBarClientRestriction: MenuBarRestrictionApplying {
+    var isAvailable: Bool { false }
+    func restrict(allowedBundleIDs: [String], completion: @MainActor @escaping (Error?) -> Void) {
+        completion(MenuBarRestrictionError.unavailable)
+    }
+    func release() {}
+}
+#else
 @MainActor
 final class MenuBarClientRestriction: MenuBarRestrictionApplying {
     private static let frameworkPath =
@@ -153,6 +167,8 @@ final class MenuBarClientRestriction: MenuBarRestrictionApplying {
             .takeRetainedValue()
     }
 }
+
+#endif
 
 /// Owns ShelterBar's intended and currently-applied hidden app sets on macOS
 /// 27. AX keeps reporting stale frames after MenuBarAgent hides an item, so

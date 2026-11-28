@@ -7,6 +7,26 @@ case "$configuration" in
     debug|release) ;;
     *) echo "Usage: $0 [debug|release]" >&2; exit 1 ;;
 esac
+if [ "${SHELTERBAR_ENABLE_APP_SANDBOX:-0}" != 0 ] || [ "${SHELTERBAR_APP_SANDBOX:-0}" != 0 ]; then
+    echo "Refusing to enable App Sandbox." >&2
+    echo "The current hide and drag path is incompatible with it, so no sandboxed build is produced." >&2
+    echo "See docs/MAC-APP-STORE.md." >&2
+    exit 1
+fi
+distribution=${SHELTERBAR_DISTRIBUTION:-direct}
+case "$distribution" in
+    direct) distribution_flags= ;;
+    app-store)
+        distribution_flags="-Xswiftc -DSHELTERBAR_APP_STORE"
+        echo "Updater-free audit flavor: GitHub updater and private visibility API are compiled out." >&2
+        echo "App Sandbox is not enabled. This is an audit artifact; do not install or upload it." >&2
+        echo "See docs/MAC-APP-STORE.md." >&2
+        ;;
+    *)
+        echo "SHELTERBAR_DISTRIBUTION must be direct or app-store." >&2
+        exit 1
+        ;;
+esac
 if [ "$(uname -s)" != Darwin ]; then
     echo "ShelterBar must be built on macOS with Swift 6.2 or newer." >&2
     exit 1
@@ -21,26 +41,55 @@ deployment_target=${target_triple#arm64-apple-macosx}
 sdk_version=$(xcrun --sdk macosx --show-sdk-version)
 linker_flags="-Xlinker -platform_version -Xlinker macos -Xlinker $deployment_target -Xlinker $sdk_version"
 local_signing_name=${SHELTERBAR_LOCAL_SIGNING_NAME:-"ShelterBar Local Code Signing"}
-app_dir="$project_dir/dist/ShelterBar.app"
+if [ "$distribution" = app-store ]; then
+    app_dir="$project_dir/dist/updater-free-audit/ShelterBar.app"
+else
+    app_dir="$project_dir/dist/ShelterBar.app"
+fi
+mkdir -p "$(dirname "$app_dir")"
 mkdir -p "$project_dir/dist"
 staging_root=$(mktemp -d "$project_dir/dist/.ShelterBar.XXXXXX")
 staged_app="$staging_root/ShelterBar.app"
 trap 'rm -rf "$staging_root"' EXIT
 
-# shellcheck disable=SC2086 # linker_flags is intentionally word-split.
+# shellcheck disable=SC2086 # linker_flags and distribution_flags are intentionally word-split.
 swift build --package-path "$project_dir" --configuration "$configuration" \
-    --triple "$target_triple" --force-resolved-versions --product ShelterBar $linker_flags
+    --triple "$target_triple" --force-resolved-versions --product ShelterBar $linker_flags $distribution_flags
 # shellcheck disable=SC2086
 binary_path=$(swift build --package-path "$project_dir" --configuration "$configuration" \
-    --triple "$target_triple" --force-resolved-versions --show-bin-path $linker_flags)
+    --triple "$target_triple" --force-resolved-versions --show-bin-path $linker_flags $distribution_flags)
 
 mkdir -p "$staged_app/Contents/MacOS"
 mkdir -p "$staged_app/Contents/Resources"
 cp "$binary_path/ShelterBar" "$staged_app/Contents/MacOS/ShelterBar"
 cp "$project_dir/Resources/Info.plist" "$staged_app/Contents/Info.plist"
 cp "$project_dir/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
+cp "$project_dir/Resources/PrivacyInfo.xcprivacy" "$staged_app/Contents/Resources/PrivacyInfo.xcprivacy"
+cp -R "$project_dir/Resources/en.lproj" "$staged_app/Contents/Resources/en.lproj"
+cp -R "$project_dir/Resources/zh-Hans.lproj" "$staged_app/Contents/Resources/zh-Hans.lproj"
 
 plutil -lint "$staged_app/Contents/Info.plist"
+plutil -lint "$staged_app/Contents/Resources/PrivacyInfo.xcprivacy"
+plutil -lint "$staged_app/Contents/Resources/en.lproj/InfoPlist.strings"
+plutil -lint "$staged_app/Contents/Resources/zh-Hans.lproj/InfoPlist.strings"
+for key in NSAccessibilityUsageDescription NSScreenCaptureUsageDescription LSApplicationCategoryType CFBundleDevelopmentRegion; do
+    /usr/libexec/PlistBuddy -c "Print :$key" "$staged_app/Contents/Info.plist" >/dev/null
+done
+category=$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "$staged_app/Contents/Info.plist")
+if [ "$category" != "public.app-category.utilities" ]; then
+    echo "LSApplicationCategoryType must be public.app-category.utilities." >&2
+    exit 1
+fi
+encryption=$(/usr/libexec/PlistBuddy -c 'Print :ITSAppUsesNonExemptEncryption' "$staged_app/Contents/Info.plist")
+if [ "$encryption" != false ]; then
+    echo "ITSAppUsesNonExemptEncryption must be false." >&2
+    exit 1
+fi
+tracking=$(/usr/libexec/PlistBuddy -c 'Print :NSPrivacyTracking' "$staged_app/Contents/Resources/PrivacyInfo.xcprivacy")
+if [ "$tracking" != false ]; then
+    echo "Privacy manifest must declare NSPrivacyTracking false." >&2
+    exit 1
+fi
 if [ "$(lipo -archs "$staged_app/Contents/MacOS/ShelterBar")" != arm64 ]; then
     echo "Expected a single Apple Silicon (arm64) executable." >&2
     exit 1
@@ -82,6 +131,12 @@ if [ "$signing_identity" != - ]; then
 fi
 codesign "$@" "$staged_app"
 codesign --verify --strict --verbose=2 "$staged_app"
+if codesign -d --entitlements :- "$staged_app" 2>/dev/null | grep -q "com.apple.security.app-sandbox"; then
+    echo "Refusing to produce a build with the App Sandbox entitlement." >&2
+    echo "See docs/MAC-APP-STORE.md." >&2
+    exit 1
+fi
+"$project_dir/scripts/verify-distribution.sh" "$distribution" "$staged_app"
 codesign -d -r- "$staged_app" 2>&1 | sed -n 's/^designated => /Designated requirement: /p' >&2
 rm -rf "$app_dir"
 mv "$staged_app" "$app_dir"

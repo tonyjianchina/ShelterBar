@@ -2,6 +2,12 @@
 # Build and verify the Apple Silicon release artifacts on macOS.
 set -eu
 
+if [ "${SHELTERBAR_DISTRIBUTION:-direct}" != "direct" ]; then
+    echo "package-release.sh only builds the direct-download release, which keeps the GitHub updater." >&2
+    echo "Unset SHELTERBAR_DISTRIBUTION or set it to direct. See docs/MAC-APP-STORE.md." >&2
+    exit 1
+fi
+
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 plist="$project_dir/Resources/Info.plist"
 version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")

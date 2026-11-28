@@ -1,0 +1,866 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		044BF692F97833D4BE961027 /* MenuBarItemMover.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA731E1F26C28FF06B413CE /* MenuBarItemMover.swift */; };
+		0667ADCB86CE5F6CAB2E8789 /* libShelterBarCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF595A30950C0A96D7B12B4 /* libShelterBarCore.a */; };
+		07B88016C2074BDB4403BECD /* MenuBarDragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4598A1068B2A38A10E7C3FAA /* MenuBarDragMonitor.swift */; };
+		112D29396CF779DE4B6B5A11 /* ShelfViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 102EB9B64893C69C0F06255A /* ShelfViewModel.swift */; };
+		13DEBC1ECEDC466F995183B5 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C523CC2A478C29B4E94D2BA3 /* AppDelegate.swift */; };
+		170F89A24F52C4B5DFC3198F /* MenuBarIconPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D5F0E4B2986E0C5B7E205DC /* MenuBarIconPresentation.swift */; };
+		21C2654D4A16BDD6D5E4F038 /* ShelfItemSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83BDBB53AAF4BA4F006F55CF /* ShelfItemSource.swift */; };
+		248BFAA7BFE21926D01C2843 /* MenuBarDragEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08BB9C49897FEC5197EF8571 /* MenuBarDragEvents.swift */; };
+		2849CED3D5977A9D3C446CCC /* MenuBarReconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801C384D2756C6F24979F635 /* MenuBarReconciliation.swift */; };
+		3E523B88DEC8938CAA11D5BA /* MenuBarArrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C48882303BC0A5DE1313F09 /* MenuBarArrangement.swift */; };
+		457826423F3C9766B5F0758A /* MenuBarTransitionShield.swift in Sources */ = {isa = PBXBuildFile; fileRef = 035036C4B49F6B9152281275 /* MenuBarTransitionShield.swift */; };
+		4F33BD297AFF88168CE644B3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 9BA21CF9A184B98EDC2F211C /* PrivacyInfo.xcprivacy */; };
+		4FAB6133FB6C99423CABB7DA /* MenuBarCompositeGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F2E2DADA5D485D5669DE21 /* MenuBarCompositeGlyph.swift */; };
+		51861E9F3E81405B45F4E16E /* MenuBarStatusHandle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E508801F97AE452D732838C /* MenuBarStatusHandle.swift */; };
+		556624FDDB925998F91201B5 /* MenuBarIconCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8802F0E01BEC2098D8EA14E6 /* MenuBarIconCapture.swift */; };
+		5875229CA782593641010993 /* ShelfPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E00DCBBEBAA52D7E7279959 /* ShelfPresentation.swift */; };
+		5E429BF90A74374E05FB5768 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EB63DCFB63D31223D655DD8 /* AccessibilityPermission.swift */; };
+		61EB6C7B51FC6B027EE39DDB /* MenuBarNativeWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AAE90807500E85B702668B2 /* MenuBarNativeWindow.swift */; };
+		647A3B92C679C27FE2689631 /* MenuBarAgentVisibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E447A9135A9872471119E03 /* MenuBarAgentVisibility.swift */; };
+		66A290C7813EF1F366BCEA41 /* ShelterBarDistribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF97738F00719F0D7C4FD14 /* ShelterBarDistribution.swift */; };
+		7AFC680F41141DB4BBCB6367 /* UpdateRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A6F079AC005F52BF5E67B5 /* UpdateRelease.swift */; };
+		7BCC81846FE4C539303125BC /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = F59AC0D3D4E76A3B5D5D8F0F /* UpdateInstaller.swift */; };
+		86FD38EAB103729C5297DDEF /* MenuBarDragGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EDA616D55B4B4B18DFAD0CD /* MenuBarDragGesture.swift */; };
+		9520F3A79CD11E135996CEA0 /* ShelterBarUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474A21F1C9532E2FD7570F61 /* ShelterBarUpdater.swift */; };
+		9929399DA83F9A4F6E281726 /* MenuBarCollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D74A6F18187517692D38D6B5 /* MenuBarCollectionEngine.swift */; };
+		A2DA2D7106FB10C7FE6CBE41 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51C15421947E9BB4CCFE124E /* main.swift */; };
+		A4DF23CBDCED5CF4BF021DE6 /* MenuBarBorrowPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36D83965B53A808811D79C5 /* MenuBarBorrowPlanner.swift */; };
+		A608A80947DA826891CAAC13 /* MenuBarGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0ED054158D67AFC40CF5ADF /* MenuBarGeometry.swift */; };
+		AEF44A527465D7E929772E37 /* AppIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = 58403A5F83D995F374EB43F1 /* AppIcon.icns */; };
+		B63669D8EEC6575C03B37D79 /* StatusBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328BEDC655C7B0D804669C28 /* StatusBarController.swift */; };
+		B830C5AD657368B1125C8915 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E88E3E3368C16B63E1D18A /* ShelfView.swift */; };
+		B9E3AE90A7BE8534011FA5CE /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79BCFB9E66589636B0C847B /* AppVersion.swift */; };
+		BB19EE3454561D8BA6EBB16C /* PermissionOnboardingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBFCE6954879DB14ED38B52 /* PermissionOnboardingCoordinator.swift */; };
+		BCB8294A9BDF4865CEE6B397 /* zh-Hans.lproj in Resources */ = {isa = PBXBuildFile; fileRef = 32C6E4EB6217200810D89564 /* zh-Hans.lproj */; };
+		C19AB5FBC3C26E54228DEA6D /* MenuBarMenuOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DE85983C48F9BE213B44289 /* MenuBarMenuOpener.swift */; };
+		C9A843D4AB4C93BDDF07F799 /* en.lproj in Resources */ = {isa = PBXBuildFile; fileRef = C3C587CD97515E6AF26AE541 /* en.lproj */; };
+		CF9D808C20256182CF32BFD7 /* MenuBarIconDiskCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDBB52BC7B813CED6083F2D9 /* MenuBarIconDiskCache.swift */; };
+		D14339BA9E85E2E37A509445 /* MenuBarAXPressExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CB767CEDB6993F9694A954 /* MenuBarAXPressExecutor.swift */; };
+		DB6AE922D09ADBCB1C515D35 /* VerifiedMenuBarMove.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE9384A59EEB6BD6D21E419 /* VerifiedMenuBarMove.swift */; };
+		E2FA02916A440BED3D7E70B4 /* ScreenCapturePermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CD4971656DBF94DD3520713 /* ScreenCapturePermission.swift */; };
+		EEA3034DB8EC31FFBB40B9D3 /* PermissionOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A28575F083EB911DF55502 /* PermissionOnboarding.swift */; };
+		F2F3CB3FDD70BCA42DA67635 /* UpdateCheckCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40E4CAFDDAD76360324DFFB9 /* UpdateCheckCache.swift */; };
+		FD30862D3D69530116B08988 /* StatusDragViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53AB85B3B10C9CB97723E2A9 /* StatusDragViews.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EBAA18A96AA2236542F309AF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 380096FE9D4872DCC7EB90FF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0AC05E86E646C6D0D0E4FB2C;
+			remoteInfo = ShelterBarCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		035036C4B49F6B9152281275 /* MenuBarTransitionShield.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarTransitionShield.swift; sourceTree = "<group>"; };
+		04A28575F083EB911DF55502 /* PermissionOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOnboarding.swift; sourceTree = "<group>"; };
+		08BB9C49897FEC5197EF8571 /* MenuBarDragEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDragEvents.swift; sourceTree = "<group>"; };
+		0CF97738F00719F0D7C4FD14 /* ShelterBarDistribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelterBarDistribution.swift; sourceTree = "<group>"; };
+		0FF595A30950C0A96D7B12B4 /* libShelterBarCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libShelterBarCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		102EB9B64893C69C0F06255A /* ShelfViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfViewModel.swift; sourceTree = "<group>"; };
+		10F2E2DADA5D485D5669DE21 /* MenuBarCompositeGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarCompositeGlyph.swift; sourceTree = "<group>"; };
+		29CB767CEDB6993F9694A954 /* MenuBarAXPressExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAXPressExecutor.swift; sourceTree = "<group>"; };
+		2AAE90807500E85B702668B2 /* MenuBarNativeWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarNativeWindow.swift; sourceTree = "<group>"; };
+		328BEDC655C7B0D804669C28 /* StatusBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarController.swift; sourceTree = "<group>"; };
+		32C6E4EB6217200810D89564 /* zh-Hans.lproj */ = {isa = PBXFileReference; path = "zh-Hans.lproj"; sourceTree = "<group>"; };
+		3D5F0E4B2986E0C5B7E205DC /* MenuBarIconPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconPresentation.swift; sourceTree = "<group>"; };
+		3E508801F97AE452D732838C /* MenuBarStatusHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatusHandle.swift; sourceTree = "<group>"; };
+		40E4CAFDDAD76360324DFFB9 /* UpdateCheckCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckCache.swift; sourceTree = "<group>"; };
+		4598A1068B2A38A10E7C3FAA /* MenuBarDragMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDragMonitor.swift; sourceTree = "<group>"; };
+		474A21F1C9532E2FD7570F61 /* ShelterBarUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelterBarUpdater.swift; sourceTree = "<group>"; };
+		4E00DCBBEBAA52D7E7279959 /* ShelfPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfPresentation.swift; sourceTree = "<group>"; };
+		51C15421947E9BB4CCFE124E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		53AB85B3B10C9CB97723E2A9 /* StatusDragViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusDragViews.swift; sourceTree = "<group>"; };
+		58403A5F83D995F374EB43F1 /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
+		5CD4971656DBF94DD3520713 /* ScreenCapturePermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapturePermission.swift; sourceTree = "<group>"; };
+		5EDA616D55B4B4B18DFAD0CD /* MenuBarDragGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDragGesture.swift; sourceTree = "<group>"; };
+		6C48882303BC0A5DE1313F09 /* MenuBarArrangement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarArrangement.swift; sourceTree = "<group>"; };
+		801C384D2756C6F24979F635 /* MenuBarReconciliation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarReconciliation.swift; sourceTree = "<group>"; };
+		83BDBB53AAF4BA4F006F55CF /* ShelfItemSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfItemSource.swift; sourceTree = "<group>"; };
+		8802F0E01BEC2098D8EA14E6 /* MenuBarIconCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconCapture.swift; sourceTree = "<group>"; };
+		8C2EB6D79188E70F9DB96612 /* ShelterBar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShelterBar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8DE85983C48F9BE213B44289 /* MenuBarMenuOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarMenuOpener.swift; sourceTree = "<group>"; };
+		8EB63DCFB63D31223D655DD8 /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
+		9AE9384A59EEB6BD6D21E419 /* VerifiedMenuBarMove.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerifiedMenuBarMove.swift; sourceTree = "<group>"; };
+		9BA21CF9A184B98EDC2F211C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		9E447A9135A9872471119E03 /* MenuBarAgentVisibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAgentVisibility.swift; sourceTree = "<group>"; };
+		B7E88E3E3368C16B63E1D18A /* ShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfView.swift; sourceTree = "<group>"; };
+		C3C587CD97515E6AF26AE541 /* en.lproj */ = {isa = PBXFileReference; path = en.lproj; sourceTree = "<group>"; };
+		C4A6F079AC005F52BF5E67B5 /* UpdateRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateRelease.swift; sourceTree = "<group>"; };
+		C523CC2A478C29B4E94D2BA3 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		D74A6F18187517692D38D6B5 /* MenuBarCollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarCollectionEngine.swift; sourceTree = "<group>"; };
+		D79BCFB9E66589636B0C847B /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+		DBBFCE6954879DB14ED38B52 /* PermissionOnboardingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOnboardingCoordinator.swift; sourceTree = "<group>"; };
+		E36D83965B53A808811D79C5 /* MenuBarBorrowPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarBorrowPlanner.swift; sourceTree = "<group>"; };
+		EFA731E1F26C28FF06B413CE /* MenuBarItemMover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarItemMover.swift; sourceTree = "<group>"; };
+		F0ED054158D67AFC40CF5ADF /* MenuBarGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarGeometry.swift; sourceTree = "<group>"; };
+		F59AC0D3D4E76A3B5D5D8F0F /* UpdateInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateInstaller.swift; sourceTree = "<group>"; };
+		FDBB52BC7B813CED6083F2D9 /* MenuBarIconDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarIconDiskCache.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B2A8EC46DF81FED9D7C41727 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0667ADCB86CE5F6CAB2E8789 /* libShelterBarCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2CEC947F5E1C85B28DE5AFAB /* ShelterBar */ = {
+			isa = PBXGroup;
+			children = (
+				8EB63DCFB63D31223D655DD8 /* AccessibilityPermission.swift */,
+				C523CC2A478C29B4E94D2BA3 /* AppDelegate.swift */,
+				D79BCFB9E66589636B0C847B /* AppVersion.swift */,
+				51C15421947E9BB4CCFE124E /* main.swift */,
+				9E447A9135A9872471119E03 /* MenuBarAgentVisibility.swift */,
+				29CB767CEDB6993F9694A954 /* MenuBarAXPressExecutor.swift */,
+				E36D83965B53A808811D79C5 /* MenuBarBorrowPlanner.swift */,
+				D74A6F18187517692D38D6B5 /* MenuBarCollectionEngine.swift */,
+				10F2E2DADA5D485D5669DE21 /* MenuBarCompositeGlyph.swift */,
+				08BB9C49897FEC5197EF8571 /* MenuBarDragEvents.swift */,
+				4598A1068B2A38A10E7C3FAA /* MenuBarDragMonitor.swift */,
+				F0ED054158D67AFC40CF5ADF /* MenuBarGeometry.swift */,
+				8802F0E01BEC2098D8EA14E6 /* MenuBarIconCapture.swift */,
+				FDBB52BC7B813CED6083F2D9 /* MenuBarIconDiskCache.swift */,
+				3D5F0E4B2986E0C5B7E205DC /* MenuBarIconPresentation.swift */,
+				EFA731E1F26C28FF06B413CE /* MenuBarItemMover.swift */,
+				8DE85983C48F9BE213B44289 /* MenuBarMenuOpener.swift */,
+				2AAE90807500E85B702668B2 /* MenuBarNativeWindow.swift */,
+				3E508801F97AE452D732838C /* MenuBarStatusHandle.swift */,
+				035036C4B49F6B9152281275 /* MenuBarTransitionShield.swift */,
+				DBBFCE6954879DB14ED38B52 /* PermissionOnboardingCoordinator.swift */,
+				5CD4971656DBF94DD3520713 /* ScreenCapturePermission.swift */,
+				83BDBB53AAF4BA4F006F55CF /* ShelfItemSource.swift */,
+				B7E88E3E3368C16B63E1D18A /* ShelfView.swift */,
+				102EB9B64893C69C0F06255A /* ShelfViewModel.swift */,
+				0CF97738F00719F0D7C4FD14 /* ShelterBarDistribution.swift */,
+				474A21F1C9532E2FD7570F61 /* ShelterBarUpdater.swift */,
+				328BEDC655C7B0D804669C28 /* StatusBarController.swift */,
+				53AB85B3B10C9CB97723E2A9 /* StatusDragViews.swift */,
+				40E4CAFDDAD76360324DFFB9 /* UpdateCheckCache.swift */,
+				F59AC0D3D4E76A3B5D5D8F0F /* UpdateInstaller.swift */,
+				C4A6F079AC005F52BF5E67B5 /* UpdateRelease.swift */,
+			);
+			path = ShelterBar;
+			sourceTree = "<group>";
+		};
+		2D6A94DFF2AB8DB48BE26947 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				58403A5F83D995F374EB43F1 /* AppIcon.icns */,
+				C3C587CD97515E6AF26AE541 /* en.lproj */,
+				9BA21CF9A184B98EDC2F211C /* PrivacyInfo.xcprivacy */,
+				32C6E4EB6217200810D89564 /* zh-Hans.lproj */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		531E469E20E7005CF7445B15 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				2CEC947F5E1C85B28DE5AFAB /* ShelterBar */,
+				ED39782D7838A7C215D4C5AD /* ShelterBarCore */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		730E76B06360F9B3A597356B = {
+			isa = PBXGroup;
+			children = (
+				2D6A94DFF2AB8DB48BE26947 /* Resources */,
+				531E469E20E7005CF7445B15 /* Sources */,
+				7BE425049A169FB53E3B6A7C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7BE425049A169FB53E3B6A7C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0FF595A30950C0A96D7B12B4 /* libShelterBarCore.a */,
+				8C2EB6D79188E70F9DB96612 /* ShelterBar.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		ED39782D7838A7C215D4C5AD /* ShelterBarCore */ = {
+			isa = PBXGroup;
+			children = (
+				6C48882303BC0A5DE1313F09 /* MenuBarArrangement.swift */,
+				5EDA616D55B4B4B18DFAD0CD /* MenuBarDragGesture.swift */,
+				801C384D2756C6F24979F635 /* MenuBarReconciliation.swift */,
+				04A28575F083EB911DF55502 /* PermissionOnboarding.swift */,
+				4E00DCBBEBAA52D7E7279959 /* ShelfPresentation.swift */,
+				9AE9384A59EEB6BD6D21E419 /* VerifiedMenuBarMove.swift */,
+			);
+			path = ShelterBarCore;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0AC05E86E646C6D0D0E4FB2C /* ShelterBarCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BDADD65D905C78F70A9E6496 /* Build configuration list for PBXNativeTarget "ShelterBarCore" */;
+			buildPhases = (
+				1EFB563D99EAE4DFE783182E /* Sources */,
+				EB0449648A43F99F7885A468 /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShelterBarCore;
+			packageProductDependencies = (
+			);
+			productName = ShelterBarCore;
+			productReference = 0FF595A30950C0A96D7B12B4 /* libShelterBarCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		7E259CFA0821331895E56163 /* ShelterBar */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 03296FE0ABB7A593407CDC1B /* Build configuration list for PBXNativeTarget "ShelterBar" */;
+			buildPhases = (
+				55F4A9C831691B4993AAF046 /* Require a working App Store backend */,
+				8745CB59ACE3590C6490DED7 /* Sources */,
+				706B318452FE20C34BE992D3 /* Resources */,
+				B2A8EC46DF81FED9D7C41727 /* Frameworks */,
+				16EA1D869D5C8239E3604591 /* Verify distribution contents */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				ECE719B11D379017F4CBAAFD /* PBXTargetDependency */,
+			);
+			name = ShelterBar;
+			packageProductDependencies = (
+			);
+			productName = ShelterBar;
+			productReference = 8C2EB6D79188E70F9DB96612 /* ShelterBar.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		380096FE9D4872DCC7EB90FF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0AC05E86E646C6D0D0E4FB2C = {
+						ProvisioningStyle = Automatic;
+					};
+					7E259CFA0821331895E56163 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 34A0CD0989B117BF89C5272A /* Build configuration list for PBXProject "ShelterBar" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 730E76B06360F9B3A597356B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 7BE425049A169FB53E3B6A7C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0AC05E86E646C6D0D0E4FB2C /* ShelterBarCore */,
+				7E259CFA0821331895E56163 /* ShelterBar */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		706B318452FE20C34BE992D3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEF44A527465D7E929772E37 /* AppIcon.icns in Resources */,
+				4F33BD297AFF88168CE644B3 /* PrivacyInfo.xcprivacy in Resources */,
+				C9A843D4AB4C93BDDF07F799 /* en.lproj in Resources */,
+				BCB8294A9BDF4865CEE6B397 /* zh-Hans.lproj in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		16EA1D869D5C8239E3604591 /* Verify distribution contents */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Verify distribution contents";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" = UpdaterFreeAudit ] || [ \"$CONFIGURATION\" = AppStore ]; then\n    flavor=app-store\nelse\n    flavor=direct\nfi\n\"$SRCROOT/scripts/verify-distribution.sh\" \"$flavor\" \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"\n";
+		};
+		55F4A9C831691B4993AAF046 /* Require a working App Store backend */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Require a working App Store backend";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" = AppStore ]; then\n    \"$SRCROOT/scripts/check-app-store-backend.sh\"\nfi\n";
+		};
+		EB0449648A43F99F7885A468 /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1EFB563D99EAE4DFE783182E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E523B88DEC8938CAA11D5BA /* MenuBarArrangement.swift in Sources */,
+				86FD38EAB103729C5297DDEF /* MenuBarDragGesture.swift in Sources */,
+				2849CED3D5977A9D3C446CCC /* MenuBarReconciliation.swift in Sources */,
+				EEA3034DB8EC31FFBB40B9D3 /* PermissionOnboarding.swift in Sources */,
+				5875229CA782593641010993 /* ShelfPresentation.swift in Sources */,
+				DB6AE922D09ADBCB1C515D35 /* VerifiedMenuBarMove.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8745CB59ACE3590C6490DED7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E429BF90A74374E05FB5768 /* AccessibilityPermission.swift in Sources */,
+				13DEBC1ECEDC466F995183B5 /* AppDelegate.swift in Sources */,
+				B9E3AE90A7BE8534011FA5CE /* AppVersion.swift in Sources */,
+				D14339BA9E85E2E37A509445 /* MenuBarAXPressExecutor.swift in Sources */,
+				647A3B92C679C27FE2689631 /* MenuBarAgentVisibility.swift in Sources */,
+				A4DF23CBDCED5CF4BF021DE6 /* MenuBarBorrowPlanner.swift in Sources */,
+				9929399DA83F9A4F6E281726 /* MenuBarCollectionEngine.swift in Sources */,
+				4FAB6133FB6C99423CABB7DA /* MenuBarCompositeGlyph.swift in Sources */,
+				248BFAA7BFE21926D01C2843 /* MenuBarDragEvents.swift in Sources */,
+				07B88016C2074BDB4403BECD /* MenuBarDragMonitor.swift in Sources */,
+				A608A80947DA826891CAAC13 /* MenuBarGeometry.swift in Sources */,
+				556624FDDB925998F91201B5 /* MenuBarIconCapture.swift in Sources */,
+				CF9D808C20256182CF32BFD7 /* MenuBarIconDiskCache.swift in Sources */,
+				170F89A24F52C4B5DFC3198F /* MenuBarIconPresentation.swift in Sources */,
+				044BF692F97833D4BE961027 /* MenuBarItemMover.swift in Sources */,
+				C19AB5FBC3C26E54228DEA6D /* MenuBarMenuOpener.swift in Sources */,
+				61EB6C7B51FC6B027EE39DDB /* MenuBarNativeWindow.swift in Sources */,
+				51861E9F3E81405B45F4E16E /* MenuBarStatusHandle.swift in Sources */,
+				457826423F3C9766B5F0758A /* MenuBarTransitionShield.swift in Sources */,
+				BB19EE3454561D8BA6EBB16C /* PermissionOnboardingCoordinator.swift in Sources */,
+				E2FA02916A440BED3D7E70B4 /* ScreenCapturePermission.swift in Sources */,
+				21C2654D4A16BDD6D5E4F038 /* ShelfItemSource.swift in Sources */,
+				B830C5AD657368B1125C8915 /* ShelfView.swift in Sources */,
+				112D29396CF779DE4B6B5A11 /* ShelfViewModel.swift in Sources */,
+				66A290C7813EF1F366BCEA41 /* ShelterBarDistribution.swift in Sources */,
+				9520F3A79CD11E135996CEA0 /* ShelterBarUpdater.swift in Sources */,
+				B63669D8EEC6575C03B37D79 /* StatusBarController.swift in Sources */,
+				FD30862D3D69530116B08988 /* StatusDragViews.swift in Sources */,
+				F2F3CB3FDD70BCA42DA67635 /* UpdateCheckCache.swift in Sources */,
+				7BCC81846FE4C539303125BC /* UpdateInstaller.swift in Sources */,
+				7AFC680F41141DB4BBCB6367 /* UpdateRelease.swift in Sources */,
+				A2DA2D7106FB10C7FE6CBE41 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		ECE719B11D379017F4CBAAFD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0AC05E86E646C6D0D0E4FB2C /* ShelterBarCore */;
+			targetProxy = EBAA18A96AA2236542F309AF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		06DC6A45B04A416175BC4C8B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar.core;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		0FA0546D3C516FDF2DBF2E53 /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Resources/ShelterBar-AppStore.entitlements";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar;
+				PRODUCT_NAME = ShelterBar;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = AppStore;
+		};
+		10CE40112C6D19D66DE890EF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar;
+				PRODUCT_NAME = ShelterBar;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Release;
+		};
+		2523215FC6570ACEA258CBE4 /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHELTERBAR_APP_STORE";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = AppStore;
+		};
+		680939DACFDC99E09A9A3DCF /* AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar.core;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = AppStore;
+		};
+		87B7A8671E3EDBDD79A31F45 /* UpdaterFreeAudit */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SHELTERBAR_APP_STORE";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = UpdaterFreeAudit;
+		};
+		88C286352C3CD537F22707BE /* UpdaterFreeAudit */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar;
+				PRODUCT_NAME = ShelterBar;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = UpdaterFreeAudit;
+		};
+		88FB1FDBA794A9F1EE106EF1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A38942B49A1C100CE91AF4B4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar.core;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		BF0568BEA2D60885DAB3885B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		DC92EA48404B525BE442B64A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar;
+				PRODUCT_NAME = ShelterBar;
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Debug;
+		};
+		ED1C6930C764C72A5F9C4C6E /* UpdaterFreeAudit */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.jensen.shelterbar.core;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = UpdaterFreeAudit;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		03296FE0ABB7A593407CDC1B /* Build configuration list for PBXNativeTarget "ShelterBar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0FA0546D3C516FDF2DBF2E53 /* AppStore */,
+				DC92EA48404B525BE442B64A /* Debug */,
+				10CE40112C6D19D66DE890EF /* Release */,
+				88C286352C3CD537F22707BE /* UpdaterFreeAudit */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		34A0CD0989B117BF89C5272A /* Build configuration list for PBXProject "ShelterBar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2523215FC6570ACEA258CBE4 /* AppStore */,
+				BF0568BEA2D60885DAB3885B /* Debug */,
+				88FB1FDBA794A9F1EE106EF1 /* Release */,
+				87B7A8671E3EDBDD79A31F45 /* UpdaterFreeAudit */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BDADD65D905C78F70A9E6496 /* Build configuration list for PBXNativeTarget "ShelterBarCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				680939DACFDC99E09A9A3DCF /* AppStore */,
+				06DC6A45B04A416175BC4C8B /* Debug */,
+				A38942B49A1C100CE91AF4B4 /* Release */,
+				ED1C6930C764C72A5F9C4C6E /* UpdaterFreeAudit */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 380096FE9D4872DCC7EB90FF /* Project object */;
+}

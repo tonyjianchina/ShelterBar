@@ -4,7 +4,9 @@
 
 菜单栏太挤时，把暂时不用的图标拖进 ShelterBar。需要时点开原来的菜单，或者再拖回顶部。没有账号、广告或遥测，布局和图标缓存只保存在本机。
 
-[官网](https://shelterbar.tonyjianchina.chatgpt.site/) · [下载 v0.5.14](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.14) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+[官网](https://shelterbar.zhengjian.me/) · [下载 v0.5.14](https://github.com/tonyjianchina/ShelterBar/releases/tag/v0.5.14) · [反馈问题](https://github.com/tonyjianchina/ShelterBar/issues)
+
+Mac App Store 工程、审计构建与当前功能阻塞见 [打包状态](docs/MAC-APP-STORE.md)。当前仍只提供直装版。
 
 ## macOS 27 重点适配
 
@@ -22,7 +24,7 @@ macOS 27 改变了菜单栏图标的管理方式，传统的 Command 拖动在�
 - **拖入收纳**：打开收纳栏，把可移动的顶部图标直接拖进去，不需要按住 Command。
 - **拖回恢复**：把收纳栏里的图标拖回顶部菜单栏，也可以横向拖动调整顺序。
 - **直接使用**：点击已收纳图标，会临时显示该图标并打开原菜单，使用完自动收回。
-- **自动记住**：保存收纳布局，应用重启后继续生效；运行期间新出现的图标也会被发现。
+- **自动记住**：保存收纳布局，应用重启后继续生效；首次启动和后续发现的图标都保持在菜单栏，只有手动拖入才会新增收纳。
 - **随时找回**：可固定收纳栏，也可从“更多”菜单显示全部图标或刷新并恢复布局。
 - **适配复杂布局**：处理刘海区域、自动隐藏菜单栏、全屏空间和多显示器切换等情况。
 
@@ -133,4 +135,5 @@ python3.11 -m venv .build/dmg-tools
 - [v0.5.14 发布说明](docs/releases/v0.5.14.md)
 - [完整发布与安装指南](docs/RELEASE.md)
 - [MVP 验收清单](docs/MVP.md)
+- [Mac App Store 就绪审计](docs/MAC-APP-STORE.md)
 - [问题反馈](https://github.com/tonyjianchina/ShelterBar/issues)
