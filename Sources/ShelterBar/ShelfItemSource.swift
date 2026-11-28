@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import os
 
 final class MenuBarItemReference: @unchecked Sendable {
     let pid: pid_t
@@ -74,71 +75,32 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource, @unchecked Sendable {
     func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
         guard AXIsProcessTrusted() else { return ShelfItemScanResult(items: [], isComplete: true) }
 
-        var output: [ShelfItem] = []
-        var usedIDs = Set<String>()
-
-        for application in NSWorkspace.shared.runningApplications where shouldInspect(application) {
-            guard ContinuousClock.now < deadline else { break }
-            let appElement = AXUIElementCreateApplication(application.processIdentifier)
-            AXUIElementSetMessagingTimeout(appElement, 0.08)
-            guard let extrasMenuBar: AXUIElement = attribute(kAXExtrasMenuBarAttribute, of: appElement) else {
-                continue
-            }
-
-            var candidates: [AXUIElement] = []
-            collectMenuBarItems(from: extrasMenuBar, depth: 0, deadline: deadline, into: &candidates)
-            let identifierCounts = Dictionary(
-                candidates.compactMap {
-                    firstNonemptyAttribute([kAXIdentifierAttribute], of: $0, deadline: deadline)
-                }
-                    .map { ($0, 1) }, uniquingKeysWith: +
-            )
-            for element in candidates {
-                guard ContinuousClock.now < deadline else { break }
-                guard let frame = frame(of: element, deadline: deadline),
-                      frame.width > 1, frame.height > 1 else { continue }
-
-                let statusTitle = firstNonemptyAttribute([kAXTitleAttribute], of: element, deadline: deadline)
-                let title = statusTitle ?? firstNonemptyAttribute(
-                    [kAXHelpAttribute, kAXDescriptionAttribute],
-                    of: element,
-                    deadline: deadline
-                ) ?? application.localizedName ?? "菜单栏项"
-                let axIdentifier = firstNonemptyAttribute(
-                    [kAXIdentifierAttribute], of: element, deadline: deadline
-                )
-                let uniqueIdentifier = axIdentifier.flatMap { identifierCounts[$0] == 1 ? $0 : nil }
-                let persistent = uniqueIdentifier != nil || candidates.count == 1
-                let identifier = uniqueIdentifier ?? (candidates.count == 1
-                    ? "main" : "session-\(application.processIdentifier)-\(CFHash(element))")
-                let owner = application.bundleIdentifier ?? "pid:\(application.processIdentifier)"
-                let id = "ax:\(owner):\(identifier)"
-                guard usedIDs.insert(id).inserted else { continue }
-
-                output.append(ShelfItem(
-                    id: id, title: title, icon: placeholderImage,
-                    application: application,
-                    menuBarReference: MenuBarItemReference(
-                        pid: application.processIdentifier,
-                        element: element,
-                        frame: frame
-                    ),
-                    hasPersistentIdentity: persistent,
-                    isMovable: ![
-                        "com.apple.menuextra.clock",
-                        "com.apple.menuextra.controlcenter",
-                        "com.apple.menuextra.audiovideo"
-                    ].contains(axIdentifier ?? "")
-                        && (ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
-                            || MenuBarCollectionCapability.supports(
-                                bundleID: application.bundleIdentifier,
-                                ownBundleID: "com.jensen.shelterbar"
-                            )),
-                    hasStatusText: statusTitle != nil
-                ))
+        // Inspect regular and accessory apps before the many background
+        // helpers. Independent AX queries use a small number of workers so a
+        // slow app cannot keep later apps out of the same bounded inventory.
+        let groups = Dictionary(grouping: NSWorkspace.shared.runningApplications.filter(shouldInspect),
+                                by: { $0.activationPolicy.rawValue })
+        let applications = groups.keys.sorted().flatMap { groups[$0, default: []] }
+        let progress = OSAllocatedUnfairLock(initialState: (nextIndex: 0, items: [Int: [ShelfItem]]()))
+        DispatchQueue.concurrentPerform(iterations: min(4, applications.count)) { _ in
+            while ContinuousClock.now < deadline {
+                guard let index = progress.withLock({ state -> Int? in
+                    guard state.nextIndex < applications.count else { return nil }
+                    defer { state.nextIndex += 1 }
+                    return state.nextIndex
+                }) else { return }
+                let found = items(in: applications[index], deadline: deadline)
+                progress.withLock { $0.items[index] = found }
             }
         }
 
+        // Deduplicate in application order, independent of which worker
+        // returned first when two processes share a bundle identifier.
+        let discovered = progress.withLock { state in
+            applications.indices.flatMap { state.items[$0, default: []] }
+        }
+        var usedIDs = Set<String>()
+        let output = discovered.filter { usedIDs.insert($0.id).inserted }
         let sorted = output.sorted { left, right in
             if left.menuBarReference.frame.minX != right.menuBarReference.frame.minX {
                 return left.menuBarReference.frame.minX < right.menuBarReference.frame.minX
@@ -146,6 +108,68 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource, @unchecked Sendable {
             return left.title.localizedStandardCompare(right.title) == .orderedAscending
         }
         return ShelfItemScanResult(items: sorted, isComplete: ContinuousClock.now < deadline)
+    }
+
+    private func items(in application: NSRunningApplication, deadline: ContinuousClock.Instant) -> [ShelfItem] {
+        var output: [ShelfItem] = []
+        let appElement = AXUIElementCreateApplication(application.processIdentifier)
+        AXUIElementSetMessagingTimeout(appElement, 0.08)
+        guard let extrasMenuBar: AXUIElement = attribute(kAXExtrasMenuBarAttribute, of: appElement) else {
+            return []
+        }
+
+        var candidates: [AXUIElement] = []
+        collectMenuBarItems(from: extrasMenuBar, depth: 0, deadline: deadline, into: &candidates)
+        let identifierCounts = Dictionary(
+            candidates.compactMap {
+                firstNonemptyAttribute([kAXIdentifierAttribute], of: $0, deadline: deadline)
+            }
+                .map { ($0, 1) }, uniquingKeysWith: +
+        )
+        for element in candidates {
+            guard ContinuousClock.now < deadline else { break }
+            guard let frame = frame(of: element, deadline: deadline),
+                  frame.width > 1, frame.height > 1 else { continue }
+
+            let statusTitle = firstNonemptyAttribute([kAXTitleAttribute], of: element, deadline: deadline)
+            let title = statusTitle ?? firstNonemptyAttribute(
+                [kAXHelpAttribute, kAXDescriptionAttribute],
+                of: element,
+                deadline: deadline
+            ) ?? application.localizedName ?? "菜单栏项"
+            let axIdentifier = firstNonemptyAttribute(
+                [kAXIdentifierAttribute], of: element, deadline: deadline
+            )
+            let uniqueIdentifier = axIdentifier.flatMap { identifierCounts[$0] == 1 ? $0 : nil }
+            let persistent = uniqueIdentifier != nil || candidates.count == 1
+            let identifier = uniqueIdentifier ?? (candidates.count == 1
+                ? "main" : "session-\(application.processIdentifier)-\(CFHash(element))")
+            let owner = application.bundleIdentifier ?? "pid:\(application.processIdentifier)"
+            let id = "ax:\(owner):\(identifier)"
+
+            output.append(ShelfItem(
+                id: id, title: title, icon: placeholderImage,
+                application: application,
+                menuBarReference: MenuBarItemReference(
+                    pid: application.processIdentifier,
+                    element: element,
+                    frame: frame
+                ),
+                hasPersistentIdentity: persistent,
+                isMovable: ![
+                    "com.apple.menuextra.clock",
+                    "com.apple.menuextra.controlcenter",
+                    "com.apple.menuextra.audiovideo"
+                ].contains(axIdentifier ?? "")
+                    && (ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
+                        || MenuBarCollectionCapability.supports(
+                            bundleID: application.bundleIdentifier,
+                            ownBundleID: "com.jensen.shelterbar"
+                        )),
+                hasStatusText: statusTitle != nil
+            ))
+        }
+        return output
     }
 
     private func shouldInspect(_ application: NSRunningApplication) -> Bool {

@@ -136,6 +136,28 @@ func inventoryBudgetCapsUncooperativeSource() async {
     #expect(model.residentItems.map(\.id) == ["sync"])
 }
 
+@Test("a scan delivers discovered icons when its last AX request runs past the soft deadline")
+@MainActor
+func inventoryReturnsPartialResultsBeforeWatchdog() async {
+    struct Source: ShelfItemSource {
+        let entry: ShelfItem
+
+        func items(deadline: ContinuousClock.Instant) -> ShelfItemScanResult {
+            let remaining = ContinuousClock.now.duration(to: deadline + .milliseconds(40)).components
+            let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
+            Thread.sleep(forTimeInterval: max(0, seconds))
+            return ShelfItemScanResult(items: [entry], isComplete: false)
+        }
+    }
+
+    let source = Source(entry: fixture("wechat"))
+    let model = ShelfViewModel(source: source, isTrusted: { true }, isVisible: { _ in true })
+
+    await model.reload(budget: .milliseconds(500))
+
+    #expect(model.residentItems.map(\.id) == ["wechat"])
+}
+
 @Test("a saved collected icon still visible on top must not be duplicated in the shelf")
 @MainActor
 func visibleCollectedItemIsNotDuplicated() async {
