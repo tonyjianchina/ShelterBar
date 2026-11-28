@@ -362,7 +362,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
 
     private func showDragGhost(id: String, at point: CGPoint) {
         guard let item = model.item(withID: id) else { return }
-        let glyph = MenuBarIconPresentation.renderedImage(for: item.icon)
+        let glyph = MenuBarIconPresentation.renderedImage(for: MenuBarIconPresentation.shelfIcon(for: item))
         let image = NSImageView(frame: CGRect(origin: .zero, size: glyph.size))
         image.image = glyph
         image.imageScaling = .scaleProportionallyDown

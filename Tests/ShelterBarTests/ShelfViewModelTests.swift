@@ -254,6 +254,84 @@ func capturedGlyphFallbackUsesOwningApp() async throws {
     #expect(model.items.first?.hasMenuBarIcon == true)
 }
 
+@Test("collected QQ Music and other text strips display compact app icons from live and saved captures",
+      arguments: [false, true])
+@MainActor
+func shelfShowsOnlyIconsForTextItems(persisted: Bool) async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let app = try #require(NSWorkspace.shared.runningApplications.first { application in
+        let image: NSImage? = application.icon
+        return image.map { $0.size.width > 1 && $0.size.height > 1 } ?? false
+    })
+    let icon: NSImage? = app.icon
+    let appIcon = try #require(icon)
+    let cases = [
+        (id: "ax:com.tencent.QQMusicMac:main", width: CGFloat(150), text: "A song title", hasTitle: false),
+        (id: "ax:com.tencent.QQMusicMac:hover", width: CGFloat(24), text: "▶", hasTitle: false),
+        (id: "ax:com.example.player:main", width: CGFloat(95), text: "Radio station", hasTitle: false),
+        (id: "ax:com.example.timer:main", width: CGFloat(28), text: "12s", hasTitle: true),
+        (id: "ax:com.example.vpn:main", width: CGFloat(34), text: "", hasTitle: false),
+    ]
+    defaults.set(cases.map(\.id), forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    let store = MenuBarIconDiskCache(directory: directory)
+    var snapshots: [MenuBarIconSnapshot] = []
+    for testCase in cases {
+        let size = NSSize(width: testCase.width, height: 24)
+        let ref = MenuBarItemReference(
+            pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+            frame: CGRect(x: 900, y: 980, width: size.width, height: size.height)
+        )
+        source.entries.append(ShelfItem(id: testCase.id, title: testCase.text, icon: NSImage(),
+                                       application: app, menuBarReference: ref, hasStatusText: testCase.hasTitle))
+        let capture = NSImage(size: size, flipped: false) { _ in
+            NSColor.systemGreen.setFill()
+            NSBezierPath(ovalIn: NSRect(x: size.width - 19, y: 4, width: 16, height: 16)).fill()
+            (testCase.text as NSString).draw(at: NSPoint(x: 2, y: 5), withAttributes: [
+                .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor
+            ])
+            return true
+        }
+        if persisted {
+            #expect(store.store(capture, for: testCase.id))
+        } else {
+            snapshots.append(MenuBarIconSnapshot(id: testCase.id, pid: app.processIdentifier, image: capture))
+        }
+    }
+    let model = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
+                              isVisible: { $0.minY < 30 },
+                              iconStore: MenuBarIconDiskCache(directory: directory))
+    model.hasScreenCapturePermission = true
+    await model.reload()
+    if !persisted { model.applyMenuBarIcons(snapshots) }
+
+    for testCase in cases {
+        let shown = try #require(model.items.first { $0.id == testCase.id })
+        let original = try #require(model.item(withID: testCase.id))
+        #expect(shown.menuBarReference === original.menuBarReference)
+        #expect(original.icon.size.width == testCase.width)
+        if testCase.text.isEmpty {
+            #expect(shown.icon === original.icon)
+        } else {
+            #expect(shown.icon.size == appIcon.size)
+            #expect(MenuBarIconPresentation.shelfWidth(for: shown.icon) <= 38)
+            #expect(!shown.icon.isTemplate)
+        }
+    }
+
+    let qqMusicID = "ax:com.tencent.QQMusicMac:main"
+    let restored = try #require(model.item(withID: qqMusicID))
+    restored.menuBarReference.frame.origin.y = 5
+    model.setCollected(false, id: qqMusicID)
+    model.refresh()
+    #expect(!model.items.contains { $0.id == qqMusicID })
+    #expect(model.residentItems.first { $0.id == qqMusicID }?.icon.size.width == 150)
+}
+
 @Test("a captured menu glyph survives a fresh hidden-item scan without a Dock icon replacement")
 @MainActor
 func capturedGlyphSurvivesRefresh() async {

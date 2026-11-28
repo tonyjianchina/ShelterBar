@@ -187,6 +187,10 @@ final class ShelfViewModel: ObservableObject {
         items = ordered.filter {
             collectedIDs.contains($0.id)
                 && (isLogicallyHidden($0) || !isVisible($0.menuBarReference.frame))
+        }.map { item in
+            var displayed = item
+            displayed.icon = MenuBarIconPresentation.shelfIcon(for: item)
+            return displayed
         }
         residentItems = ordered.filter {
             !isLogicallyHidden($0) && isVisible($0.menuBarReference.frame)

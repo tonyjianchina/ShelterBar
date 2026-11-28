@@ -1,6 +1,6 @@
 import AppKit
 
-/// Keeps captured status items at their menu bar scale, including wide text items.
+/// Selects shelf icons and renders glyphs at menu bar scale.
 @MainActor
 enum MenuBarIconPresentation {
     private static let maximumSize = NSSize(width: 106, height: 24)
@@ -27,6 +27,18 @@ enum MenuBarIconPresentation {
         image.isTemplate = false
         image.accessibilityDescription = title
         return image
+    }
+
+    static func shelfIcon(for item: ShelfItem) -> NSImage {
+        guard item.hasMenuBarIcon else { return item.icon }
+        let size = item.icon.size
+        // Wide captures can contain text even when the status item has no AX
+        // title. QQ Music can also show a compact playback control on hover.
+        let isStatusStrip = size.width > size.height * 1.75
+        guard item.hasStatusText || isStatusStrip || item.id.hasPrefix("ax:com.tencent.QQMusicMac:") else {
+            return item.icon
+        }
+        return fallbackIcon(for: item.application, title: item.title)
     }
 
     static func displaySize(for image: NSImage) -> NSSize {

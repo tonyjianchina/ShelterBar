@@ -29,6 +29,8 @@ struct ShelfItem: Identifiable, @unchecked Sendable {
     var hasPersistentIdentity = true
     var isMovable = true
     var hasMenuBarIcon = false
+    /// A title supplied by the status item itself, separate from its tooltip or app name.
+    var hasStatusText = false
 
     /// Read the status item's own title, not the app-name fallback (which can
     /// legitimately contain a digit, such as 1Password).
@@ -96,13 +98,12 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource, @unchecked Sendable {
                 guard let frame = frame(of: element, deadline: deadline),
                       frame.width > 1, frame.height > 1 else { continue }
 
-                let rawTitle = firstNonemptyAttribute(
-                    [kAXTitleAttribute, kAXHelpAttribute, kAXDescriptionAttribute],
+                let statusTitle = firstNonemptyAttribute([kAXTitleAttribute], of: element, deadline: deadline)
+                let title = statusTitle ?? firstNonemptyAttribute(
+                    [kAXHelpAttribute, kAXDescriptionAttribute],
                     of: element,
                     deadline: deadline
-                )
-                let appName = application.localizedName ?? "菜单栏项"
-                let title = rawTitle ?? appName
+                ) ?? application.localizedName ?? "菜单栏项"
                 let axIdentifier = firstNonemptyAttribute(
                     [kAXIdentifierAttribute], of: element, deadline: deadline
                 )
@@ -132,7 +133,8 @@ struct AccessibilityMenuBarItemSource: ShelfItemSource, @unchecked Sendable {
                             || MenuBarCollectionCapability.supports(
                                 bundleID: application.bundleIdentifier,
                                 ownBundleID: "com.jensen.shelterbar"
-                            ))
+                            )),
+                    hasStatusText: statusTitle != nil
                 ))
             }
         }
