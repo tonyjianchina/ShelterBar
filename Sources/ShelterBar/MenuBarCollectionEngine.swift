@@ -165,8 +165,16 @@ final class MenuBarCollectionEngine {
     }
 
     private func reconcile(reason: MenuBarReconcileReason) async -> MenuBarCollectionOutcome {
+        if reason == .shelfOpened {
+            // Refresh the positions used by dragging without applying a layout.
+            phase = .observing
+            updatePermissions()
+            await model.reload()
+            phase = .idle
+            return .ignored
+        }
         if suspendAutomaticReconciliation {
-            guard reason == .userRefresh || reason == .shelfOpened || reason == .screenChanged else {
+            guard reason == .userRefresh || reason == .screenChanged else {
                 return .ignored
             }
             suspendAutomaticReconciliation = false
@@ -226,7 +234,7 @@ final class MenuBarCollectionEngine {
                 || !plan.unresolvedItemIDs.isEmpty
                 || (!plan.desiredCollectedIDs.isEmpty && !driver.isCollapsed)
                 || (plan.desiredCollectedIDs.isEmpty && driver.isCollapsed)
-            let userInitiated = reason == .userRefresh || reason == .shelfOpened
+            let userInitiated = reason == .userRefresh
             // "刷新并恢复收纳" briefly reveals stowed items to capture glyphs that
             // are neither live nor persisted yet.
             let missingIcons = reason == .userRefresh && model.hasScreenCapturePermission

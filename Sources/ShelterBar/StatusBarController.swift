@@ -251,7 +251,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
         guard operation == nil, screenChangeTask == nil, !model.isBusy else { return }
         let checkScreenCapture = reason != .poll
         updatePermissionState(checkScreenCapture: checkScreenCapture)
-        if checkScreenCapture {
+        if checkScreenCapture && reason != .shelfOpened {
             _ = permissionOnboarding.advance()
             updatePermissionState()
         }
@@ -259,7 +259,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             iconRefreshTask?.cancel()
             monitor.stop()
         }
-        run(.reconcile(reason), clearMessage: reason != .poll)
+        run(.reconcile(reason), clearMessage: reason != .poll && reason != .shelfOpened)
     }
 
     private func updatePermissionState(checkScreenCapture: Bool = true) {
@@ -434,6 +434,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             model.refresh()
             if panel.isVisible { positionPanel() }
             updateMonitor()
+            if case .reconcile(.shelfOpened) = command { return }
             refreshMenuBarIcons()
         }
         updateMonitor()

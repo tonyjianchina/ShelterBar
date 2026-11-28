@@ -17,6 +17,18 @@ enum MenuBarIconPresentation {
         return image
     }
 
+    static func fallbackIcon(for application: NSRunningApplication?, title: String) -> NSImage {
+        let applicationIcon: NSImage? = application?.icon
+        guard application?.isTerminated == false, let applicationIcon,
+              applicationIcon.size.width > 1, applicationIcon.size.height > 1,
+              let image = applicationIcon.copy() as? NSImage else {
+            return placeholder(accessibilityDescription: title)
+        }
+        image.isTemplate = false
+        image.accessibilityDescription = title
+        return image
+    }
+
     static func displaySize(for image: NSImage) -> NSSize {
         let nativeSize = image.size
         guard nativeSize.width.isFinite, nativeSize.height.isFinite,

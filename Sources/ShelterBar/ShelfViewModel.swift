@@ -170,7 +170,7 @@ final class ShelfViewModel: ObservableObject {
                 item.icon = cached
                 item.hasMenuBarIcon = true
             } else {
-                item.icon = MenuBarIconPresentation.placeholder(accessibilityDescription: item.title)
+                item.icon = MenuBarIconPresentation.fallbackIcon(for: item.application, title: item.title)
                 item.hasMenuBarIcon = false
             }
             byID[id] = item
@@ -218,7 +218,9 @@ final class ShelfViewModel: ObservableObject {
             if captured.contains(token) {
                 attemptedCaptureTokens.remove(token)
                 iconStore?.clearCaptureFailure(for: item.id)
-            } else {
+            } else if !isLogicallyHidden(item), isVisible(item.menuBarReference.frame) {
+                // MenuBarAgent can hide pixels while retaining the AX frame.
+                // A hidden item can still yield a glyph when later revealed.
                 attemptedCaptureTokens.insert(token)
                 if item.hasPersistentIdentity {
                     iconStore?.recordCaptureFailure(for: item.id)
@@ -260,7 +262,7 @@ final class ShelfViewModel: ObservableObject {
         }
     }
     func item(withID id: String) -> ShelfItem? { knownItems[id] }
-    /// Shelf items that show only a placeholder (no live or persisted glyph).
+    /// Shelf items with no live or persisted status glyph.
     var itemsMissingIcons: [ShelfItem] { items.filter { !$0.hasMenuBarIcon } }
 
     private func captureToken(for item: ShelfItem) -> String {

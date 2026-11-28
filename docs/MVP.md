@@ -39,7 +39,7 @@ permission changes may require quitting and reopening ShelterBar.
 Visible icons are captured, and hidden icons receive refresh attempts while the
 shelf is open. The periodic task does not capture while the shelf is closed.
 A failed refresh preserves the last successful image. If no capture is available,
-the shelf uses a placeholder and collection continues. Cached snapshots do not guarantee immediate
+the shelf uses the app icon when available and collection continues. Cached snapshots do not guarantee immediate
 updates for every animated or changing status.
 
 Top-item drag interception is active while the shelf is visible and ready for
@@ -71,8 +71,8 @@ close (plus a grace period), and moves it back. A pending-restore record is
 written before the borrow, so a crash mid-way is repaired on the next launch;
 the cursor is restored after each synthetic drag. Without room (e.g. beside the
 notch) it explains instead of expanding. Newly discovered items stay in the menu
-bar. Opening the shelf restores saved choices, and adding an item requires an
-explicit placement change. The More menu can always show all top icons.
+bar. Clicking the handle opens the shelf for viewing and dragging. Use the More
+menu to show all top icons or explicitly restore saved choices.
 
 ## Acceptance checks
 

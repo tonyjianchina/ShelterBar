@@ -920,7 +920,7 @@ func engineKeepsGlyphWhenCollectionImmediatelyHidesItem() async {
     #expect(model.items.first?.icon === glyph)
 }
 
-@Test("show all pauses polling until an explicit refresh restores collection")
+@Test("reopening the shelf after show all leaves the menu bar expanded until explicit refresh")
 @MainActor
 func engineRevealAllThenRestore() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
@@ -948,6 +948,9 @@ func engineRevealAllThenRestore() async {
     _ = await engine.perform(.reconcile(.launch))
 
     _ = await engine.perform(.revealAll)
+    let reopened = await engine.perform(.reconcile(.shelfOpened))
+    #expect(reopened == .ignored)
+    #expect(!driver.isCollapsed)
     let poll = await engine.perform(.reconcile(.poll))
     let restored = await engine.perform(.reconcile(.userRefresh))
 
@@ -1198,8 +1201,13 @@ func engineDefersBackgroundWorkWhileMenuBarIsAutoHidden() async {
     #expect(engine.phase == .idle)
     #expect(model.collectedIDs == ["uu"])
 
-    // Opening the shelf is user-initiated, so the bar may be shown to move.
-    _ = await engine.perform(.reconcile(.shelfOpened))
+    let opened = await engine.perform(.reconcile(.shelfOpened))
+    #expect(opened == .ignored)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.revealCount == 0)
+
+    // The explicit restore command may show the auto-hidden bar.
+    _ = await engine.perform(.reconcile(.userRefresh))
     #expect(driver.moves == [PlannedMenuBarMove(id: "uu", placement: .collected)])
     #expect(driver.revealPermissionDuringMoves == [true])
     #expect(driver.mayRevealAutoHiddenMenuBar == false)

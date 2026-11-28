@@ -214,6 +214,46 @@ func permissionRevocationClearsItems() async {
     #expect(!model.hasAccessibilityPermission)
 }
 
+@Test("a collected icon without a status glyph displays its app icon until a capture succeeds")
+@MainActor
+func capturedGlyphFallbackUsesOwningApp() async throws {
+    let suite = "ShelterBarTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let app = try #require(NSWorkspace.shared.runningApplications.first { application in
+        let image: NSImage? = application.icon
+        return image.map { $0.size.width > 1 && $0.size.height > 1 } ?? false
+    })
+    let appIcon: NSImage? = app.icon
+    let expected = try #require(appIcon)
+    let id = "ax:org.erb.vortex:main"
+    defaults.set([id], forKey: "shelf.collectedItems")
+    let source = FixtureSource()
+    source.entries = [ShelfItem(
+        id: id, title: "SoCloud", icon: NSImage(), application: app,
+        menuBarReference: MenuBarItemReference(
+            pid: app.processIdentifier, element: AXUIElementCreateApplication(app.processIdentifier),
+            frame: CGRect(x: 950, y: 5, width: 90, height: 24)
+        )
+    )]
+    let model = ShelfViewModel(source: source, defaults: defaults, isTrusted: { true },
+                              isVisible: { _ in true }, isLogicallyHidden: { $0.id == id })
+    model.hasScreenCapturePermission = false
+    await model.reload()
+    let fallback = try #require(model.items.first)
+    #expect(!fallback.icon.isTemplate)
+    #expect(fallback.icon.size == expected.size)
+    #expect(!fallback.hasMenuBarIcon)
+
+    model.hasScreenCapturePermission = true
+    model.recordCaptureResults(for: [fallback], snapshots: [])
+    #expect(model.captureCandidates(from: [fallback]).map(\.id) == [id])
+    let glyph = NSImage(size: NSSize(width: 18, height: 20))
+    model.applyMenuBarIcons([MenuBarIconSnapshot(id: id, pid: app.processIdentifier, image: glyph)])
+    #expect(model.items.first?.icon === glyph)
+    #expect(model.items.first?.hasMenuBarIcon == true)
+}
+
 @Test("a captured menu glyph survives a fresh hidden-item scan without a Dock icon replacement")
 @MainActor
 func capturedGlyphSurvivesRefresh() async {
