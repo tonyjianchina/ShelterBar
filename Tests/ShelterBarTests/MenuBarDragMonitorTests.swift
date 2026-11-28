@@ -7,6 +7,7 @@ import Testing
 @MainActor
 func syntheticMoveIsNotCaptured() {
     let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+    #expect(monitor.refreshPermission())
     let item = ShelfItem(
         id: "test", title: "Test", icon: NSImage(), application: nil,
         menuBarReference: MenuBarItemReference(
@@ -59,6 +60,7 @@ func revokedInputAccessDoesNotConsumePhysicalClick() {
 func revokedInputAccessCancelsTrackedGesture() {
     var hasEventAccess = true
     let monitor = MenuBarDragMonitor(hasEventAccess: { hasEventAccess })
+    #expect(monitor.refreshPermission())
     let item = ShelfItem(
         id: "test", title: "Test", icon: NSImage(), application: nil,
         menuBarReference: MenuBarItemReference(
@@ -83,6 +85,7 @@ func revokedInputAccessCancelsTrackedGesture() {
     #expect(monitor.consume(.leftMouseDown, event: down))
     #expect(monitor.gesture.isTracking)
     hasEventAccess = false
+    #expect(!monitor.refreshPermission())
     #expect(!monitor.consume(.leftMouseDragged, event: drag))
     #expect(!monitor.gesture.isTracking)
 }
@@ -91,6 +94,7 @@ func revokedInputAccessCancelsTrackedGesture() {
 @MainActor
 func staleOffMenuBarHitFrameDoesNotConsumeDesktopClick() {
     let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+    #expect(monitor.refreshPermission())
     let item = ShelfItem(
         id: "stale", title: "Stale", icon: NSImage(), application: nil,
         menuBarReference: MenuBarItemReference(
@@ -114,11 +118,37 @@ func staleOffMenuBarHitFrameDoesNotConsumeDesktopClick() {
     #expect(!monitor.gesture.isTracking)
 }
 
-@Test("a user-disabled event tap is never immediately re-enabled from stale permission state")
+@Test("a system-disabled tap stays off without retrying a permission check",
+      arguments: [CGEventType.tapDisabledByUserInput, .tapDisabledByTimeout])
 @MainActor
-func userDisabledTapFailsOpen() {
-    let monitor = MenuBarDragMonitor(hasEventAccess: { true })
+func disabledTapFailsOpen(eventType: CGEventType) {
+    var permissionReads = 0
+    let monitor = MenuBarDragMonitor(hasEventAccess: {
+        permissionReads += 1
+        return true
+    })
+    #expect(monitor.refreshPermission())
+    let event = CGEvent(source: nil)!
 
-    #expect(!monitor.handleTapDisabled(.tapDisabledByUserInput))
-    #expect(monitor.handleTapDisabled(.tapDisabledByTimeout))
+    #expect(!monitor.consume(eventType, event: event))
+    #expect(!monitor.start())
+    #expect(permissionReads == 1)
+}
+
+@Test("a desktop click never waits for the operating system permission check")
+@MainActor
+func desktopClickDoesNotWaitForPermissionCheck() {
+    var permissionReads = 0
+    let monitor = MenuBarDragMonitor(hasEventAccess: {
+        permissionReads += 1
+        return true
+    })
+    #expect(monitor.refreshPermission())
+    monitor.update(isEnabled: true, items: [], shelfFrame: .zero)
+    permissionReads = 0
+    let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                       mouseCursorPosition: CGPoint(x: 400, y: 400), mouseButton: .left)!
+
+    #expect(!monitor.consume(.leftMouseDown, event: down))
+    #expect(permissionReads == 0)
 }

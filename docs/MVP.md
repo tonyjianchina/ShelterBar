@@ -42,13 +42,15 @@ A failed refresh preserves the last successful image. If no capture is available
 the shelf uses a placeholder and collection continues. Cached snapshots do not guarantee immediate
 updates for every animated or changing status.
 
-Top-item drag interception is enabled only while the shelf is visible; the
-event tap can remain installed while the shelf is closed.
-It is installed and re-enabled only while Accessibility, event listening, and
-event synthesis are all authorized. Permission loss cancels the active gesture
-and releases physical input. It has a cached hit map, skips tagged synthetic events, and does no AX queries
-in the event callback. An AppKit dragging source reports shelf-item releases in
-the top-right menu-bar area even though other apps cannot accept our drag data.
+Top-item drag interception is active while the shelf is visible and ready for
+a gesture. Closing the shelf releases the event tap once any tracked gesture
+ends. Accessibility, event listening, and event posting are checked before
+installation and periodically while the tap is active. The tap uses a dedicated
+run loop and cached permission and hit-test state. Losing permission cancels the
+gesture and removes the tap. After the system disables the tap, reopening the
+shelf starts a new permission check. An AppKit dragging source reports
+shelf-item releases in the top-right menu-bar area even though other apps cannot
+accept our drag data.
 
 A single movement operation reveals the collection boundary (a separate 3 pt
 status item left of the fixed-width archive handle), requests a native Command

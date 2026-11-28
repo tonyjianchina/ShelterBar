@@ -209,6 +209,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     func showShelf() {
+        if !panel.isVisible { monitor.beginShelfSession() }
         if !presentation.isVisible { presentation.handle(.toggle) }
         model.refresh()
         positionPanel()
@@ -262,11 +263,7 @@ final class StatusBarController: NSObject, NSWindowDelegate {
             iconRefreshTask?.cancel()
             monitor.stop()
         }
-        let monitorStarted = !model.hasAccessibilityPermission || monitor.start()
         run(.reconcile(reason), clearMessage: reason != .poll)
-        if !monitorStarted {
-            model.message = "拖动监听未启动，请在辅助功能中重新开启 ShelterBar。"
-        }
     }
 
     private func updatePermissionState(checkScreenCapture: Bool = true) {
@@ -351,12 +348,20 @@ final class StatusBarController: NSObject, NSWindowDelegate {
     }
 
     private func updateMonitor() {
+        let canIntercept = panel.isVisible && model.hasAccessibilityPermission && !model.isBusy
+            && operation == nil && screenChangeTask == nil && !shelfDragInProgress
         monitor.update(
-            isEnabled: panel.isVisible && model.hasAccessibilityPermission && !model.isBusy
-                && operation == nil && screenChangeTask == nil && !shelfDragInProgress,
+            isEnabled: canIntercept,
             items: model.residentItems.filter(\.isMovable),
             shelfFrame: MenuBarGeometry.quartz(panel.frame)
         )
+        if canIntercept {
+            if !monitor.start(), model.message == nil {
+                model.message = "拖动监听未启动，请重新打开收纳栏并检查辅助功能和输入监控。"
+            }
+        } else {
+            monitor.stopIfIdle()
+        }
     }
 
     private func showDragGhost(id: String, at point: CGPoint) {
