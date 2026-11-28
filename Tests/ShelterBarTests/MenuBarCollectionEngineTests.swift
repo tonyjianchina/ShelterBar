@@ -16,6 +16,7 @@ private final class EngineFixtureSource: ShelfItemSource, @unchecked Sendable {
 @MainActor
 private final class EngineFixtureDriver: MenuBarLayoutDriving {
     var isCollapsed = false
+    var usesBundleVisibility = false
     var transitionRegion: CGRect? = CGRect(x: 0, y: 0, width: 1200, height: 30)
     var placements: [String: MenuBarPlacement] = [:]
     var revealCount = 0
@@ -1270,6 +1271,40 @@ func engineKeepsItemRevealedWhileMenuIsOpen() async {
     #expect(driver.collectedOrder(model.scan()) == ["uu", "muse"])
     #expect(model.collectedIDs == ["uu", "muse"])
     #expect(engine.phase == .idle)
+}
+
+@Test("a hosted status item returns without revealing its neighbors when their AX positions are stale",
+      arguments: [false, true])
+@MainActor
+func engineRestoresHostedItemWithoutExpanding(visibleOrderKnown: Bool) async {
+    let (model, driver, defaults, suite) = activationFixture(collected: ["muse", "magpie"])
+    defer { defaults.removePersistentDomain(forName: suite) }
+    driver.usesBundleVisibility = true
+    driver.hiddenOrder = visibleOrderKnown ? ["muse", "magpie"] : []
+    let engine = MenuBarCollectionEngine(
+        model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { true }, screenCaptureGranted: { false },
+        press: { item in
+            #expect(item.id == "muse")
+            #expect(driver.placements["magpie"] == .collected)
+            driver.events.append("press")
+            return true
+        },
+        awaitMenuClosed: { _ in
+            driver.events.append("closed")
+            driver.hiddenOrder = ["magpie", "muse"]
+        }
+    )
+    _ = await engine.perform(.reconcile(.launch))
+
+    let outcome = await engine.perform(.activate(id: "muse"))
+
+    #expect(outcome.shouldDismissShelf)
+    #expect(driver.events == ["borrow muse", "press", "closed", "return muse before divider"])
+    #expect(driver.revealCount == 0)
+    #expect(driver.collapseCount == 0)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.placements == ["muse": .collected, "magpie": .collected])
 }
 
 @Test("when the single-item move fails, expanding the hidden section is the last resort")

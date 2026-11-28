@@ -5,6 +5,8 @@ import ShelterBarCore
 @MainActor
 protocol MenuBarLayoutDriving: AnyObject {
     var isCollapsed: Bool { get }
+    /// The host hides applications by bundle, without moving their status items.
+    var usesBundleVisibility: Bool { get }
     var transitionRegion: CGRect? { get }
     var movementFailureMessage: String? { get }
     func observedPlacement(of item: ShelfItem) -> MenuBarPlacement?
@@ -44,6 +46,7 @@ protocol MenuBarLayoutDriving: AnyObject {
 }
 
 extension MenuBarLayoutDriving {
+    var usesBundleVisibility: Bool { false }
     var lastMoveFailure: String? { nil }
     var isMenuBarAutoHidden: Bool { false }
     func confirmsMissingCollectedItem(_ item: ShelfItem) -> Bool { false }
@@ -324,13 +327,16 @@ final class MenuBarCollectionEngine {
         func fresh() -> ShelfItem { model.scan().first(where: { $0.id == id }) ?? item }
         // Preferred path: move only the clicked item into view, so the other
         // stowed icons never appear in the menu bar.
-        let order = driver.collectedOrder(model.scan())
-        if driver.isCollapsed, item.isMovable, let index = order.firstIndex(of: id),
+        let usesBundleVisibility = driver.usesBundleVisibility
+        let order = usesBundleVisibility ? [] : driver.collectedOrder(model.scan())
+        let index = order.firstIndex(of: id)
+        let isCollected = usesBundleVisibility ? driver.observedPlacement(of: item) == .collected : index != nil
+        if driver.isCollapsed, item.isMovable, isCollected,
            await driver.showMenuBarIfAutoHidden() {
-            let neighborID = order.dropFirst(index + 1).first
+            let neighborID = index.flatMap { order.dropFirst($0 + 1).first }
             // Persist before moving: a quit mid-reveal is repaired at launch.
             model.pendingRestore = MenuBarPendingRestore(
-                id: id, leftNeighbor: index > 0 ? order[index - 1] : nil, rightNeighbor: neighborID
+                id: id, leftNeighbor: index.flatMap { $0 > 0 ? order[$0 - 1] : nil }, rightNeighbor: neighborID
             )
             defer { model.pendingRestore = nil }
             await driver.waitUntilUserIdle(maximum: .milliseconds(1500))
@@ -348,14 +354,19 @@ final class MenuBarCollectionEngine {
                 let target = fresh()
                 let opened = await press(target)
                 if opened { await awaitMenuClosed(target) }
-                _ = await driver.showMenuBarIfAutoHidden()
+                if !usesBundleVisibility { _ = await driver.showMenuBarIfAutoHidden() }
                 // The item is visible right now: refresh its persisted glyph.
                 await recaptureVisible([fresh()])
-                await driver.waitUntilUserIdle(maximum: .seconds(5))
-                _ = await driver.showMenuBarIfAutoHidden()
+                if !usesBundleVisibility {
+                    await driver.waitUntilUserIdle(maximum: .seconds(5))
+                    _ = await driver.showMenuBarIfAutoHidden()
+                }
                 let neighbor = neighborID.flatMap { nid in model.scan().first(where: { $0.id == nid }) }
                 let returned = await driver.returnFromVisibleSlot(fresh(), before: neighbor)
-                if !(returned && driver.isCollapsed && driver.collectedOrder(model.scan()) == order) {
+                // Bundle visibility confirms the hidden set. AX positions of
+                // hidden items can move or disappear without any layout error.
+                if !(returned && driver.isCollapsed &&
+                     (usesBundleVisibility || driver.collectedOrder(model.scan()) == order)) {
                     menuBarMoveLog.error("single-item restore of \(id, privacy: .public) incomplete; repairing layout")
                     do {
                         try await applyLayout(collected: model.collectedIDs)

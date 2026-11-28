@@ -65,11 +65,11 @@ visible instead of revealing every collected item; no unverified success is
 persisted. Full-screen and auto-hidden menu bars and the notch are handled. Screen changes cancel the
 operation. Stable identities restore across launches; ambiguous ones do not.
 
-Opening a collected item's menu temporarily borrows a visible slot right under
-the shelf panel for that one item only, opens its menu, waits for the menu to
-close (plus a grace period), and moves it back. A pending-restore record is
-written before the borrow, so a crash mid-way is repaired on the next launch;
-the cursor is restored after each synthetic drag. Without room (e.g. beside the
+Opening a collected item's menu temporarily reveals that item. When the menu
+closes, macOS 27 applies the saved hidden applications through MenuBarAgent.
+Older systems return the item to its previous position using the nearby icons
+as anchors. A pending-restore record allows recovery on the next launch.
+The cursor is restored after each synthetic drag. Without room (e.g. beside the
 notch) it explains instead of expanding. Newly discovered items stay in the menu
 bar. Clicking the handle opens the shelf for viewing and dragging. Use the More
 menu to show all top icons or explicitly restore saved choices.
@@ -95,6 +95,8 @@ menu to show all top icons or explicitly restore saved choices.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
 - [x] Automated: the first shelf open keeps existing icons visible after an empty
   or partial initial scan. Discoveries stay visible until explicitly collected.
+- [x] Automated: returning a MenuBarAgent item leaves the other items hidden
+  when their Accessibility positions change or disappear.
 - [x] Automated: Screen Recording is requested exactly once after Accessibility
   changes from denied to granted, even while Input Monitoring is still pending.
 - [x] Automated: borrowed-slot planning avoids the notch and screen edges; pending

@@ -519,6 +519,7 @@ final class MenuBarItemMover {
             if await visibility.collapseToIntent() {
                 try? await Task.sleep(for: .milliseconds(180))
                 return visibility.isActivelyHidden(bundleID: bundleID)
+                    && visibility.activeHiddenBundleIDs == visibility.desiredHiddenBundleIDs
             }
             guard !visibility.isAvailable else {
                 return fail("MenuBarAgent did not restore the visibility restriction")
@@ -657,6 +658,8 @@ final class MenuBarItemMover {
 }
 
 extension MenuBarItemMover: MenuBarLayoutDriving {
+    var usesBundleVisibility: Bool { agentVisibility != nil }
+
     var transitionRegion: CGRect? {
         boundaryFrame.flatMap(MenuBarGeometry.menuBarRegion(containing:))
     }
