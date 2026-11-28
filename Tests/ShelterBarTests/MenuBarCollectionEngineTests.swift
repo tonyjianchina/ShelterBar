@@ -143,14 +143,15 @@ func engineIgnoresUnmanagedAXRemnant() async {
     #expect(model.collectedIDs == ["vpn"])
     #expect(driver.moves == [PlannedMenuBarMove(id: "vpn", placement: .collected)])
 
-    // A previously unavailable item becoming visible is new to the managed
-    // inventory, not permanently ignored because its stale AX entry was seen.
+    // A previously unavailable item becomes visible and manually draggable.
     driver.placements["lark-remnant"] = .resident
     remnant.menuBarReference.frame = CGRect(x: 950, y: 5, width: 56, height: 24)
     let appeared = await engine.perform(.reconcile(.poll))
     #expect(source.calls == 3)
-    #expect(appeared.didChangeLayout)
-    #expect(model.collectedIDs == ["vpn", "lark-remnant"])
+    #expect(appeared == .ignored)
+    #expect(model.collectedIDs == ["vpn"])
+    #expect(model.residentItems.map(\.id) == ["lark-remnant"])
+    #expect(driver.moves == [PlannedMenuBarMove(id: "vpn", placement: .collected)])
 }
 
 @Test("collection is not persisted if the driver cannot preserve the visible entry")
@@ -391,9 +392,42 @@ private func engineFixture(_ id: String, hidden: Bool, stable: Bool = true) -> S
     )
 }
 
-@Test("the engine adopts a newly hidden item without revealing or moving the menu bar")
+@Test("opening a fresh shelf after permissions are granted keeps all existing icons visible",
+      arguments: [0, 1])
 @MainActor
-func engineAdoptsNewHiddenItemInPlace() async {
+func engineFirstOpenKeepsDiscoveredIconsResident(initialCount: Int) async {
+    let suite = "ShelterBarFirstOpenTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let source = EngineFixtureSource()
+    var granted = false
+    let model = ShelfViewModel(source: source, defaults: defaults,
+        isTrusted: { granted }, isVisible: { $0.minX >= 0 })
+    let driver = EngineFixtureDriver()
+    let ids = ["muse", "remote", "chat", "magpie", "vortex"]
+    driver.placements = Dictionary(uniqueKeysWithValues: ids.map { ($0, .resident) })
+    let engine = MenuBarCollectionEngine(model: model, driver: driver, capture: { _ in [] },
+        accessibilityGranted: { granted }, screenCaptureGranted: { false })
+
+    _ = await engine.perform(.reconcile(.launch))
+    granted = true
+    source.entries = ids.prefix(initialCount).map { engineFixture($0, hidden: false) }
+    _ = await engine.perform(.reconcile(.poll))
+    source.entries = ids.map { engineFixture($0, hidden: false) }
+
+    let opened = await engine.perform(.reconcile(.shelfOpened))
+
+    #expect(opened == .ignored)
+    #expect(driver.moves.isEmpty)
+    #expect(driver.collapseCount == 0)
+    #expect(model.items.isEmpty)
+    #expect(Set(model.residentItems.map(\.id)) == Set(ids))
+    #expect(defaults.object(forKey: "shelf.collectedItems") == nil)
+}
+
+@Test("an unsaved item found on the hidden side is restored to the menu bar")
+@MainActor
+func engineRestoresNewUnsavedHiddenItem() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -423,10 +457,10 @@ func engineAdoptsNewHiddenItemInPlace() async {
     let outcome = await engine.perform(.reconcile(.poll))
 
     #expect(outcome.didChangeLayout)
-    #expect(driver.revealCount == 0)
-    #expect(driver.moves.isEmpty)
-    #expect(model.collectedIDs == ["new-chat"])
-    #expect(model.items.map(\.id) == ["new-chat"])
+    #expect(driver.moves == [PlannedMenuBarMove(id: "new-chat", placement: .resident)])
+    #expect(!driver.isCollapsed)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(model.items.isEmpty)
 }
 
 @Test("screen capture is optional when restoring a saved collected item")
@@ -497,9 +531,9 @@ func engineShieldsPhysicalReconciliation() async {
     #expect(transition.dismissed == 1)
 }
 
-@Test("a newly launched visible status item is moved into the collected section")
+@Test("a newly launched visible status item stays resident until explicitly collected")
 @MainActor
-func engineCollectsNewVisibleItem() async {
+func engineKeepsNewVisibleItemResident() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -526,19 +560,27 @@ func engineCollectsNewVisibleItem() async {
 
     let outcome = await engine.perform(.reconcile(.poll))
 
-    #expect(outcome.message == "已自动收纳 1 个新增图标。")
+    #expect(outcome == .ignored)
+    #expect(driver.moves.isEmpty)
+    #expect(model.collectedIDs.isEmpty)
+    #expect(driver.placements["new-vpn"] == .resident)
+
+    let collected = await engine.perform(.setPlacement(id: "new-vpn", placement: .collected))
+
+    #expect(collected.didChangeLayout)
     #expect(driver.moves == [PlannedMenuBarMove(id: "new-vpn", placement: .collected)])
     #expect(driver.collapseCount == 1)
     #expect(model.collectedIDs == ["new-vpn"])
     #expect(model.items.map(\.id) == ["new-vpn"])
 }
 
-@Test("a failed automatic move reveals everything and does not persist collection")
+@Test("a failed saved-layout restore reveals everything and preserves the saved collection")
 @MainActor
-func engineDoesNotPersistFailedAutomaticMove() async {
+func enginePreservesCollectionAfterFailedSavedRestore() async {
     let suite = "ShelterBarEngineTests.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(["new-vpn"], forKey: "shelf.collectedItems")
     let source = EngineFixtureSource()
     source.entries = [engineFixture("resident", hidden: false)]
     let model = ShelfViewModel(
@@ -564,7 +606,7 @@ func engineDoesNotPersistFailedAutomaticMove() async {
     let outcome = await engine.perform(.reconcile(.poll))
 
     #expect(outcome.message == "部分收纳图标未能移动，已展开菜单栏。")
-    #expect(model.collectedIDs.isEmpty)
+    #expect(model.collectedIDs == ["new-vpn"])
     #expect(driver.isCollapsed == false)
     #expect(engine.phase == .degraded("部分收纳图标未能移动，已展开菜单栏。"))
 

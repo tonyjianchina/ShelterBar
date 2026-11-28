@@ -103,8 +103,6 @@ final class MenuBarCollectionEngine {
     private let press: @MainActor (ShelfItem) async -> Bool
     private let awaitMenuClosed: @MainActor (ShelfItem) async -> Void
     private let transitionShield: MenuBarTransitionShield?
-    private var knownItemIDs = Set<String>()
-    private var didSeedInventory = false
     private var suspendAutomaticReconciliation = false
 
     init(
@@ -178,8 +176,6 @@ final class MenuBarCollectionEngine {
         updatePermissions(checkScreenCapture: reason != .poll)
         guard model.hasAccessibilityPermission else {
             driver.revealImmediately()
-            knownItemIDs.removeAll()
-            didSeedInventory = false
             model.refresh()
             phase = .idle
             return MenuBarCollectionOutcome(message: "请允许辅助功能权限以管理菜单栏图标。")
@@ -215,17 +211,14 @@ final class MenuBarCollectionEngine {
                 isMovable: $0.isMovable
             )
         }
-        let availableIDs = Set(observed.filter { $0.placement != nil }.map(\.id))
-        if !didSeedInventory {
-            knownItemIDs = availableIDs
-            didSeedInventory = true
-        }
         let previouslyCollectedIDs = model.collectedIDs
         let plan = MenuBarReconciliation.plan(MenuBarReconciliationRequest(
             items: observed,
-            knownItemIDs: knownItemIDs,
+            knownItemIDs: [],
             desiredCollectedIDs: previouslyCollectedIDs,
-            newItemPolicy: .collect
+            // The initial scan can be empty or partial. Only an explicit
+            // placement change adds to the saved selection.
+            newItemPolicy: .keepVisible
         ))
 
         do {
@@ -257,15 +250,11 @@ final class MenuBarCollectionEngine {
             for id in previouslyCollectedIDs.subtracting(plan.desiredCollectedIDs) {
                 model.setCollected(false, id: id)
             }
-            for id in plan.adoptedCollectedIDs { model.setCollected(true, id: id) }
-            knownItemIDs.formUnion(availableIDs)
             model.refresh()
             phase = .idle
 
-            let adoptedCount = plan.adoptedCollectedIDs.count
             return MenuBarCollectionOutcome(
-                message: adoptedCount == 0 ? nil : "已自动收纳 \(adoptedCount) 个新增图标。",
-                didChangeLayout: needsPhysicalChange || missingIcons || adoptedCount > 0
+                didChangeLayout: needsPhysicalChange || missingIcons
             )
         } catch {
             return await degrade(error)
@@ -293,14 +282,12 @@ final class MenuBarCollectionEngine {
         do {
             try await applyLayout(collected: desired, preferredMove: (id, placement, dropPoint))
             model.setCollected(placement == .collected, id: id)
-            knownItemIDs.insert(id)
             model.refresh()
             phase = .idle
             return MenuBarCollectionOutcome(didChangeLayout: true)
         } catch CollectionEngineError.preferredMoveRejected(let message) {
             // The rest of the layout was restored and verified; only this one
             // item keeps its previous side, so nothing else is unstowed.
-            knownItemIDs.insert(id)
             model.message = message
             model.refresh()
             phase = .idle

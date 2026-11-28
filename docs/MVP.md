@@ -70,9 +70,9 @@ the shelf panel for that one item only, opens its menu, waits for the menu to
 close (plus a grace period), and moves it back. A pending-restore record is
 written before the borrow, so a crash mid-way is repaired on the next launch;
 the cursor is restored after each synthetic drag. Without room (e.g. beside the
-notch) it explains instead of expanding. Newly discovered movable items are automatically
-adopted into the collected set; an item already off-row remains in place without
-an expand/collapse cycle. The More menu can always show all top icons.
+notch) it explains instead of expanding. Newly discovered items stay in the menu
+bar. Opening the shelf restores saved choices, and adding an item requires an
+explicit placement change. The More menu can always show all top icons.
 
 ## Acceptance checks
 
@@ -93,8 +93,8 @@ an expand/collapse cycle. The More menu can always show all top icons.
 - [x] Automated: a destination intersecting the camera housing is rejected before input is posted.
 - [x] Runtime: ShelterBar publishes one visible status item that serves as both handle and boundary.
 - [x] Automated: a saved collected item still visible on top is not duplicated.
-- [x] Automated: newly discovered visible and already-hidden items are collected
-  without enumerating app or icon identities.
+- [x] Automated: the first shelf open keeps existing icons visible after an empty
+  or partial initial scan. Discoveries stay visible until explicitly collected.
 - [x] Automated: Screen Recording is requested exactly once after Accessibility
   changes from denied to granted, even while Input Monitoring is still pending.
 - [x] Automated: borrowed-slot planning avoids the notch and screen edges; pending
