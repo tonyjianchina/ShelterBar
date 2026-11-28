@@ -6,6 +6,8 @@
 
 ## 沙盒路径核验
 
+本日第二轮重新检索后的详细记录见 [沙盒核心可行性复核](validation/MAS-SANDBOX-20261128.md)。新增核查了 Hidden Bar 当前商店说明与固定提交源码、macOS 27 公开的考试会话菜单栏接口、System Events 本机脚本字典和近期 DTS 问答。没有找到适用于 ShelterBar 日常收纳的完整合规后端；没有解除 Archive gate。
+
 2026-11-28 通过 ego-browser 读取的 Apple 官方资料：
 
 1. [App Review Guidelines 2.4.5 和 2.5.1](https://developer.apple.com/app-store/review/guidelines/)：Mac App Store 版本必须沙盒化、用 Xcode 技术打包、仅由商店更新，并使用公开 API。
@@ -24,8 +26,10 @@
 
 考虑过的公开方案也不能被当作已经完成的替代实现：
 
-- **自己的分隔状态项 + 用户按 Command 排列。** 只能用公开 API 改自己的长度/可见性；靠挤出其他图标并不等于受支持的独立收纳架，也不能提供原来的无 Command 拖入、独立点击原菜单、三屏一致行为。没有在本次制造一个看似可用的替代包。
-- **给所有目标加 Apple Events 例外。** 当前根本不发送 Apple Event；第三方状态项也没有通用脚本接口。
+- **自己的分隔状态项 + 用户按 Command 排列。** Hidden Bar 证明该路线有旧系统的商店先例，但其[当前商店页面](https://apps.apple.com/us/app/hidden-bar/id1452453066?mt=12)和公开源码明确说明 macOS 27 的商店沙盒版不能隐藏图标。不能通过改自身长度就宣称当前系统核心可用；也未完成 ShelterBar 原有收纳架交互的替代。
+- **把 Apple Events / System Events 改成新后端。** 本轮专门核查此方向，而非仅以当前没发事件为由排除。System Events 的命名权限组只覆盖窗口位置/大小，没有菜单栏项目对应组；没有找到覆盖任意图标收纳、恢复及原菜单的已记录脚本路径。临时指定目标也不是通用 UI 授权。
+- **macOS 27 考试会话的公开菜单栏接口。** `AEAssessmentConfiguration.allowedMenuBarItems` 确实存在，但属于需要 Apple 授权的考试会话，没有被记录为普通收纳工具的能力。没有申请或用考试会话替代日常收纳。
+- **Mach 服务临时例外。** 该 entitlement 是真的，但 [2026-11-02 的 DTS 答复](https://developer.apple.com/forums/thread/854711)澄清：没有恢复 AX 的专用例外，内部 Mach 服务名不属于公开 API。不能把调用私有协议包装成合规公开后端。
 - **内置不受沙盒约束的 helper/XPC，或要求用户另装直装助手。** 前者不能规避继承沙盒的要求；后者也无法满足单一商店安装后核心可用的目标。
 - **申请未记载的 AX / 全局 HID entitlement。** 官方 entitlement 文档及上述技术说明没有提供这种通路；不能自行创造 key。
 
@@ -113,7 +117,7 @@ ExportOptions 使用本机 Xcode 帮助列出的 `app-store-connect`，`destinat
 2. 账号持有人确认开发者会员和协议，注册 `com.jensen.shelterbar`，选择实际团队；准备 Mac App Store 应用分发证书、Mac Installer Distribution 证书及匹配的 Mac 描述文件，或让 Xcode 在已授权账号中管理。开发证书和自签名不能替代商店分发签名。
 3. 用未来可用的 AppStore scheme Archive、本地 Export，检查签名中的沙盒 entitlement、描述文件、更新器/私有 API、嵌入资源、递增的 build 号及安装后功能。本分支仍使用 0.5.14 / 38，没有伪造新发布版本。
 4. 发起人部署并核验隐私页；准备真实截图和最终双语文案，填写隐私、年龄、加密、免费价格和包含中国大陆的地区、DSA 身份及 Connect 实际显示的中国大陆合规字段。仓库不能代替账号持有人声明，也不预先断言备案豁免。
-5. 用户另行授权后，才可上传、等待处理、提交审核。本任务明确禁止这些操作。
+5. 用户已授权整体流程按顺序推进到审核；本轮任务范围仍明确禁止上传和提交，留给后续任务，不能记作已经完成。
 
 **公证区别：** [Apple 公证说明](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution)针对 Developer ID 的商店外分发；Mac App Store 有自己的分发与审核流程，不要求维护者先跑 `notarytool` 公证 DMG。当前直装包仍为自签名、未公证；需要改善商店外安装体验时另做 Developer ID 分发，不混为此次商店阻塞。
 
